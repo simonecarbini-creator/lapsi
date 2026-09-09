@@ -1,11 +1,12 @@
-const APP_BUILD = '2026-09-09n';
-console.log('[Lapsi] build', APP_BUILD, '— localStorage v2 + importa JSON');
+const APP_BUILD = '2026-09-09o';
+console.log('[Lapsi] build', APP_BUILD, '— 800mt, ordine A-Z default, data concorso in modifica, assi grafico con base fissa');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
 const STORAGE_KEY = 'lapsi-athletes';
 const ACTIVITY_OPTIONS = [
   { label: '100mt', meters: 100 },
+  { label: '800mt', meters: 800 },
   { label: '1km', meters: 1000 },
   { label: '1.2km', meters: 1200 },
   { label: '2km', meters: 2000 },
@@ -42,7 +43,7 @@ const filtersApplyButton = document.getElementById('filters-apply');
 const filtersResetButton = document.getElementById('filters-reset');
 const athleteSuggestions = document.getElementById('athlete-suggestions');
 
-const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'best' };
+const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'az' };
 // activeDistance/activeSort = ciò che la lista mostra ora (anche l'anteprima live
 // mentre il pannello filtri è aperto). filterSnapshot = valori confermati da
 // ripristinare se si chiude senza premere "Applica".
@@ -554,6 +555,17 @@ function createEditForm(entry) {
     .join('');
   const w = (suffix) => `w-${entry.id}-${suffix}`;
 
+  // Data del concorso mostrata sulla card = concorsoDate del record più recente.
+  const latestRecord = getLatestAthleteTime(entry);
+  const concorsoNativeValue = (() => {
+    const ts = latestRecord ? parseItDate(latestRecord.concorsoDate || '') : null;
+    if (ts === null) {
+      return '';
+    }
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+
   const dateParts = (value) => {
     const parts = String(value || '').split('/');
     return { gg: parts[0] || '', mo: parts[1] || '', yy: (parts[2] || '').slice(-2) };
@@ -686,6 +698,11 @@ function createEditForm(entry) {
           <option value="Esercito" ${entry.military === 'Esercito' ? 'selected' : ''}>Esercito</option>
         </select>
       </div>
+      ${latestRecord ? `
+      <div class="field-group">
+        <label>Data del concorso</label>
+        <input class="native-date" name="edit-concorso-date" type="date" value="${concorsoNativeValue}" />
+      </div>` : ''}
     </div>
 
     <div class="edit-section">
@@ -876,6 +893,11 @@ function parseItDate(dateStr) {
 
 const CHART_RUN_COLOR = '#FF5C3A';
 const CHART_JUMP_COLOR = '#8b5cf6';
+// Base fissa degli assi: la corsa parte da 7:00 (fondo dell'asse), l'alto da 1,00 m
+// (misura minima). Se un risultato reale sfora questi limiti, l'asse si allarga per
+// contenerlo comunque.
+const CHART_RUN_FLOOR_S = 7 * 60;
+const CHART_JUMP_FLOOR_M = 1.0;
 
 function formatChartClock(totalSeconds) {
   const safe = Math.max(0, Math.round(totalSeconds));
@@ -926,7 +948,7 @@ function buildResultsChart(runHistory, jumpHistory) {
   // invert: valori "migliori" in alto (per la corsa il tempo più basso sta sopra,
   // così una progressione positiva fa salire la linea).
   // snap: aggancia gli estremi dell'asse a una griglia (es. 0.05 m = 5 cm).
-  const scaleFor = (points, { invert = false, snap = 0 } = {}) => {
+  const scaleFor = (points, { invert = false, snap = 0, fixedLo = null, fixedHi = null } = {}) => {
     const values = points.map((point) => point.v);
     let lo = Math.min(...values);
     let hi = Math.max(...values);
@@ -935,6 +957,12 @@ function buildResultsChart(runHistory, jumpHistory) {
       const unit = Math.round(snap * 100);
       let loUnits = Math.floor(Math.round(lo * 100) / unit) * unit;
       let hiUnits = Math.ceil(Math.round(hi * 100) / unit) * unit;
+      if (fixedLo !== null) {
+        loUnits = Math.min(loUnits, Math.round((fixedLo * 100) / unit) * unit);
+      }
+      if (fixedHi !== null) {
+        hiUnits = Math.max(hiUnits, Math.round((fixedHi * 100) / unit) * unit);
+      }
       if (hiUnits <= loUnits) {
         hiUnits = loUnits + unit;
       }
@@ -947,6 +975,12 @@ function buildResultsChart(runHistory, jumpHistory) {
       const pad = (hi - lo) * 0.14 || hi * 0.06 || 1;
       lo -= pad;
       hi += pad;
+      if (fixedLo !== null) {
+        lo = Math.min(lo, fixedLo);
+      }
+      if (fixedHi !== null) {
+        hi = Math.max(hi, fixedHi);
+      }
     }
 
     const span = hi - lo || 1;
@@ -1012,7 +1046,7 @@ function buildResultsChart(runHistory, jumpHistory) {
   let runLayer = '';
   let runTicks = '';
   if (hasRun) {
-    const scale = scaleFor(runPoints, { invert: true });
+    const scale = scaleFor(runPoints, { invert: true, fixedHi: CHART_RUN_FLOOR_S });
     runLayer = seriesSvg(runPoints, scale, CHART_RUN_COLOR);
     runTicks = axisTicks(scale, formatChartClock, mL - 5, 'end', CHART_RUN_COLOR);
   }
@@ -1020,7 +1054,7 @@ function buildResultsChart(runHistory, jumpHistory) {
   let jumpLayer = '';
   let jumpTicks = '';
   if (hasJump) {
-    const scale = scaleFor(jumpPoints, { snap: 0.05 });
+    const scale = scaleFor(jumpPoints, { snap: 0.05, fixedLo: CHART_JUMP_FLOOR_M });
     jumpLayer = seriesSvg(jumpPoints, scale, CHART_JUMP_COLOR);
     jumpTicks = axisTicks(scale, (value) => value.toFixed(2), W - mR + 5, 'start', CHART_JUMP_COLOR);
   }
@@ -1892,6 +1926,21 @@ async function handleEditSubmit(event) {
       }
     }
   });
+
+  // Data del concorso (Anagrafica): aggiorna il concorsoDate del record che era il
+  // più recente all'apertura del form (quello mostrato sulla card).
+  const concorsoInput = editForm.querySelector('[name="edit-concorso-date"]');
+  if (concorsoInput && concorsoInput.value) {
+    const latestBefore = getLatestAthleteTime(athletes[targetIndex]);
+    const parts = concorsoInput.value.split('-');
+    if (latestBefore && parts.length === 3) {
+      const newConcorso = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+      const targetRecord = times.find((record) => record.id === latestBefore.id);
+      if (targetRecord && targetRecord.concorsoDate !== newConcorso) {
+        targetRecord.concorsoDate = newConcorso;
+      }
+    }
+  }
 
   updatedEntry.times = [...times, ...added];
 
