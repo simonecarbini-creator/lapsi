@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-09o';
-console.log('[Lapsi] build', APP_BUILD, '— 800mt, ordine A-Z default, data concorso in modifica, assi grafico con base fissa');
+const APP_BUILD = '2026-09-09p';
+console.log('[Lapsi] build', APP_BUILD, '— checkbox "Setta data del risultato" nei nuovi risultati');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -565,6 +565,17 @@ function createEditForm(entry) {
     const d = new Date(ts);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
+  const todayNativeValue = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  const resultDateField = (prefix) => `
+    <label class="result-date-toggle">
+      <input type="checkbox" name="edit-${prefix}-setdate" />
+      <span>Setta data del risultato</span>
+    </label>
+    <input class="native-date result-date-field" name="edit-${prefix}-date" type="date" value="${todayNativeValue}" hidden />
+  `;
 
   const dateParts = (value) => {
     const parts = String(value || '').split('/');
@@ -731,6 +742,7 @@ function createEditForm(entry) {
             <input class="seg-cell seg-cell-narrow" name="edit-nt-tenths" type="text" inputmode="numeric" maxlength="1" data-max="9" value="0" aria-label="decimi" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
           </div>
         </div>
+        ${resultDateField('nt')}
       </div>
       <div class="field-group">
         <label>Salto in alto</label>
@@ -748,6 +760,7 @@ function createEditForm(entry) {
           <input type="hidden" class="ruler-m" name="edit-nh-m" value="0" />
           <input type="hidden" class="ruler-cm" name="edit-nh-cm" value="0" />
         </div>
+        ${resultDateField('nh')}
       </div>
     </div>
 
@@ -792,6 +805,21 @@ function createEditForm(entry) {
 
   // Store the original avatar in the form for fallback
   editForm.dataset.editAvatarData = editAvatarData || '';
+
+  // "Setta data del risultato": la checkbox mostra/nasconde il date picker del
+  // nuovo risultato (corsa o salto).
+  editForm.querySelectorAll('.result-date-toggle input[type="checkbox"]').forEach((checkbox) => {
+    const field = checkbox.closest('.field-group').querySelector('.result-date-field');
+    if (!field) {
+      return;
+    }
+    checkbox.addEventListener('change', () => {
+      field.hidden = !checkbox.checked;
+      if (checkbox.checked) {
+        field.focus();
+      }
+    });
+  });
 
   return editForm;
 }
@@ -1829,6 +1857,20 @@ async function handleEditSubmit(event) {
   const newId = () => `time-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const added = [];
 
+  // Data del nuovo risultato: se la checkbox "Setta data del risultato" è flaggata
+  // si usa la data scelta (per date / createdAt / concorsoDate), altrimenti oggi.
+  const resultDate = (prefix) => {
+    const checkbox = editForm.querySelector(`[name="edit-${prefix}-setdate"]`);
+    const field = editForm.querySelector(`[name="edit-${prefix}-date"]`);
+    if (!checkbox || !checkbox.checked || !field || !field.value) {
+      return { date: now.date, iso: now.iso, concorso };
+    }
+    const [year, month, day] = field.value.split('-').map(Number);
+    const localDate = `${pad(day)}/${pad(month)}/${year}`;
+    const ts = new Date(year, month - 1, day, 12, 0, 0).getTime();
+    return { date: localDate, iso: new Date(ts).toISOString(), concorso: shortYearDate(localDate) };
+  };
+
   const newTime = formatTimeFromParts({
     hours: editVal('edit-nt-hours'),
     minutes: editVal('edit-nt-minutes'),
@@ -1836,14 +1878,15 @@ async function handleEditSubmit(event) {
     tenths: editVal('edit-nt-tenths'),
   });
   if (newTime !== '00:00:00.0') {
+    const rd = resultDate('nt');
     added.push({
       id: newId(),
       activity: editForm.querySelector('[name="edit-new-activity"]').value || '1km',
       time: newTime,
-      date: now.date,
+      date: rd.date,
       timeInserted: now.time,
-      createdAt: now.iso,
-      concorsoDate: concorso,
+      createdAt: rd.iso,
+      concorsoDate: rd.concorso,
     });
   }
 
@@ -1851,23 +1894,25 @@ async function handleEditSubmit(event) {
   const jumpCm = editVal('edit-nh-cm');
   const takeoffFoot = editForm.querySelector('[name="edit-new-foot"]').value;
   if (jumpM > 0 || jumpCm > 0 || takeoffFoot) {
+    const rd = resultDate('nh');
     added.push({
       id: newId(),
       activity: 'Salto in alto',
       time: '00:00:00.0',
-      date: now.date,
+      date: rd.date,
       timeInserted: now.time,
-      createdAt: now.iso,
-      concorsoDate: concorso,
+      createdAt: rd.iso,
+      concorsoDate: rd.concorso,
       takeoffFoot,
       jumpHeight: `${jumpM}.${pad(jumpCm)}`,
     });
   }
 
   if (added.length) {
-    const baseTs = Date.parse(now.iso);
+    // piccolo offset progressivo così due nuovi record non condividono lo stesso
+    // istante (mantenendo comunque la data scelta dall'utente).
     added.forEach((record, index) => {
-      record.createdAt = new Date(baseTs + index).toISOString();
+      record.createdAt = new Date(Date.parse(record.createdAt) + index).toISOString();
     });
   }
 
