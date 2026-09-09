@@ -1,0 +1,16 @@
+:root{
+  --ink-900:#0E0D12;
+  --surface-800:#141320;
+  --line:#232130;
+  --bone-50:#E8E4D9;
+  --muted:#9A97A3;
+  --flare:#FF5C3A;
+  --flare-deep:#C4381A;
+  --font-ui:"Archivo",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,monospace;
+  --font-logo:"Monoton",cursive;
+  --radius-sm:6px; --radius-md:10px; --radius-pill:999px;
+}
+body{background:var(--ink-900);color:var(--bone-50);font-family:var(--font-ui);}
+a{color:var(--flare);text-decoration:none;} a:hover{color:var(--bone-50);}
+.lapsi-timer{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}

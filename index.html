@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Lapsi</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="brand/favicon.svg" />
+    <script>document.write('<link rel="stylesheet" href="styles.css?_=' + Date.now() + '">');</script>
+  </head>
+  <body>
+    <div id="splash-screen" class="splash-screen" aria-hidden="true">
+      <div class="splash-inner">
+        <img src="brand/lapsi-logo-light.svg" alt="Lapsi" class="splash-logo" />
+        <p class="splash-payoff" aria-label="Track. Time. Analyze.">
+          <span>Track.</span>
+          <span>Time.</span>
+          <span>Analyze.</span>
+        </p>
+        <div class="splash-bar"><span class="splash-bar-fill"></span></div>
+      </div>
+    </div>
+
+    <div id="home-screen" class="home-screen">
+      <div class="home-inner">
+        <img src="brand/lapsi-logo-dark.svg" alt="Lapsi" class="home-logo" />
+        <div class="home-buttons">
+          <button type="button" class="home-btn" disabled>Velocisti</button>
+          <button type="button" class="home-btn" disabled>Mezzofondisti</button>
+          <button type="button" class="home-btn" id="enter-militari">C. Militari</button>
+          <button type="button" class="home-btn" disabled>Tapascioni</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="app-shell" hidden>
+      <header class="topbar">
+        <button type="button" id="back-home" class="back-btn" aria-label="Torna alla home">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+        </button>
+        <img src="brand/lapsi-logo-dark.svg" alt="Lapsi" class="topbar-logo" />
+        <span class="topbar-spacer" aria-hidden="true"></span>
+      </header>
+
+      <div class="app-toolbar">
+        <button type="button" id="open-register" class="toolbar-btn toolbar-btn-primary" aria-label="Registra nuovo atleta">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+        <button type="button" id="toggle-search" class="toolbar-btn toolbar-toggle" aria-label="Cerca atleta" aria-expanded="false" aria-controls="athlete-search-panel">
+          <span class="ic ic-main" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <span class="ic ic-close" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" id="toggle-filters" class="toolbar-btn toolbar-toggle" aria-label="Mostra filtri" aria-expanded="false" aria-controls="athlete-filters">
+          <span class="ic ic-main" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
+              <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="ic ic-close" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <div class="tool-panel" id="athlete-search-panel" hidden>
+        <input id="athlete-search" type="search" placeholder="Cerca nome o cognome" aria-label="Cerca atleta" />
+      </div>
+
+      <div class="tool-panel" id="athlete-filters" hidden>
+        <div class="filter-block">
+          <p class="filter-heading">Distanza</p>
+          <div class="chip-row" id="distance-chips" role="group" aria-label="Distanza">
+            <button type="button" class="fchip" data-value="Tutte">Tutte</button>
+            <button type="button" class="fchip" data-value="100mt">100mt</button>
+            <button type="button" class="fchip" data-value="1km">1km</button>
+            <button type="button" class="fchip" data-value="1.2km">1.2km</button>
+            <button type="button" class="fchip" data-value="2km">2km</button>
+          </div>
+        </div>
+        <div class="filter-block">
+          <p class="filter-heading">Ordinamento</p>
+          <div class="chip-row chip-row-wrap" id="sort-chips" role="group" aria-label="Ordinamento">
+            <button type="button" class="fchip" data-value="az">A-Z</button>
+            <button type="button" class="fchip" data-value="za">Z-A</button>
+            <button type="button" class="fchip" data-value="recent">Più recenti</button>
+            <button type="button" class="fchip" data-value="oldest">Meno recenti</button>
+            <button type="button" class="fchip" data-value="best">Miglior tempo</button>
+            <button type="button" class="fchip" data-value="worst">Peggior tempo</button>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button type="button" id="filters-apply" class="fbtn fbtn-primary">Applica</button>
+          <button type="button" id="filters-reset" class="fbtn fbtn-ghost">Reset</button>
+        </div>
+      </div>
+
+      <section class="list-section">
+        <div class="list-head">
+          <h2 class="list-title">
+            <svg class="list-head-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Atleti registrati
+          </h2>
+          <span class="list-count" id="athlete-count">0</span>
+        </div>
+        <div id="empty-state" class="empty-state">Nessun atleta ancora registrato.</div>
+        <ul id="athletes-list" class="athletes-list" aria-live="polite"></ul>
+        <nav id="athlete-pagination" class="pagination" hidden aria-label="Paginazione atleti"></nav>
+      </section>
+
+      <footer class="app-footer">
+        <img src="brand/lapsi-logo-dark.svg" alt="Lapsi" class="app-footer-logo" />
+        <span class="app-footer-tag">Track · Time · Analyze</span>
+      </footer>
+    </main>
+
+    <div class="register-screen" id="register-screen" hidden>
+      <header class="register-screen-head">
+        <h2>Registra nuovo atleta</h2>
+        <button type="button" id="close-register" class="register-close" aria-label="Chiudi">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
+      </header>
+      <div class="register-screen-body">
+        <form id="athlete-form" novalidate autocomplete="off">
+          <div class="field-row">
+            <div class="field-group">
+              <label for="name">Nome</label>
+              <input id="name" name="athlete-name" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Mario" required />
+            </div>
+
+            <div class="field-group">
+              <label for="surname">Cognome</label>
+              <input id="surname" name="athlete-surname" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Rossi" required />
+            </div>
+          </div>
+
+          <div id="athlete-suggestions" class="suggestions-list" hidden></div>
+
+          <div class="field-group avatar-field">
+            <label for="avatar">Foto profilo</label>
+            <div class="avatar-input-wrapper">
+              <input id="avatar" name="avatar" type="file" accept="image/*" />
+              <div id="avatar-preview" class="avatar-circle avatar-empty">
+                <span class="avatar-placeholder">+</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="military">Corpo militare</label>
+            <select id="military" name="military">
+              <option value="">Seleziona</option>
+              <option value="Polizia">Polizia</option>
+              <option value="Carabinieri">Carabinieri</option>
+              <option value="Finanza">Finanza</option>
+              <option value="Vigili del fuoco">Vigili del fuoco</option>
+              <option value="Aeronautica">Aeronautica</option>
+              <option value="Marina">Marina</option>
+              <option value="Gendarmeria">Gendarmeria</option>
+              <option value="Esercito">Esercito</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="concorso-date">Data concorso</label>
+            <input type="date" id="concorso-date" class="native-date" />
+            <input type="hidden" id="concorsoDay" name="concorsoDay" value="01" />
+            <input type="hidden" id="concorsoMonth" name="concorsoMonth" value="01" />
+            <input type="hidden" id="concorsoYear" name="concorsoYear" value="00" />
+          </div>
+
+          <div class="field-group">
+            <label for="activity">Attività di corsa</label>
+            <select id="activity" name="activity">
+              <option value="100mt">100mt</option>
+              <option value="1km" selected>1km</option>
+              <option value="1.2km">1.2km</option>
+              <option value="2km">2km</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label>Tempo corsa</label>
+            <div class="seg-input" role="group" aria-label="Tempo corsa">
+              <div class="seg-field">
+                <span class="seg-label">h</span>
+                <input class="seg-cell" id="hours" name="hours" type="text" inputmode="numeric" maxlength="2" data-max="99" value="00" aria-label="ore" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+              </div>
+              <span class="seg-colon">:</span>
+              <div class="seg-field">
+                <span class="seg-label">min</span>
+                <input class="seg-cell" id="minutes" name="minutes" type="text" inputmode="numeric" maxlength="2" data-max="59" value="00" aria-label="minuti" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+              </div>
+              <span class="seg-colon">:</span>
+              <div class="seg-field">
+                <span class="seg-label">sec</span>
+                <input class="seg-cell" id="seconds" name="seconds" type="text" inputmode="numeric" maxlength="2" data-max="59" value="00" aria-label="secondi" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+              </div>
+              <span class="seg-colon">.</span>
+              <div class="seg-field">
+                <span class="seg-label">dec</span>
+                <input class="seg-cell seg-cell-narrow" id="tenths" name="tenths" type="text" inputmode="numeric" maxlength="1" data-max="9" value="0" aria-label="decimi" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+              </div>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="takeoffFoot">Salto in alto</label>
+            <select id="takeoffFoot" name="takeoffFoot">
+              <option value="">Piede di stacco</option>
+              <option value="Sinistro">Sinistro</option>
+              <option value="Destro">Destro</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label>Altezza max saltata</label>
+            <div class="ruler" id="jump-ruler" data-min="0" data-max="250" data-step="5" aria-label="Altezza salto in alto">
+              <div class="ruler-readout"><span class="ruler-value">—</span><span class="ruler-unit">m</span></div>
+              <div class="ruler-viewport">
+                <div class="ruler-strip"></div>
+                <span class="ruler-needle" aria-hidden="true"></span>
+              </div>
+              <input type="hidden" class="ruler-m" id="jumpMeters" name="jumpMeters" value="0" />
+              <input type="hidden" class="ruler-cm" id="jumpCm" name="jumpCm" value="0" />
+            </div>
+          </div>
+
+          <div class="field-group readonly-field" hidden>
+            <label>Data e ora inserimento</label>
+            <div class="date-time-row">
+              <div class="info-pill">
+                <span class="info-label">Data</span>
+                <strong id="createdDate">--</strong>
+              </div>
+              <div class="info-pill">
+                <span class="info-label">Ora</span>
+                <strong id="createdTime">--</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="primary-btn">Salva atleta</button>
+            <button type="button" id="export-json" class="secondary-btn">Esporta JSON</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>document.write('<scr' + 'ipt src="app.js?_=' + Date.now() + '"></scr' + 'ipt>');</script>
+  </body>
+</html>
