@@ -1,7 +1,9 @@
-const APP_BUILD = '2026-09-09m';
-console.log('[Lapsi] build', APP_BUILD, '— persistenza su localStorage (deploy statico)');
+const APP_BUILD = '2026-09-09n';
+console.log('[Lapsi] build', APP_BUILD, '— localStorage v2 + importa JSON');
 
-const STORAGE_KEY = 'run-tracker-athletes';
+// Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
+// sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
+const STORAGE_KEY = 'lapsi-athletes';
 const ACTIVITY_OPTIONS = [
   { label: '100mt', meters: 100 },
   { label: '1km', meters: 1000 },
@@ -31,6 +33,8 @@ const createdTimeInput = document.getElementById('createdTime');
 const athletesList = document.getElementById('athletes-list');
 const emptyState = document.getElementById('empty-state');
 const exportButton = document.getElementById('export-json');
+const importButton = document.getElementById('import-json');
+const importFileInput = document.getElementById('import-json-file');
 const athleteSearchInput = document.getElementById('athlete-search');
 const distanceChips = document.getElementById('distance-chips');
 const sortChips = document.getElementById('sort-chips');
@@ -1918,6 +1922,59 @@ function exportEntriesAsJson() {
   URL.revokeObjectURL(url);
 }
 
+async function importEntriesFromJson(file) {
+  if (!file) {
+    return;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(await file.text());
+  } catch (error) {
+    await showConfirm('File non valido', {
+      detail: 'Non sembra un JSON leggibile.',
+      confirmText: 'Ok',
+      cancelText: 'Chiudi',
+    });
+    return;
+  }
+
+  const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.athletes) ? parsed.athletes : null;
+  if (!list) {
+    await showConfirm('File non valido', {
+      detail: 'Il JSON non contiene un elenco di atleti.',
+      confirmText: 'Ok',
+      cancelText: 'Chiudi',
+    });
+    return;
+  }
+
+  const normalized = list.map(normalizeAthlete).filter(Boolean);
+  if (!normalized.length) {
+    await showConfirm('Nessun atleta valido nel file', {
+      confirmText: 'Ok',
+      cancelText: 'Chiudi',
+    });
+    return;
+  }
+
+  const current = getAthletes().length;
+  const confirmed = await showConfirm(`Importare ${normalized.length} atleti?`, {
+    detail: current
+      ? `Sostituiranno i ${current} atleti attualmente presenti su questo dispositivo.`
+      : 'Verranno caricati su questo dispositivo.',
+    confirmText: 'Importa',
+    cancelText: 'Annulla',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  await saveEntries(normalized);
+  currentPage = 1;
+  renderEntries();
+  showToast('Import completato!');
+}
+
 function handleSuggestionInput() {
   renderSuggestions();
 }
@@ -2162,6 +2219,14 @@ athletesList.addEventListener('input', (event) => {
   button.disabled = input.value.trim() === '';
 });
 exportButton.addEventListener('click', exportEntriesAsJson);
+if (importButton && importFileInput) {
+  importButton.addEventListener('click', () => importFileInput.click());
+  importFileInput.addEventListener('change', async () => {
+    const file = importFileInput.files && importFileInput.files[0];
+    importFileInput.value = '';
+    await importEntriesFromJson(file);
+  });
+}
 athleteSearchInput.addEventListener('input', () => {
   currentPage = 1;
   renderEntries();
