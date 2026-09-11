@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11n';
-console.log('[Lapsi] build', APP_BUILD, '— autodetect pagina in cache (HTML/JS disallineati)');
+const APP_BUILD = '2026-09-11o';
+console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: fix formattazione touch + scroll bloccato dietro overlay');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -96,6 +96,28 @@ if (splashScreen) {
     splashScreen.classList.add('is-hiding');
     setTimeout(() => splashScreen.remove(), 550);
   }, 2800);
+}
+
+// Blocco scroll del body dietro le schermate a overlay. Su iOS Safari
+// `overflow: hidden` sul body non basta: lo scroll "sfonda" comunque verso il
+// contenuto sottostante. Fissare il body con position:fixed lo rende
+// realmente immobile; al termine si ripristina l'esatta posizione di scroll.
+let bodyScrollLockY = 0;
+function lockBodyScroll() {
+  bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
+  document.body.classList.add('register-open');
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${bodyScrollLockY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+}
+function unlockBodyScroll() {
+  document.body.classList.remove('register-open');
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  window.scrollTo(0, bodyScrollLockY);
 }
 
 // Il menu è un overlay: si apre sopra il contenuto (che resta fermo dietro una
@@ -2712,7 +2734,7 @@ function setCollapsibleOpen(button, panel, open) {
 
 function openRegisterScreen() {
   registerScreen.hidden = false;
-  document.body.classList.add('register-open');
+  lockBodyScroll();
   registerScreen.scrollTop = 0;
   populateInsertionFields();
   nameInput.focus();
@@ -2720,7 +2742,7 @@ function openRegisterScreen() {
 
 function closeRegisterScreen() {
   registerScreen.hidden = true;
-  document.body.classList.remove('register-open');
+  unlockBodyScroll();
 }
 
 if (openRegisterButton) {
@@ -3812,14 +3834,14 @@ velSurnameInput.addEventListener('input', updateVelAvatarPreview);
 
 function openVelRegisterScreen() {
   velRegisterScreen.hidden = false;
-  document.body.classList.add('register-open');
+  lockBodyScroll();
   velRegisterScreen.scrollTop = 0;
   velNameInput.focus();
 }
 
 function closeVelRegisterScreen() {
   velRegisterScreen.hidden = true;
-  document.body.classList.remove('register-open');
+  unlockBodyScroll();
 }
 
 if (velOpenRegisterButton) {
@@ -3881,6 +3903,24 @@ const trainingNotesAdd = document.getElementById('training-notes-add');
 const trainingNotesSave = document.getElementById('training-notes-save');
 
 let trainingActiveEditor = null;
+// Su iOS Safari toccare il pulsante di formattazione può far collassare la
+// selezione nativa prima ancora che scatti il click (la gestione della
+// selezione di testo è nativa, non intercettabile con preventDefault). Per
+// questo teniamo traccia dell'ultimo range non vuoto selezionato dentro
+// l'editor attivo e lo ripristiniamo a mano appena prima di formattare.
+let trainingSavedRange = null;
+document.addEventListener('selectionchange', () => {
+  if (!trainingActiveEditor) {
+    return;
+  }
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+    const range = sel.getRangeAt(0);
+    if (trainingActiveEditor.contains(range.commonAncestorContainer)) {
+      trainingSavedRange = range.cloneRange();
+    }
+  }
+});
 
 function newTrainingEntryId() {
   return `tn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -4002,6 +4042,7 @@ function renderTrainingEntries(entries) {
   }
   trainingNotesList.innerHTML = '';
   trainingActiveEditor = null;
+  trainingSavedRange = null;
   const list = entries.length ? entries : [{ id: newTrainingEntryId(), title: '', html: '' }];
   list.forEach((entry, index) => {
     trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: index === 0 }));
@@ -4031,6 +4072,7 @@ function toggleTrainingEntry(entryEl) {
     const editor = entryEl.querySelector('.training-entry-editor');
     if (editor) {
       trainingActiveEditor = editor;
+      trainingSavedRange = null;
       editor.focus();
     }
   }
@@ -4043,7 +4085,7 @@ function openTrainingNotes() {
   renderTrainingEntries(readTrainingEntries());
   trainingNotesBackdrop.hidden = false;
   trainingNotesOverlay.hidden = false;
-  document.body.classList.add('register-open');
+  lockBodyScroll();
 }
 
 function closeTrainingNotes() {
@@ -4052,7 +4094,7 @@ function closeTrainingNotes() {
   }
   trainingNotesOverlay.hidden = true;
   trainingNotesBackdrop.hidden = true;
-  document.body.classList.remove('register-open');
+  unlockBodyScroll();
 }
 
 function applyTrainingFormat(format) {
@@ -4060,7 +4102,12 @@ function applyTrainingFormat(format) {
   if (!editor) {
     return;
   }
-  editor.focus();
+  editor.focus({ preventScroll: true });
+  if (trainingSavedRange && editor.contains(trainingSavedRange.commonAncestorContainer)) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(trainingSavedRange);
+  }
   try {
     if (format === 'color') {
       document.execCommand('foreColor', false, TRAINING_NOTES_COLOR);
@@ -4120,14 +4167,16 @@ if (trainingNotesList) {
       }
       if (trainingActiveEditor && entryEl.contains(trainingActiveEditor)) {
         trainingActiveEditor = null;
+        trainingSavedRange = null;
       }
       entryEl.remove();
     }
   });
   trainingNotesList.addEventListener('focusin', (event) => {
     const editor = event.target.closest('.training-entry-editor');
-    if (editor) {
+    if (editor && editor !== trainingActiveEditor) {
       trainingActiveEditor = editor;
+      trainingSavedRange = null;
     }
   });
 }

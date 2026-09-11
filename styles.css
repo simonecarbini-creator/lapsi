@@ -187,6 +187,9 @@ button, input {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 12px;
   display: flex;
   flex-direction: column;
