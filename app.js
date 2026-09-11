@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11c';
-console.log('[Lapsi] build', APP_BUILD, '— scroll in cima alla scheda aperta, scudo sul corpo militare, categorie complete');
+const APP_BUILD = '2026-09-11d';
+console.log('[Lapsi] build', APP_BUILD, '— form di modifica più leggibile, eliminazione definitiva, piede di stacco di default');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -593,6 +593,12 @@ function createEditForm(entry) {
     .join('');
   const w = (suffix) => `w-${entry.id}-${suffix}`;
 
+  // Piede di stacco preselezionato = quello scelto la prima volta (primo salto
+  // registrato con un piede), così se non lo si tocca resta quello di sempre.
+  const firstJumpWithFoot = getAthleteTimeRecords(entry)
+    .find((record) => record.activity === 'Salto in alto' && record.takeoffFoot);
+  const defaultTakeoffFoot = firstJumpWithFoot ? firstJumpWithFoot.takeoffFoot : '';
+
   // Data del concorso mostrata sulla card = concorsoDate del record più recente.
   const latestRecord = getLatestAthleteTime(entry);
   const concorsoNativeValue = (() => {
@@ -607,10 +613,13 @@ function createEditForm(entry) {
     const d = new Date();
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
+  const checkIcon = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+
   const resultDateField = (prefix) => `
     <label class="result-date-toggle">
-      <input type="checkbox" name="edit-${prefix}-setdate" />
-      <span>Setta data del risultato</span>
+      <input type="checkbox" class="result-date-checkbox" name="edit-${prefix}-setdate" />
+      <span class="result-date-box" aria-hidden="true">${checkIcon}</span>
+      <span class="result-date-text">Cambia data del risultato</span>
     </label>
     <input class="native-date result-date-field" name="edit-${prefix}-date" type="date" value="${todayNativeValue}" hidden />
   `;
@@ -638,6 +647,7 @@ function createEditForm(entry) {
 
   const trashIcon = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
   const undoIcon = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-1"/></svg>';
+  const confirmIcon = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 
   const pastRow = (record, kind, cellsHtml) => `
     <div class="edit-past-row" data-record-id="${escapeHtml(record.id)}" data-kind="${kind}">
@@ -648,6 +658,9 @@ function createEditForm(entry) {
       <button type="button" class="past-del-btn" aria-label="Elimina questo risultato">
         <span class="ic ic-del" aria-hidden="true">${trashIcon}</span>
         <span class="ic ic-undo" aria-hidden="true">${undoIcon}</span>
+      </button>
+      <button type="button" class="past-del-confirm-btn" aria-label="Elimina definitivamente" title="Elimina definitivamente">
+        ${confirmIcon}
       </button>
     </div>
   `;
@@ -782,12 +795,12 @@ function createEditForm(entry) {
         </div>
         ${resultDateField('nt')}
       </div>
-      <div class="field-group">
+      <div class="field-group field-group-jump">
         <label>Salto in alto</label>
         <select name="edit-new-foot">
-          <option value="">Piede di stacco</option>
-          <option value="Sinistro">Sinistro</option>
-          <option value="Destro">Destro</option>
+          <option value="" ${defaultTakeoffFoot === '' ? 'selected' : ''}>Piede di stacco</option>
+          <option value="Sinistro" ${defaultTakeoffFoot === 'Sinistro' ? 'selected' : ''}>Sinistro</option>
+          <option value="Destro" ${defaultTakeoffFoot === 'Destro' ? 'selected' : ''}>Destro</option>
         </select>
         <div class="ruler" data-min="0" data-max="250" data-step="5" aria-label="Nuova altezza salto">
           <div class="ruler-readout"><span class="ruler-value">—</span><span class="ruler-unit">m</span></div>
@@ -1753,6 +1766,7 @@ async function handleListClick(event) {
   const cancelButton = event.target.closest('.cancel-edit-btn');
   const suggestionButton = event.target.closest('.suggestion-item');
   const pastDeleteButton = event.target.closest('.past-del-btn');
+  const pastDeleteConfirmButton = event.target.closest('.past-del-confirm-btn');
   const notesButton = event.target.closest('.notes-btn');
   const notesClearButton = event.target.closest('.notes-clear');
 
@@ -1763,6 +1777,16 @@ async function handleListClick(event) {
 
   if (notesButton) {
     await handleNotesAdd(notesButton);
+    return;
+  }
+
+  if (pastDeleteConfirmButton) {
+    // conferma definitiva: la riga sparisce dalla vista (resta segnata
+    // "row-deleted" per essere tolta dai dati al Salva, ma senza più undo)
+    const row = pastDeleteConfirmButton.closest('.edit-past-row');
+    if (row) {
+      row.hidden = true;
+    }
     return;
   }
 
@@ -1955,7 +1979,10 @@ async function handleEditSubmit(event) {
   const jumpM = editVal('edit-nh-m');
   const jumpCm = editVal('edit-nh-cm');
   const takeoffFoot = editForm.querySelector('[name="edit-new-foot"]').value;
-  if (jumpM > 0 || jumpCm > 0 || takeoffFoot) {
+  // Solo l'altezza indica un salto da aggiungere: il piede ha ora un valore di
+  // default precompilato (l'ultimo usato), quindi da solo non basta più a farlo
+  // scattare — altrimenti ogni salvataggio aggiungerebbe un salto fantasma.
+  if (jumpM > 0 || jumpCm > 0) {
     const rd = resultDate('nh');
     added.push({
       id: newId(),

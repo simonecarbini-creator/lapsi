@@ -855,6 +855,25 @@ h1 {
   gap: 10px;
 }
 
+/* Foto profilo + Corpo militare affiancati: a differenza di .field-row (due
+   input di testo, che su schermi stretti tornano su una colonna) qui una
+   colonna è solo il cerchietto della foto, quindi restano affiancati anche
+   su iPhone. */
+.field-row-avatar {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.field-row-avatar .avatar-field {
+  flex: 0 0 auto;
+}
+
+.field-row-avatar .field-group:not(.avatar-field) {
+  flex: 1;
+  min-width: 0;
+}
+
 label {
   display: block;
   margin-bottom: 8px;
@@ -2296,11 +2315,12 @@ button:active {
   flex: 1;
 }
 
-/* Sezioni del form di modifica */
+/* Sezioni del form di modifica: bordo + spazio più generoso tra Anagrafica /
+   Aggiungi risultati / Modifica risultati precedenti, per distinguerle meglio. */
 .edit-section {
-  border-top: 1px solid #e2e8f0;
-  margin-top: 6px;
-  padding-top: 14px;
+  border-top: 1px solid #dbe1ea;
+  margin-top: 28px;
+  padding-top: 20px;
 }
 
 .edit-section:first-child {
@@ -2322,22 +2342,77 @@ button:active {
   margin-top: 24px;
 }
 
+/* "Corsa" e "Salto in alto" leggermente più staccati */
+.field-group-jump {
+  margin-top: 18px;
+}
+
+/* select + picker sotto nella stessa field-group: un po' di respiro */
+.field-group select + .seg-input,
+.field-group select + .ruler {
+  margin-top: 10px;
+}
+
+/* Checkbox "Cambia data del risultato": casella custom (quadratino + spunta)
+   al posto del checkbox nativo del browser, per coerenza col resto dell'app. */
 .result-date-toggle {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 9px;
+  margin-top: 12px;
   font-size: 0.86rem;
   color: var(--muted);
   cursor: pointer;
 }
 
-.result-date-toggle input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
+.result-date-checkbox {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 19px;
+  height: 19px;
   margin: 0;
-  accent-color: var(--flare, #ff5c3a);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.result-date-box {
   flex-shrink: 0;
+  width: 19px;
+  height: 19px;
+  border-radius: 6px;
+  border: 1.5px solid rgba(15, 23, 42, 0.22);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.result-date-box svg {
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.result-date-checkbox:checked + .result-date-box {
+  background: var(--flare, #ff5c3a);
+  border-color: var(--flare, #ff5c3a);
+}
+
+.result-date-checkbox:checked + .result-date-box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.result-date-checkbox:focus-visible + .result-date-box {
+  box-shadow: 0 0 0 3px rgba(255, 92, 58, 0.22);
+}
+
+.result-date-text {
+  line-height: 1.2;
 }
 
 .result-date-field {
@@ -2412,6 +2487,25 @@ button:active {
 }
 
 .edit-past-row.row-deleted .past-del-btn .ic-undo {
+  display: inline-flex;
+}
+
+/* Conferma eliminazione definitiva: compare solo accanto al cestino/undo,
+   quando la riga è già segnata per l'eliminazione. */
+.past-del-confirm-btn {
+  display: none;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: #e3f4ea;
+  color: #1a6f52;
+  align-items: center;
+  justify-content: center;
+}
+
+.edit-past-row.row-deleted .past-del-confirm-btn {
   display: inline-flex;
 }
 
