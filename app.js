@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11i';
-console.log('[Lapsi] build', APP_BUILD, '— export/import unico (atleti + velocisti)');
+const APP_BUILD = '2026-09-11j';
+console.log('[Lapsi] build', APP_BUILD, '— data concorso vuota di default in registrazione (--/--/--)');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -876,7 +876,17 @@ function formatConcorsoDate() {
     return '';
   }
 
-  return `${pad(Number(dayInput.value) || 0)}/${pad(Number(monthInput.value) || 0)}/${pad(Number(yearInput.value) || 0)}`;
+  // Se il campo è rimasto vuoto (nessuna data scelta in registrazione), non
+  // si assume "oggi": si salva un segnaposto che ricorda di aggiornarla dopo,
+  // dalla sezione di modifica.
+  const day = dayInput.value.trim();
+  const month = monthInput.value.trim();
+  const year = yearInput.value.trim();
+  if (!day && !month && !year) {
+    return '--/--/--';
+  }
+
+  return `${pad(Number(day) || 0)}/${pad(Number(month) || 0)}/${pad(Number(year) || 0)}`;
 }
 
 function formatJumpHeight() {
@@ -2426,7 +2436,10 @@ function wireCustomInputs(root = document) {
 
 wireCustomInputs(document);
 
-function initConcorsoDate(date = new Date()) {
+// Il campo "Data concorso" parte vuoto: se non lo si tocca, l'atleta viene
+// salvato con concorsoDate = "--/--/--" invece della data odierna, così in
+// scheda si vede subito che va aggiornata dalla sezione di modifica.
+function initConcorsoDate() {
   const dayInput = document.getElementById('concorsoDay');
   const monthInput = document.getElementById('concorsoMonth');
   const yearInput = document.getElementById('concorsoYear');
@@ -2436,25 +2449,36 @@ function initConcorsoDate(date = new Date()) {
     return;
   }
 
-  dayInput.value = pad(date.getDate());
-  monthInput.value = pad(date.getMonth() + 1);
-  yearInput.value = pad(date.getFullYear() % 100);
+  dayInput.value = '';
+  monthInput.value = '';
+  yearInput.value = '';
 
   if (nativeInput) {
-    nativeInput.value = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    nativeInput.value = '';
   }
 }
 
 function syncConcorsoFromNative() {
   const nativeInput = document.getElementById('concorso-date');
-  if (!nativeInput || !nativeInput.value) {
+  const dayInput = document.getElementById('concorsoDay');
+  const monthInput = document.getElementById('concorsoMonth');
+  const yearInput = document.getElementById('concorsoYear');
+  if (!nativeInput || !dayInput || !monthInput || !yearInput) {
+    return;
+  }
+  if (!nativeInput.value) {
+    // Data cancellata dal picker: torna vuoto invece di restare sull'ultimo
+    // valore scelto.
+    dayInput.value = '';
+    monthInput.value = '';
+    yearInput.value = '';
     return;
   }
   const [year, month, day] = nativeInput.value.split('-').map(Number);
   if (year && month && day) {
-    document.getElementById('concorsoDay').value = pad(day);
-    document.getElementById('concorsoMonth').value = pad(month);
-    document.getElementById('concorsoYear').value = pad(year % 100);
+    dayInput.value = pad(day);
+    monthInput.value = pad(month);
+    yearInput.value = pad(year % 100);
   }
 }
 
