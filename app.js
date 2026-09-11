@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11k';
-console.log('[Lapsi] build', APP_BUILD, '— filtri: Miglior/Peggior salto, parità alfabetica su tutti gli ordinamenti');
+const APP_BUILD = '2026-09-11l';
+console.log('[Lapsi] build', APP_BUILD, '— pulsante "Programma allenamento" (C. Militari)');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -71,6 +71,7 @@ const enterVelocistiButton = document.getElementById('enter-velocisti');
 const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
 const menuBackdrop = document.getElementById('menu-backdrop');
+const trainingNotesFab = document.getElementById('training-notes-fab');
 
 if (splashScreen) {
   setTimeout(() => {
@@ -108,6 +109,10 @@ function switchSection(section) {
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
+  // Il pulsante "Programma allenamento" esiste solo per i militari.
+  if (trainingNotesFab) {
+    trainingNotesFab.hidden = section !== 'militari';
+  }
   window.scrollTo(0, 0);
 }
 
@@ -2716,6 +2721,9 @@ document.addEventListener('keydown', (event) => {
   if (velRegisterScreen && !velRegisterScreen.hidden) {
     closeVelRegisterScreen();
   }
+  if (trainingNotesOverlay && !trainingNotesOverlay.hidden) {
+    closeTrainingNotes();
+  }
 });
 
 function closeToolPanels(except) {
@@ -3835,6 +3843,103 @@ velForm.addEventListener('submit', async (event) => {
   updateVelAvatarPreview();
   closeVelRegisterScreen();
   showToast('Salvato!');
+});
+
+// ===================== "Programma allenamento" (solo C. Militari) =====================
+// Una nota unica di testo semplice, condivisa per tutta la sezione atleti
+// militari — non è legata a un singolo atleta. Le formattazioni (grassetto/
+// corsivo/sottolineato) sono marcatori di testo semplice (**grassetto**,
+// *corsivo*, _sottolineato_) inseriti attorno alla selezione, non HTML: il
+// testo resta un dato semplice, leggibile anche fuori dall'app.
+const STORAGE_KEY_TRAINING_NOTES = 'lapsi-training-notes';
+const TRAINING_NOTES_MARKERS = { bold: '**', italic: '*', underline: '_' };
+
+const trainingNotesBackdrop = document.getElementById('training-notes-backdrop');
+const trainingNotesOverlay = document.getElementById('training-notes-overlay');
+const trainingNotesClose = document.getElementById('training-notes-close');
+const trainingNotesTextarea = document.getElementById('training-notes-textarea');
+const trainingNotesSave = document.getElementById('training-notes-save');
+
+function readTrainingNotes() {
+  try {
+    return localStorage.getItem(STORAGE_KEY_TRAINING_NOTES) || '';
+  } catch (error) {
+    console.warn('Errore lettura programma allenamento:', error);
+    return '';
+  }
+}
+
+function saveTrainingNotesText(text) {
+  try {
+    localStorage.setItem(STORAGE_KEY_TRAINING_NOTES, text);
+  } catch (error) {
+    console.error('Impossibile salvare il programma allenamento:', error);
+  }
+}
+
+function openTrainingNotes() {
+  if (!trainingNotesOverlay || !trainingNotesBackdrop) {
+    return;
+  }
+  trainingNotesTextarea.value = readTrainingNotes();
+  trainingNotesBackdrop.hidden = false;
+  trainingNotesOverlay.hidden = false;
+  document.body.classList.add('register-open');
+  trainingNotesTextarea.focus();
+}
+
+function closeTrainingNotes() {
+  if (!trainingNotesOverlay || !trainingNotesBackdrop) {
+    return;
+  }
+  trainingNotesOverlay.hidden = true;
+  trainingNotesBackdrop.hidden = true;
+  document.body.classList.remove('register-open');
+}
+
+// Racchiude la selezione tra i marcatori di formattazione (o li inserisce
+// vuoti, col cursore in mezzo, se non c'è nulla di selezionato).
+function wrapTrainingNotesSelection(marker) {
+  const el = trainingNotesTextarea;
+  if (!el) {
+    return;
+  }
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  const value = el.value;
+  const selected = value.slice(start, end);
+  const before = value.slice(0, start);
+  const after = value.slice(end);
+
+  el.value = `${before}${marker}${selected}${marker}${after}`;
+  el.focus();
+  const cursorStart = start + marker.length;
+  const cursorEnd = cursorStart + selected.length;
+  el.setSelectionRange(cursorStart, cursorEnd);
+}
+
+if (trainingNotesFab) {
+  trainingNotesFab.addEventListener('click', openTrainingNotes);
+}
+if (trainingNotesClose) {
+  trainingNotesClose.addEventListener('click', closeTrainingNotes);
+}
+if (trainingNotesBackdrop) {
+  trainingNotesBackdrop.addEventListener('click', closeTrainingNotes);
+}
+if (trainingNotesSave) {
+  trainingNotesSave.addEventListener('click', () => {
+    saveTrainingNotesText(trainingNotesTextarea.value);
+    showToast('Salvato!');
+  });
+}
+document.querySelectorAll('.training-notes-fmt-btn').forEach((button) => {
+  button.addEventListener('click', () => {
+    const marker = TRAINING_NOTES_MARKERS[button.dataset.format];
+    if (marker) {
+      wrapTrainingNotesSelection(marker);
+    }
+  });
 });
 
 async function initializeApp() {
