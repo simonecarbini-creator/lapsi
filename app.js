@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-09p';
-console.log('[Lapsi] build', APP_BUILD, '— checkbox "Setta data del risultato" nei nuovi risultati');
+const APP_BUILD = '2026-09-11a';
+console.log('[Lapsi] build', APP_BUILD, '— burger menu, sezione Velocisti, ricerca con "x"');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -63,9 +63,13 @@ const filtersPanel = document.getElementById('athlete-filters');
 
 const splashScreen = document.getElementById('splash-screen');
 const homeScreen = document.getElementById('home-screen');
-const appShell = document.querySelector('.app-shell');
+const appHeaderWrap = document.getElementById('app-header-wrap');
+const militariShell = document.getElementById('militari-shell');
+const velocistiShell = document.getElementById('velocisti-shell');
 const enterMilitariButton = document.getElementById('enter-militari');
-const backHomeButton = document.getElementById('back-home');
+const enterVelocistiButton = document.getElementById('enter-velocisti');
+const menuToggleButton = document.getElementById('menu-toggle');
+const mainMenu = document.getElementById('main-menu');
 
 if (splashScreen) {
   setTimeout(() => {
@@ -74,23 +78,41 @@ if (splashScreen) {
   }, 2800);
 }
 
-function showAppSection() {
-  if (homeScreen) homeScreen.hidden = true;
-  if (appShell) appShell.hidden = false;
-  window.scrollTo(0, 0);
-}
+// Sezione attiva: 'militari' o 'velocisti'. Il burger menu e i pulsanti della
+// home permettono di passare dall'una all'altra senza tornare alla home.
+const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell };
 
-function showHomeScreen() {
-  if (appShell) appShell.hidden = true;
-  if (homeScreen) homeScreen.hidden = false;
+function switchSection(section) {
+  if (!SECTION_SHELLS[section]) {
+    return;
+  }
+  homeScreen.hidden = true;
+  if (appHeaderWrap) appHeaderWrap.hidden = false;
+  Object.entries(SECTION_SHELLS).forEach(([key, shell]) => {
+    if (shell) shell.hidden = key !== section;
+  });
+  if (menuToggleButton && mainMenu) {
+    setCollapsibleOpen(menuToggleButton, mainMenu, false);
+  }
+  document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
+    item.classList.toggle('is-active', item.dataset.section === section);
+  });
   window.scrollTo(0, 0);
 }
 
 if (enterMilitariButton) {
-  enterMilitariButton.addEventListener('click', showAppSection);
+  enterMilitariButton.addEventListener('click', () => switchSection('militari'));
 }
-if (backHomeButton) {
-  backHomeButton.addEventListener('click', showHomeScreen);
+if (enterVelocistiButton) {
+  enterVelocistiButton.addEventListener('click', () => switchSection('velocisti'));
+}
+document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
+  item.addEventListener('click', () => switchSection(item.dataset.section));
+});
+if (menuToggleButton && mainMenu) {
+  menuToggleButton.addEventListener('click', () => {
+    setCollapsibleOpen(menuToggleButton, mainMenu, mainMenu.hidden);
+  });
 }
 
 let currentAvatarData = null;
@@ -478,6 +500,8 @@ function openEditFormFor(athleteId) {
     // la card potrebbe essere nascosta da un filtro attivo o non ancora caricata:
     // azzero i filtri e mi assicuro che l'atleta sia tra quelli visibili.
     athleteSearchInput.value = '';
+    const searchClearBtn = document.getElementById('athlete-search-clear');
+    if (searchClearBtn) searchClearBtn.hidden = true;
     activeDistance = FILTER_DEFAULTS.distance;
     activeSort = FILTER_DEFAULTS.sort;
     syncFilterChips();
@@ -1457,7 +1481,7 @@ function renderEntries() {
           <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
           <div class="v2-meta">
             <span class="v2-corp">${escapeHtml(entry.military || 'Nessun corpo')}</span>
-            <span class="v2-concorso">${targetIcon(11)}${escapeHtml(concorsoDate)}</span>
+            <span class="v2-concorso">${calendarIcon(11)}${escapeHtml(concorsoDate)}</span>
           </div>
         </div>
       </div>
@@ -2326,6 +2350,25 @@ athleteSearchInput.addEventListener('input', () => {
   renderEntries();
 });
 
+// Pulsante "x" nel campo ricerca: compare appena si digita, cancella e rimette
+// il focus. Riusabile per qualunque coppia input/pulsante (es. sezione Velocisti).
+function wireSearchClear(input, clearButton) {
+  if (!input || !clearButton) {
+    return;
+  }
+  input.addEventListener('input', () => {
+    clearButton.hidden = input.value.length === 0;
+  });
+  clearButton.addEventListener('click', () => {
+    input.value = '';
+    clearButton.hidden = true;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  });
+}
+
+wireSearchClear(athleteSearchInput, document.getElementById('athlete-search-clear'));
+
 const athletePagination = document.getElementById('athlete-pagination');
 if (athletePagination) {
   athletePagination.addEventListener('click', (event) => {
@@ -2435,8 +2478,14 @@ if (closeRegisterButton) {
   closeRegisterButton.addEventListener('click', closeRegisterScreen);
 }
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && registerScreen && !registerScreen.hidden) {
+  if (event.key !== 'Escape') {
+    return;
+  }
+  if (registerScreen && !registerScreen.hidden) {
     closeRegisterScreen();
+  }
+  if (velRegisterScreen && !velRegisterScreen.hidden) {
+    closeVelRegisterScreen();
   }
 });
 
@@ -2485,10 +2534,679 @@ if (nicknameInput) {
 }
 athleteSuggestions.addEventListener('click', handleListClick);
 
+// ===================== Sezione "Velocisti" =====================
+// Dominio dati separato e più semplice: solo avatar, nome/cognome e specialità
+// (100mt/200mt/400mt). Nessun risultato/cronologia/grafico per ora — il pulsante
+// "→" resta pronto per quando arriveranno.
+const STORAGE_KEY_VELOCISTI = 'lapsi-velocisti';
+const SPECIALTY_OPTIONS = ['100mt', '200mt', '400mt'];
+const VEL_PAGE_SIZE = 5;
+const VEL_FILTER_DEFAULTS = { specialty: 'Tutte', sort: 'az' };
+
+const velOpenRegisterButton = document.getElementById('vel-open-register');
+const velCloseRegisterButton = document.getElementById('vel-close-register');
+const velRegisterScreen = document.getElementById('velocisti-register-screen');
+const velForm = document.getElementById('velocista-form');
+const velNameInput = document.getElementById('vel-name');
+const velSurnameInput = document.getElementById('vel-surname');
+const velAvatarInput = document.getElementById('vel-avatar');
+const velAvatarPreview = document.getElementById('vel-avatar-preview');
+const velSpecialtyInput = document.getElementById('vel-specialty');
+const velList = document.getElementById('vel-list');
+const velEmptyState = document.getElementById('vel-empty-state');
+const velCountEl = document.getElementById('vel-count');
+const velSearchInput = document.getElementById('vel-search');
+const velToggleSearchButton = document.getElementById('vel-toggle-search');
+const velSearchPanel = document.getElementById('vel-search-panel');
+const velToggleFiltersButton = document.getElementById('vel-toggle-filters');
+const velFiltersPanel = document.getElementById('vel-filters');
+const velSpecialtyChips = document.getElementById('vel-specialty-chips');
+const velSortChips = document.getElementById('vel-sort-chips');
+const velFiltersApplyButton = document.getElementById('vel-filters-apply');
+const velFiltersResetButton = document.getElementById('vel-filters-reset');
+const velPaginationNav = document.getElementById('vel-pagination');
+
+let cachedVelocisti = [];
+let velActiveSpecialty = VEL_FILTER_DEFAULTS.specialty;
+let velActiveSort = VEL_FILTER_DEFAULTS.sort;
+let velFilterSnapshot = null;
+let velCurrentPage = 1;
+let currentVelAvatarData = null;
+
+function getVelocisti() {
+  return [...cachedVelocisti];
+}
+
+function normalizeVelocista(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  return {
+    id: entry.id || `vel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name: entry.name || '',
+    surname: entry.surname || '',
+    avatar: entry.avatar || null,
+    specialty: SPECIALTY_OPTIONS.includes(entry.specialty) ? entry.specialty : '',
+    createdAt: entry.createdAt || new Date(0).toISOString(),
+  };
+}
+
+function persistVelocisti(entries) {
+  try {
+    localStorage.setItem(STORAGE_KEY_VELOCISTI, JSON.stringify(entries));
+  } catch (error) {
+    console.error('Impossibile salvare i velocisti in localStorage:', error);
+  }
+}
+
+function readVelocisti() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_VELOCISTI);
+    const parsed = raw !== null ? JSON.parse(raw) : [];
+    const normalized = Array.isArray(parsed) ? parsed.map(normalizeVelocista).filter(Boolean) : [];
+    cachedVelocisti = normalized;
+    return normalized;
+  } catch (error) {
+    console.warn('Errore lettura velocisti da localStorage:', error);
+    cachedVelocisti = [];
+    return [];
+  }
+}
+
+async function saveVelocisti(entries) {
+  cachedVelocisti = entries;
+  persistVelocisti(entries);
+}
+
+function getFilteredVelocisti() {
+  const query = velSearchInput.value.trim().toLowerCase();
+  const specialtyFilter = velActiveSpecialty;
+  const sortValue = velActiveSort;
+
+  const filtered = cachedVelocisti.filter((entry) => {
+    const specialtyMatch = specialtyFilter === 'Tutte' || entry.specialty === specialtyFilter;
+    const name = (entry.name || '').toLowerCase();
+    const surname = (entry.surname || '').toLowerCase();
+    const searchMatch = !query || name.includes(query) || surname.includes(query) || `${name} ${surname}`.includes(query);
+    return specialtyMatch && searchMatch;
+  });
+
+  filtered.sort((a, b) => {
+    if (sortValue === 'az' || sortValue === 'za') {
+      const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+      const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+      const cmp = aName.localeCompare(bName, 'it');
+      return sortValue === 'az' ? cmp : -cmp;
+    }
+    const aDate = new Date(a.createdAt || 0).getTime();
+    const bDate = new Date(b.createdAt || 0).getTime();
+    return sortValue === 'recent' ? bDate - aDate : aDate - bDate;
+  });
+
+  return filtered;
+}
+
+function renderVelPagination(total) {
+  const nav = velPaginationNav;
+  if (!nav) {
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(total / VEL_PAGE_SIZE));
+  if (totalPages <= 1) {
+    nav.hidden = true;
+    nav.innerHTML = '';
+    return;
+  }
+  nav.hidden = false;
+
+  const prev = `<button type="button" class="page-btn page-arrow" data-page="${velCurrentPage - 1}" aria-label="Pagina precedente"${velCurrentPage === 1 ? ' disabled' : ''}>‹</button>`;
+  const next = `<button type="button" class="page-btn page-arrow" data-page="${velCurrentPage + 1}" aria-label="Pagina successiva"${velCurrentPage === totalPages ? ' disabled' : ''}>›</button>`;
+
+  let middle = '';
+  if (totalPages <= 7) {
+    for (let page = 1; page <= totalPages; page += 1) {
+      middle += `<button type="button" class="page-btn${page === velCurrentPage ? ' is-current' : ''}" data-page="${page}">${page}</button>`;
+    }
+  } else {
+    middle = `<span class="page-label">Pagina ${velCurrentPage} / ${totalPages}</span>`;
+  }
+
+  nav.innerHTML = prev + middle + next;
+}
+
+// Una sola card "aperta" per volta, come nella sezione C. Militari.
+function velCollapseOtherCards(exceptItem) {
+  velList.querySelectorAll('.athlete-item').forEach((item) => {
+    if (item === exceptItem) {
+      return;
+    }
+    const panel = item.querySelector('.projection-panel');
+    if (panel && !panel.hidden) {
+      panel.hidden = true;
+      const toggle = item.querySelector('.projection-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.style.transform = 'rotate(0deg)';
+      }
+    }
+    const editForm = item.querySelector('.edit-form');
+    if (editForm && !editForm.hidden) {
+      editForm.hidden = true;
+    }
+  });
+}
+
+function renderVelocisti() {
+  const entries = getFilteredVelocisti();
+  const searchQuery = velSearchInput.value.trim().toLowerCase();
+  velList.innerHTML = '';
+
+  if (velCountEl) {
+    velCountEl.textContent = String(entries.length);
+  }
+
+  if (!entries.length) {
+    velEmptyState.style.display = 'flex';
+    renderVelPagination(0);
+    return;
+  }
+
+  velEmptyState.style.display = 'none';
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / VEL_PAGE_SIZE));
+  velCurrentPage = Math.min(Math.max(1, velCurrentPage), totalPages);
+  const pageEntries = entries.slice((velCurrentPage - 1) * VEL_PAGE_SIZE, velCurrentPage * VEL_PAGE_SIZE);
+
+  pageEntries.forEach((entry) => {
+    const item = document.createElement('li');
+    item.className = 'athlete-item card-v2';
+
+    const avatarMarkup = entry.avatar
+      ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
+      : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
+
+    const specialtyLabel = entry.specialty || 'Nessuna specialità';
+
+    item.innerHTML = `
+      <span class="v2-accent" aria-hidden="true"></span>
+      <div class="v2-head">
+        ${avatarMarkup}
+        <div class="v2-id">
+          <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
+          <div class="v2-meta">
+            <span class="v2-corp">${escapeHtml(specialtyLabel)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="v2-actions"></div>
+    `;
+
+    const actionsWrap = item.querySelector('.v2-actions');
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'delete-btn';
+    deleteButton.dataset.id = entry.id;
+    deleteButton.setAttribute('aria-label', 'Elimina velocista');
+    deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'edit-btn';
+    editButton.dataset.id = entry.id;
+    editButton.textContent = '✎';
+    editButton.setAttribute('aria-label', 'Modifica velocista');
+
+    const projectionToggle = document.createElement('button');
+    projectionToggle.type = 'button';
+    projectionToggle.className = 'projection-toggle';
+    projectionToggle.dataset.id = entry.id;
+    projectionToggle.textContent = '→';
+    projectionToggle.setAttribute('aria-label', 'Mostra dettagli');
+    projectionToggle.setAttribute('aria-expanded', 'false');
+
+    actionsWrap.appendChild(deleteButton);
+    actionsWrap.appendChild(editButton);
+    actionsWrap.appendChild(projectionToggle);
+
+    const panel = document.createElement('div');
+    panel.className = 'projection-panel';
+    panel.hidden = true;
+    panel.innerHTML = '<div class="history-row history-empty">Nessun risultato registrato ancora.</div>';
+    item.appendChild(panel);
+
+    velList.appendChild(item);
+  });
+
+  renderVelPagination(entries.length);
+}
+
+function createVelocistaEditForm(entry) {
+  const editForm = document.createElement('form');
+  editForm.className = 'edit-form';
+  editForm.hidden = true;
+  editForm.dataset.id = entry.id;
+
+  const specialtyOptionsHtml = ['', ...SPECIALTY_OPTIONS]
+    .map((value) => `<option value="${value}" ${entry.specialty === value ? 'selected' : ''}>${value || 'Seleziona'}</option>`)
+    .join('');
+
+  editForm.innerHTML = `
+    <div class="edit-section">
+      <div class="edit-section-title">Anagrafica</div>
+      <div class="field-group">
+        <label>Foto profilo</label>
+        <div class="avatar-edit-wrapper">
+          <input class="edit-avatar-input" type="file" accept="image/*" />
+          <div class="avatar-circle avatar-edit-circle">
+            ${entry.avatar ? '' : `<span class="avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`}
+            <span class="avatar-cam" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 8h3l1.6-2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                <circle cx="12" cy="13" r="3.2" />
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Nome</label>
+          <input name="edit-vel-name" type="text" value="${escapeHtml(entry.name)}" />
+        </div>
+        <div class="field-group">
+          <label>Cognome</label>
+          <input name="edit-vel-surname" type="text" value="${escapeHtml(entry.surname)}" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Specialità</label>
+        <select name="edit-vel-specialty">${specialtyOptionsHtml}</select>
+      </div>
+    </div>
+    <div class="edit-actions">
+      <button type="submit" class="primary-btn save-edit-btn">Salva</button>
+      <button type="button" class="secondary-btn cancel-edit-btn">Annulla</button>
+    </div>
+  `;
+
+  const avatarCircle = editForm.querySelector('.avatar-edit-circle');
+  if (entry.avatar) {
+    avatarCircle.style.backgroundImage = `url('${entry.avatar}')`;
+    avatarCircle.querySelector('.avatar-initials')?.remove();
+  }
+
+  const avatarInputEl = editForm.querySelector('.edit-avatar-input');
+  let editAvatarData = entry.avatar || null;
+
+  avatarInputEl.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        editAvatarData = await fileToBase64(file);
+        editForm.dataset.editAvatarData = editAvatarData;
+        avatarCircle.style.backgroundImage = `url('${editAvatarData}')`;
+        avatarCircle.querySelector('.avatar-initials')?.remove();
+      } catch (error) {
+        console.error('Errore nel caricamento dell\'avatar:', error);
+        alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
+        avatarInputEl.value = '';
+      }
+    }
+  });
+
+  avatarCircle.addEventListener('click', () => {
+    avatarInputEl.click();
+  });
+
+  editForm.dataset.editAvatarData = editAvatarData || '';
+
+  return editForm;
+}
+
+async function handleVelEditSubmit(event) {
+  const editForm = event.target.closest('.edit-form');
+  if (!editForm) {
+    return;
+  }
+  event.preventDefault();
+
+  const entryId = editForm.dataset.id;
+  const entries = getVelocisti();
+  const targetIndex = entries.findIndex((entry) => entry.id === entryId);
+  if (targetIndex === -1) {
+    return;
+  }
+
+  const updatedName = editForm.querySelector('[name="edit-vel-name"]').value.trim();
+  const updatedSurname = editForm.querySelector('[name="edit-vel-surname"]').value.trim();
+  if (!updatedName || !updatedSurname) {
+    alert('Nome e cognome non possono essere vuoti.');
+    return;
+  }
+
+  const updatedEntry = { ...entries[targetIndex] };
+  updatedEntry.name = updatedName;
+  updatedEntry.surname = updatedSurname;
+  updatedEntry.specialty = editForm.querySelector('[name="edit-vel-specialty"]').value;
+
+  const editAvatarData = editForm.dataset.editAvatarData || '';
+  if (editAvatarData) {
+    updatedEntry.avatar = editAvatarData;
+  }
+
+  entries[targetIndex] = updatedEntry;
+  await saveVelocisti(entries);
+  renderVelocisti();
+}
+
+async function handleVelListClick(event) {
+  const deleteButton = event.target.closest('.delete-btn');
+  const editButton = event.target.closest('.edit-btn');
+  const cancelButton = event.target.closest('.cancel-edit-btn');
+  const projectionButton = event.target.closest('.projection-toggle');
+
+  if (deleteButton) {
+    const entryId = deleteButton.dataset.id;
+    const entries = getVelocisti();
+    const target = entries.find((entry) => entry.id === entryId);
+    const label = target ? `${target.name} ${target.surname}`.trim() : 'questo velocista';
+
+    const confirmed = await showConfirm(`Eliminare ${label}?`, {
+      detail: "L'operazione non è reversibile.",
+      confirmText: 'Elimina',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    const remaining = entries.filter((entry) => entry.id !== entryId);
+    await saveVelocisti(remaining);
+    renderVelocisti();
+    showToast('Eliminato!');
+    return;
+  }
+
+  if (cancelButton) {
+    const formItem = cancelButton.closest('.edit-form');
+    if (formItem) {
+      formItem.hidden = true;
+    }
+    return;
+  }
+
+  if (editButton) {
+    const item = editButton.closest('.athlete-item');
+    const projectionPanel = item.querySelector('.projection-panel');
+    const projectionButtonEl = item.querySelector('.projection-toggle');
+    if (projectionPanel && !projectionPanel.hidden) {
+      projectionPanel.hidden = true;
+      if (projectionButtonEl) {
+        projectionButtonEl.setAttribute('aria-expanded', 'false');
+        projectionButtonEl.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    let editForm = item.querySelector('.edit-form');
+    if (!editForm) {
+      const entry = getVelocisti().find((e) => e.id === editButton.dataset.id);
+      if (!entry) {
+        return;
+      }
+      velCollapseOtherCards(item);
+      editForm = createVelocistaEditForm(entry);
+      item.appendChild(editForm);
+      editForm.hidden = false;
+      return;
+    }
+
+    if (editForm.hidden) {
+      velCollapseOtherCards(item);
+    }
+    editForm.hidden = !editForm.hidden;
+    return;
+  }
+
+  if (projectionButton) {
+    const item = projectionButton.closest('.athlete-item');
+    const panel = item.querySelector('.projection-panel');
+    const isExpanded = projectionButton.getAttribute('aria-expanded') === 'true';
+    const nextExpanded = !isExpanded;
+
+    if (nextExpanded) {
+      const editForm = item.querySelector('.edit-form');
+      if (editForm && !editForm.hidden) {
+        editForm.hidden = true;
+      }
+      velCollapseOtherCards(item);
+    }
+
+    projectionButton.setAttribute('aria-expanded', String(nextExpanded));
+    panel.hidden = !nextExpanded;
+    projectionButton.style.transform = nextExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+  }
+}
+
+velList.addEventListener('click', handleVelListClick);
+velList.addEventListener('submit', handleVelEditSubmit);
+
+function velSyncFilterChips() {
+  setChipGroupSelection(velSpecialtyChips, velActiveSpecialty);
+  setChipGroupSelection(velSortChips, velActiveSort);
+}
+
+function velRevertFiltersDraft() {
+  if (!velFilterSnapshot) {
+    return;
+  }
+  velActiveSpecialty = velFilterSnapshot.specialty;
+  velActiveSort = velFilterSnapshot.sort;
+  velFilterSnapshot = null;
+  velCurrentPage = 1;
+  velSyncFilterChips();
+  renderVelocisti();
+}
+
+function velCloseToolPanels(except) {
+  if (except !== 'search') {
+    setCollapsibleOpen(velToggleSearchButton, velSearchPanel, false);
+    velToggleSearchButton.setAttribute('aria-label', 'Cerca velocista');
+  }
+  if (except !== 'filters') {
+    if (!velFiltersPanel.hidden) {
+      velRevertFiltersDraft();
+    }
+    setCollapsibleOpen(velToggleFiltersButton, velFiltersPanel, false);
+    velToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  }
+}
+
+velToggleSearchButton.addEventListener('click', () => {
+  const open = velSearchPanel.hidden;
+  velCloseToolPanels('search');
+  setCollapsibleOpen(velToggleSearchButton, velSearchPanel, open);
+  velToggleSearchButton.setAttribute('aria-label', open ? 'Nascondi ricerca' : 'Cerca velocista');
+  if (open) {
+    velSearchInput.focus();
+  }
+});
+
+velToggleFiltersButton.addEventListener('click', () => {
+  const open = velFiltersPanel.hidden;
+  velCloseToolPanels('filters');
+  if (open) {
+    velFilterSnapshot = { specialty: velActiveSpecialty, sort: velActiveSort };
+    velSyncFilterChips();
+    setCollapsibleOpen(velToggleFiltersButton, velFiltersPanel, true);
+    velToggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
+  } else {
+    velRevertFiltersDraft();
+    setCollapsibleOpen(velToggleFiltersButton, velFiltersPanel, false);
+    velToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  }
+});
+
+[velSpecialtyChips, velSortChips].forEach((group) => {
+  group.addEventListener('click', (event) => {
+    const chip = event.target.closest('.fchip');
+    if (!chip || !group.contains(chip)) {
+      return;
+    }
+    setChipGroupSelection(group, chip.dataset.value);
+    if (group === velSpecialtyChips) {
+      velActiveSpecialty = chip.dataset.value;
+    } else {
+      velActiveSort = chip.dataset.value;
+    }
+    velCurrentPage = 1;
+    renderVelocisti();
+  });
+});
+
+velFiltersApplyButton.addEventListener('click', () => {
+  velFilterSnapshot = null;
+  setCollapsibleOpen(velToggleFiltersButton, velFiltersPanel, false);
+  velToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+});
+
+velFiltersResetButton.addEventListener('click', () => {
+  velActiveSpecialty = VEL_FILTER_DEFAULTS.specialty;
+  velActiveSort = VEL_FILTER_DEFAULTS.sort;
+  velCurrentPage = 1;
+  velSyncFilterChips();
+  renderVelocisti();
+});
+
+velSyncFilterChips();
+
+velSearchInput.addEventListener('input', () => {
+  velCurrentPage = 1;
+  renderVelocisti();
+});
+wireSearchClear(velSearchInput, document.getElementById('vel-search-clear'));
+
+if (velPaginationNav) {
+  velPaginationNav.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-page]');
+    if (!button || button.disabled) {
+      return;
+    }
+    const page = Number(button.dataset.page);
+    if (!Number.isFinite(page) || page === velCurrentPage) {
+      return;
+    }
+    velCurrentPage = page;
+    renderVelocisti();
+    const head = velList.closest('.list-section')?.querySelector('.list-head');
+    if (head) {
+      head.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  });
+}
+
+// ----- Form di registrazione velocista -----
+function updateVelAvatarPreview() {
+  if (currentVelAvatarData) {
+    velAvatarPreview.style.backgroundImage = `url('${currentVelAvatarData}')`;
+    velAvatarPreview.classList.remove('avatar-empty');
+    velAvatarPreview.innerHTML = '';
+  } else {
+    const name = velNameInput.value.trim();
+    const surname = velSurnameInput.value.trim();
+    if (name || surname) {
+      velAvatarPreview.classList.remove('avatar-empty');
+      velAvatarPreview.innerHTML = `<span class="avatar-initials">${getInitials(name, surname)}</span>`;
+      velAvatarPreview.style.backgroundImage = '';
+    } else {
+      velAvatarPreview.classList.add('avatar-empty');
+      velAvatarPreview.innerHTML = '<span class="avatar-placeholder">+</span>';
+      velAvatarPreview.style.backgroundImage = '';
+    }
+  }
+}
+
+velAvatarInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (file) {
+    try {
+      currentVelAvatarData = await fileToBase64(file);
+      updateVelAvatarPreview();
+    } catch (error) {
+      console.error('Errore nel caricamento dell\'avatar:', error);
+      alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
+      velAvatarInput.value = '';
+      currentVelAvatarData = null;
+      updateVelAvatarPreview();
+    }
+  } else {
+    currentVelAvatarData = null;
+    updateVelAvatarPreview();
+  }
+});
+
+velAvatarPreview.addEventListener('click', () => {
+  velAvatarInput.click();
+});
+
+velNameInput.addEventListener('input', updateVelAvatarPreview);
+velSurnameInput.addEventListener('input', updateVelAvatarPreview);
+
+function openVelRegisterScreen() {
+  velRegisterScreen.hidden = false;
+  document.body.classList.add('register-open');
+  velRegisterScreen.scrollTop = 0;
+  velNameInput.focus();
+}
+
+function closeVelRegisterScreen() {
+  velRegisterScreen.hidden = true;
+  document.body.classList.remove('register-open');
+}
+
+if (velOpenRegisterButton) {
+  velOpenRegisterButton.addEventListener('click', openVelRegisterScreen);
+}
+if (velCloseRegisterButton) {
+  velCloseRegisterButton.addEventListener('click', closeVelRegisterScreen);
+}
+
+velForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = velNameInput.value.trim();
+  const surname = velSurnameInput.value.trim();
+  if (!name || !surname) {
+    alert('Inserisci nome e cognome.');
+    return;
+  }
+
+  const entries = getVelocisti();
+  entries.push({
+    id: `vel-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    surname,
+    avatar: currentVelAvatarData,
+    specialty: velSpecialtyInput.value,
+    createdAt: new Date().toISOString(),
+  });
+
+  await saveVelocisti(entries);
+  velCurrentPage = 1;
+  renderVelocisti();
+
+  velForm.reset();
+  currentVelAvatarData = null;
+  velAvatarInput.value = '';
+  updateVelAvatarPreview();
+  closeVelRegisterScreen();
+  showToast('Salvato!');
+});
+
 async function initializeApp() {
   populateInsertionFields();
   await readEntries();
   renderEntries();
+  readVelocisti();
+  renderVelocisti();
 }
 
 initializeApp();

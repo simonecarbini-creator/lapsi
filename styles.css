@@ -51,6 +51,15 @@ button, input {
   padding-bottom: 10px;
 }
 
+.app-header-wrap {
+  max-width: min(620px, 100%);
+  margin: 0 auto;
+}
+
+.app-header-wrap[hidden] {
+  display: none;
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -64,7 +73,14 @@ button, input {
   flex-shrink: 0;
 }
 
-.back-btn {
+.topbar-logo {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+/* ===== Burger menu: icona animata + pannello a discesa ===== */
+.menu-btn {
   flex-shrink: 0;
   width: 36px;
   height: 36px;
@@ -72,27 +88,124 @@ button, input {
   border: none;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.75);
-  color: var(--text);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 4px 10px rgba(15, 23, 42, 0.08);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease;
 }
 
-.back-btn:hover {
+.menu-btn:hover {
   background: rgba(255, 255, 255, 0.95);
 }
 
-.back-btn:active {
-  transform: scale(0.94);
+.menu-bars {
+  position: relative;
+  width: 17px;
+  height: 12px;
+  display: inline-block;
 }
 
-.topbar-logo {
-  height: 40px;
-  width: auto;
-  display: block;
+.menu-bars span {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text);
+  transition: transform 0.25s ease, opacity 0.2s ease, top 0.25s ease;
+}
+
+.menu-bars span:nth-child(1) { top: 0; }
+.menu-bars span:nth-child(2) { top: 5px; }
+.menu-bars span:nth-child(3) { top: 10px; }
+
+.menu-btn.open .menu-bars span:nth-child(1) {
+  top: 5px;
+  transform: rotate(45deg);
+}
+
+.menu-btn.open .menu-bars span:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-btn.open .menu-bars span:nth-child(3) {
+  top: 5px;
+  transform: rotate(-45deg);
+}
+
+.main-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 20px;
+  padding: 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+}
+
+.main-menu[hidden] {
+  display: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 12px;
+  border: none;
+  border-radius: 11px;
+  background: transparent;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menu-item:not(:disabled):hover {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.menu-item.is-active {
+  background: rgba(255, 92, 58, 0.1);
+  color: #c53d30;
+}
+
+.menu-item:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.menu-item-tag {
+  flex-shrink: 0;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px dashed rgba(15, 23, 42, 0.25);
+  color: var(--muted);
+}
+
+.menu-divider {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--card-border);
+}
+
+.menu-item-ghost {
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 0.82rem;
 }
 
 /* ===== Barra strumenti schermata atleti ===== */
@@ -164,6 +277,47 @@ button, input {
 
 .tool-panel {
   margin: 0 0 20px;
+}
+
+/* ===== Ricerca: pulsante "x" per svuotare il campo ===== */
+.search-input-wrap {
+  position: relative;
+}
+
+.search-input-wrap input {
+  padding-right: 38px;
+}
+
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.search-clear[hidden] {
+  display: none;
+}
+
+.search-clear:hover {
+  background: rgba(15, 23, 42, 0.14);
+  color: var(--text);
+}
+
+.search-clear:active {
+  transform: translateY(-50%) scale(0.92);
 }
 
 .tool-panel[hidden] {
@@ -357,13 +511,13 @@ body.register-open {
 
 .home-btn {
   width: 100%;
-  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
   border: none;
   border-radius: 16px;
-  font-weight: 800;
-  font-size: 0.95rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  text-align: left;
   cursor: pointer;
   color: #fff;
   background: linear-gradient(180deg, #3b3b3b 0%, #1f1f1f 100%);
@@ -381,11 +535,59 @@ body.register-open {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 8px 16px rgba(15, 23, 42, 0.16);
 }
 
+.home-btn-ic {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ff7a5c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.home-btn-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.92rem;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-btn-arrow {
+  flex-shrink: 0;
+  opacity: 0.55;
+  display: inline-flex;
+}
+
+.home-btn-tag {
+  flex-shrink: 0;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px dashed rgba(15, 23, 42, 0.25);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .home-btn:disabled {
   cursor: not-allowed;
-  color: #a6a6b0;
-  background: #e8e8ec;
+  color: var(--muted);
+  background: transparent;
+  border: 1.5px dashed rgba(15, 23, 42, 0.22);
   box-shadow: none;
+}
+
+.home-btn:disabled .home-btn-ic {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--muted);
 }
 
 .eyebrow {
@@ -1226,7 +1428,11 @@ button:active {
 .app-shell:has(#athlete-filters:not([hidden])) .athletes-list,
 .app-shell:has(#athlete-filters:not([hidden])) .pagination,
 .app-shell:has(#athlete-filters:not([hidden])) .empty-state,
-.app-shell:has(#athlete-filters:not([hidden])) .list-section .list-head {
+.app-shell:has(#athlete-filters:not([hidden])) .list-section .list-head,
+.app-shell:has(#vel-filters:not([hidden])) .athletes-list,
+.app-shell:has(#vel-filters:not([hidden])) .pagination,
+.app-shell:has(#vel-filters:not([hidden])) .empty-state,
+.app-shell:has(#vel-filters:not([hidden])) .list-section .list-head {
   opacity: 0.5;
   filter: grayscale(0.4) blur(0.6px);
   pointer-events: none;
@@ -2209,7 +2415,8 @@ button:active {
     padding: max(12px, env(safe-area-inset-top)) 10px calc(56px + env(safe-area-inset-bottom));
   }
 
-  .app-shell {
+  .app-shell,
+  .app-header-wrap {
     max-width: 100%;
   }
 
