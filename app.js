@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11d';
-console.log('[Lapsi] build', APP_BUILD, '— form di modifica più leggibile, eliminazione definitiva, piede di stacco di default');
+const APP_BUILD = '2026-09-11e';
+console.log('[Lapsi] build', APP_BUILD, '— sezioni a fisarmonica nel form di modifica, foto+corpo militare allineati, più respiro nei campi');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -701,9 +701,23 @@ function createEditForm(entry) {
   const pastRecords = getAthleteTimeRecords(entry);
   const pastRuns = pastRecords.filter((record) => record.activity !== 'Salto in alto');
   const pastJumps = pastRecords.filter((record) => record.activity === 'Salto in alto');
-  const pastSection = (pastRuns.length || pastJumps.length) ? `
+
+  // Sezioni a fisarmonica: collassate di default, un click sull'intestazione
+  // apre quella sezione e chiude le altre (vedi wiring su .edit-section-toggle).
+  const sectionChevron = '<svg class="edit-section-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const sectionWrap = (title, bodyHtml) => `
     <div class="edit-section">
-      <div class="edit-section-title">Modifica risultati precedenti</div>
+      <button type="button" class="edit-section-toggle" aria-expanded="false">
+        <span class="edit-section-title">${title}</span>
+        ${sectionChevron}
+      </button>
+      <div class="edit-section-body" hidden>
+        ${bodyHtml}
+      </div>
+    </div>
+  `;
+
+  const pastSection = (pastRuns.length || pastJumps.length) ? sectionWrap('Modifica risultati precedenti', `
       <div class="edit-subgroup">
         <div class="edit-subtitle">Corsa</div>
         ${pastRuns.length ? pastRuns.map(pastRunRow).join('') : '<div class="edit-past-empty">Nessun risultato</div>'}
@@ -712,30 +726,9 @@ function createEditForm(entry) {
         <div class="edit-subtitle">Salto in alto</div>
         ${pastJumps.length ? pastJumps.map(pastJumpRow).join('') : '<div class="edit-past-empty">Nessun risultato</div>'}
       </div>
-    </div>
-  ` : '';
+  `) : '';
 
-  editForm.innerHTML = `
-    <div class="edit-section">
-      <div class="edit-section-title">Anagrafica</div>
-      <div class="field-group">
-        <label>Foto profilo</label>
-        <div class="avatar-edit-wrapper">
-          <input class="edit-avatar-input" type="file" accept="image/*" />
-          <div class="avatar-circle avatar-edit-circle">
-            ${entry.avatar
-              ? ''
-              : `<span class="avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`
-            }
-            <span class="avatar-cam" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 8h3l1.6-2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-                <circle cx="12" cy="13" r="3.2" />
-              </svg>
-            </span>
-          </div>
-        </div>
-      </div>
+  const anagraficaBody = `
       <div class="field-row">
         <div class="field-group">
           <label>Nome</label>
@@ -746,29 +739,48 @@ function createEditForm(entry) {
           <input name="edit-surname" type="text" value="${escapeHtml(entry.surname)}" />
         </div>
       </div>
-      <div class="field-group">
-        <label>Corpo militare</label>
-        <select name="edit-military">
-          <option value="">Seleziona</option>
-          <option value="Polizia" ${entry.military === 'Polizia' ? 'selected' : ''}>Polizia</option>
-          <option value="Carabinieri" ${entry.military === 'Carabinieri' ? 'selected' : ''}>Carabinieri</option>
-          <option value="Finanza" ${entry.military === 'Finanza' ? 'selected' : ''}>Finanza</option>
-          <option value="Vigili del fuoco" ${entry.military === 'Vigili del fuoco' ? 'selected' : ''}>Vigili del fuoco</option>
-          <option value="Aeronautica" ${entry.military === 'Aeronautica' ? 'selected' : ''}>Aeronautica</option>
-          <option value="Marina" ${entry.military === 'Marina' ? 'selected' : ''}>Marina</option>
-          <option value="Gendarmeria" ${entry.military === 'Gendarmeria' ? 'selected' : ''}>Gendarmeria</option>
-          <option value="Esercito" ${entry.military === 'Esercito' ? 'selected' : ''}>Esercito</option>
-        </select>
+      <div class="field-row-avatar">
+        <div class="field-group avatar-field">
+          <label>Foto profilo</label>
+          <div class="avatar-edit-wrapper">
+            <input class="edit-avatar-input" type="file" accept="image/*" />
+            <div class="avatar-circle avatar-edit-circle">
+              ${entry.avatar
+                ? ''
+                : `<span class="avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`
+              }
+              <span class="avatar-cam" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 8h3l1.6-2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                  <circle cx="12" cy="13" r="3.2" />
+                </svg>
+              </span>
+            </div>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>Corpo militare</label>
+          <select name="edit-military">
+            <option value="">Seleziona</option>
+            <option value="Polizia" ${entry.military === 'Polizia' ? 'selected' : ''}>Polizia</option>
+            <option value="Carabinieri" ${entry.military === 'Carabinieri' ? 'selected' : ''}>Carabinieri</option>
+            <option value="Finanza" ${entry.military === 'Finanza' ? 'selected' : ''}>Finanza</option>
+            <option value="Vigili del fuoco" ${entry.military === 'Vigili del fuoco' ? 'selected' : ''}>Vigili del fuoco</option>
+            <option value="Aeronautica" ${entry.military === 'Aeronautica' ? 'selected' : ''}>Aeronautica</option>
+            <option value="Marina" ${entry.military === 'Marina' ? 'selected' : ''}>Marina</option>
+            <option value="Gendarmeria" ${entry.military === 'Gendarmeria' ? 'selected' : ''}>Gendarmeria</option>
+            <option value="Esercito" ${entry.military === 'Esercito' ? 'selected' : ''}>Esercito</option>
+          </select>
+        </div>
       </div>
       ${latestRecord ? `
       <div class="field-group">
         <label>Data del concorso</label>
         <input class="native-date" name="edit-concorso-date" type="date" value="${concorsoNativeValue}" />
       </div>` : ''}
-    </div>
+  `;
 
-    <div class="edit-section">
-      <div class="edit-section-title">Aggiungi risultati</div>
+  const risultatiBody = `
       <div class="field-group">
         <label>Corsa</label>
         <select name="edit-new-activity">${activityOptions}</select>
@@ -813,8 +825,11 @@ function createEditForm(entry) {
         </div>
         ${resultDateField('nh')}
       </div>
-    </div>
+  `;
 
+  editForm.innerHTML = `
+    ${sectionWrap('Anagrafica', anagraficaBody)}
+    ${sectionWrap('Aggiungi risultati', risultatiBody)}
     ${pastSection}
 
     <div class="edit-actions">
@@ -1736,6 +1751,29 @@ function scrollCardIntoView(item) {
   });
 }
 
+// Sezioni del form di modifica a fisarmonica: una sola aperta per volta,
+// collassate di default. Aprirne una chiude le altre nello stesso form.
+function toggleEditSection(toggleButton) {
+  const editForm = toggleButton.closest('.edit-form');
+  if (!editForm) {
+    return;
+  }
+  const body = toggleButton.nextElementSibling;
+  const wasOpen = body && !body.hidden;
+
+  editForm.querySelectorAll('.edit-section-toggle').forEach((btn) => {
+    btn.setAttribute('aria-expanded', 'false');
+  });
+  editForm.querySelectorAll('.edit-section-body').forEach((b) => {
+    b.hidden = true;
+  });
+
+  if (!wasOpen && body) {
+    body.hidden = false;
+    toggleButton.setAttribute('aria-expanded', 'true');
+  }
+}
+
 // Una sola card "aperta" per volta: chiude pannello proiezioni e form di modifica
 // di tutte le altre card.
 function collapseOtherCards(exceptItem) {
@@ -1769,6 +1807,12 @@ async function handleListClick(event) {
   const pastDeleteConfirmButton = event.target.closest('.past-del-confirm-btn');
   const notesButton = event.target.closest('.notes-btn');
   const notesClearButton = event.target.closest('.notes-clear');
+  const editSectionToggle = event.target.closest('.edit-section-toggle');
+
+  if (editSectionToggle) {
+    toggleEditSection(editSectionToggle);
+    return;
+  }
 
   if (notesClearButton) {
     await handleNotesClear(notesClearButton);

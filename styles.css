@@ -647,6 +647,14 @@ h1 {
   flex: 1;
 }
 
+/* Nel form di registrazione i campi (Attività, Tempo, Salto in alto, ...)
+   erano troppo appiccicati tra loro rispetto a Nome/Cognome: più respiro. */
+.register-screen-body > form > .field-group,
+.register-screen-body > form > .field-row,
+.register-screen-body > form > .field-row-avatar {
+  margin-bottom: 18px;
+}
+
 /* Avatar styles */
 .avatar-input-wrapper {
   display: flex;
@@ -862,15 +870,19 @@ h1 {
 .field-row-avatar {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: 22px;
 }
 
 .field-row-avatar .avatar-field {
   flex: 0 0 auto;
+  /* azzera il margin-top di .avatar-field: qui deve allinearsi in cima come
+     l'altra colonna, non essere nudged in giù */
+  margin-top: 0;
 }
 
 .field-row-avatar .field-group:not(.avatar-field) {
-  flex: 1;
+  flex: 1 1 auto;
+  max-width: 200px;
   min-width: 0;
 }
 
@@ -2315,27 +2327,67 @@ button:active {
   flex: 1;
 }
 
-/* Sezioni del form di modifica: bordo + spazio più generoso tra Anagrafica /
-   Aggiungi risultati / Modifica risultati precedenti, per distinguerle meglio. */
+/* Sezioni del form di modifica come fisarmonica: Anagrafica / Aggiungi
+   risultati / Modifica risultati precedenti, collassate di default — un
+   click sull'intestazione apre quella sezione e chiude le altre. */
 .edit-section {
-  border-top: 1px solid #dbe1ea;
-  margin-top: 28px;
-  padding-top: 20px;
+  margin-top: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .edit-section:first-child {
-  border-top: none;
   margin-top: 0;
-  padding-top: 0;
+}
+
+.edit-section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edit-section-toggle:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.edit-section-toggle[aria-expanded='true'] {
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .edit-section-title {
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--text);
   font-weight: 700;
-  margin-bottom: 12px;
+}
+
+.edit-section-chevron {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.2s ease;
+}
+
+.edit-section-toggle[aria-expanded='true'] .edit-section-chevron {
+  transform: rotate(90deg);
+}
+
+.edit-section-body {
+  padding: 16px;
+}
+
+.edit-section-body[hidden] {
+  display: none;
 }
 
 .edit-subgroup + .edit-subgroup {
