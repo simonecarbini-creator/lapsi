@@ -52,8 +52,22 @@ button, input {
 }
 
 .app-header-wrap {
+  position: relative;
+  z-index: 8800;
   max-width: min(620px, 100%);
   margin: 0 auto;
+}
+
+/* Velina dietro al menu: copre il contenuto sotto invece di spingerlo giù */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8500;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.menu-backdrop[hidden] {
+  display: none;
 }
 
 .app-header-wrap[hidden] {
@@ -136,17 +150,22 @@ button, input {
 }
 
 .main-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 8700;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0 0 20px;
+  margin: 0;
   padding: 8px;
   border: 1px solid var(--card-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+  background: #fff;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.22);
+  max-height: calc(100dvh - 90px);
+  overflow-y: auto;
 }
 
 .main-menu[hidden] {
@@ -206,6 +225,17 @@ button, input {
   font-weight: 500;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.menu-item-ic {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.menu-item-grow {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ===== Barra strumenti schermata atleti ===== */
@@ -286,6 +316,15 @@ button, input {
 
 .search-input-wrap input {
   padding-right: 38px;
+}
+
+/* Chrome/Edge desktop aggiungono una loro "x" nativa su input[type=search]:
+   la nascondiamo per tenere solo la nostra (su iOS Safari non compare). */
+.search-input-wrap input[type='search']::-webkit-search-cancel-button,
+.search-input-wrap input[type='search']::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
 }
 
 .search-clear {
@@ -2012,6 +2051,11 @@ button:active {
   gap: 12px;
 }
 
+.v2-id {
+  flex: 1;
+  min-width: 0;
+}
+
 .v2-avatar {
   width: 54px;
   height: 54px;
@@ -2061,6 +2105,7 @@ button:active {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  margin-left: auto;
   font-size: 0.68rem;
   color: var(--muted);
 }

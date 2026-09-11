@@ -81,11 +81,23 @@
         <button type="button" class="menu-item" data-section="militari">C. Militari</button>
         <button type="button" class="menu-item" disabled>Tapascioni<span class="menu-item-tag">Presto</span></button>
         <div class="menu-divider" role="separator"></div>
-        <button type="button" class="menu-item menu-item-ghost" id="export-json">Esporta JSON</button>
-        <button type="button" class="menu-item menu-item-ghost" id="import-json">Importa JSON</button>
+        <button type="button" class="menu-item menu-item-ghost" id="export-json">Esporta dati</button>
+        <button type="button" class="menu-item menu-item-ghost" id="import-json">Importa dati</button>
         <input type="file" id="import-json-file" accept="application/json,.json" hidden />
+        <div class="menu-divider" role="separator"></div>
+        <button type="button" class="menu-item menu-item-ghost" id="menu-logout">
+          <span class="menu-item-ic" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M7 3v18" />
+              <path d="M7 3.5 18 5.5v13L7 20.5" />
+              <circle cx="14.3" cy="12" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          <span class="menu-item-grow">Esci</span>
+        </button>
       </nav>
     </div>
+    <div class="menu-backdrop" id="menu-backdrop" hidden></div>
 
     <main class="app-shell" id="militari-shell" hidden>
       <div class="app-toolbar">

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11a';
-console.log('[Lapsi] build', APP_BUILD, '— burger menu, sezione Velocisti, ricerca con "x"');
+const APP_BUILD = '2026-09-11b';
+console.log('[Lapsi] build', APP_BUILD, '— menu overlay con velina, fix ricerca/concorso, voce Esci');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -70,12 +70,25 @@ const enterMilitariButton = document.getElementById('enter-militari');
 const enterVelocistiButton = document.getElementById('enter-velocisti');
 const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
+const menuBackdrop = document.getElementById('menu-backdrop');
 
 if (splashScreen) {
   setTimeout(() => {
     splashScreen.classList.add('is-hiding');
     setTimeout(() => splashScreen.remove(), 550);
   }, 2800);
+}
+
+// Il menu è un overlay: si apre sopra il contenuto (che resta fermo dietro una
+// velina), non lo spinge giù.
+function setMenuOpen(open) {
+  if (!menuToggleButton || !mainMenu) {
+    return;
+  }
+  setCollapsibleOpen(menuToggleButton, mainMenu, open);
+  if (menuBackdrop) {
+    menuBackdrop.hidden = !open;
+  }
 }
 
 // Sezione attiva: 'militari' o 'velocisti'. Il burger menu e i pulsanti della
@@ -91,9 +104,7 @@ function switchSection(section) {
   Object.entries(SECTION_SHELLS).forEach(([key, shell]) => {
     if (shell) shell.hidden = key !== section;
   });
-  if (menuToggleButton && mainMenu) {
-    setCollapsibleOpen(menuToggleButton, mainMenu, false);
-  }
+  setMenuOpen(false);
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
@@ -111,8 +122,11 @@ document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
 });
 if (menuToggleButton && mainMenu) {
   menuToggleButton.addEventListener('click', () => {
-    setCollapsibleOpen(menuToggleButton, mainMenu, mainMenu.hidden);
+    setMenuOpen(mainMenu.hidden);
   });
+}
+if (menuBackdrop) {
+  menuBackdrop.addEventListener('click', () => setMenuOpen(false));
 }
 
 let currentAvatarData = null;
@@ -2336,9 +2350,15 @@ athletesList.addEventListener('input', (event) => {
   const button = input.closest('.notes-block').querySelector('.notes-btn');
   button.disabled = input.value.trim() === '';
 });
-exportButton.addEventListener('click', exportEntriesAsJson);
+exportButton.addEventListener('click', () => {
+  setMenuOpen(false);
+  exportEntriesAsJson();
+});
 if (importButton && importFileInput) {
-  importButton.addEventListener('click', () => importFileInput.click());
+  importButton.addEventListener('click', () => {
+    setMenuOpen(false);
+    importFileInput.click();
+  });
   importFileInput.addEventListener('change', async () => {
     const file = importFileInput.files && importFileInput.files[0];
     importFileInput.value = '';
