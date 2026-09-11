@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11b';
-console.log('[Lapsi] build', APP_BUILD, '— menu overlay con velina, fix ricerca/concorso, voce Esci');
+const APP_BUILD = '2026-09-11c';
+console.log('[Lapsi] build', APP_BUILD, '— scroll in cima alla scheda aperta, scudo sul corpo militare, categorie complete');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -913,6 +913,14 @@ function calendarIcon(size = 12) {
     + '</svg>';
 }
 
+// Stesso scudo usato per "C. Militari" nella home, riusato sulla pill del
+// corpo militare in ogni card.
+function militaryShieldIcon(size = 11) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">`
+    + '<path d="M12 2 4 5v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V5l-8-3z"/>'
+    + '</svg>';
+}
+
 function targetIcon(size = 12) {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2">`
     + '<circle cx="12" cy="12" r="9"/>'
@@ -1494,7 +1502,7 @@ function renderEntries() {
         <div class="v2-id">
           <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
           <div class="v2-meta">
-            <span class="v2-corp">${escapeHtml(entry.military || 'Nessun corpo')}</span>
+            <span class="v2-corp">${militaryShieldIcon(10)}${escapeHtml(entry.military || 'Nessun corpo')}</span>
             <span class="v2-concorso">${calendarIcon(11)}${escapeHtml(concorsoDate)}</span>
           </div>
         </div>
@@ -1707,6 +1715,14 @@ async function handleSubmit(event) {
   showToast('Salvato!');
 }
 
+// Quando si apre una scheda (proiezioni o modifica) la portiamo in cima alla
+// vista, così si legge dall'inizio invece di ritrovarsi a metà contenuto.
+function scrollCardIntoView(item) {
+  requestAnimationFrame(() => {
+    item.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+}
+
 // Una sola card "aperta" per volta: chiude pannello proiezioni e form di modifica
 // di tutte le altre card.
 function collapseOtherCards(exceptItem) {
@@ -1819,13 +1835,18 @@ async function handleListClick(event) {
       item.appendChild(editForm);
       wireCustomInputs(editForm);
       editForm.hidden = false;
+      scrollCardIntoView(item);
       return;
     }
 
-    if (editForm.hidden) {
+    const willOpen = editForm.hidden;
+    if (willOpen) {
       collapseOtherCards(item);
     }
     editForm.hidden = !editForm.hidden;
+    if (willOpen) {
+      scrollCardIntoView(item);
+    }
     return;
   }
 
@@ -1848,6 +1869,9 @@ async function handleListClick(event) {
     projectionButton.setAttribute('aria-expanded', String(nextExpanded));
     panel.hidden = !nextExpanded;
     projectionButton.style.transform = nextExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+    if (nextExpanded) {
+      scrollCardIntoView(item);
+    }
   }
 }
 
@@ -2977,13 +3001,18 @@ async function handleVelListClick(event) {
       editForm = createVelocistaEditForm(entry);
       item.appendChild(editForm);
       editForm.hidden = false;
+      scrollCardIntoView(item);
       return;
     }
 
-    if (editForm.hidden) {
+    const willOpen = editForm.hidden;
+    if (willOpen) {
       velCollapseOtherCards(item);
     }
     editForm.hidden = !editForm.hidden;
+    if (willOpen) {
+      scrollCardIntoView(item);
+    }
     return;
   }
 
@@ -3004,6 +3033,9 @@ async function handleVelListClick(event) {
     projectionButton.setAttribute('aria-expanded', String(nextExpanded));
     panel.hidden = !nextExpanded;
     projectionButton.style.transform = nextExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+    if (nextExpanded) {
+      scrollCardIntoView(item);
+    }
   }
 }
 

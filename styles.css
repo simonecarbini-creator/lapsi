@@ -2091,6 +2091,9 @@ button:active {
 }
 
 .v2-corp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -2099,6 +2102,10 @@ button:active {
   border-radius: 999px;
   background: #eef1f6;
   color: #55617a;
+}
+
+.v2-corp svg {
+  flex-shrink: 0;
 }
 
 .v2-concorso {
