@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11l';
-console.log('[Lapsi] build', APP_BUILD, '— pulsante "Programma allenamento" (C. Militari)');
+const APP_BUILD = '2026-09-11m';
+console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: formattazione vera, toolbar in alto, voci a fisarmonica');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -3846,46 +3846,186 @@ velForm.addEventListener('submit', async (event) => {
 });
 
 // ===================== "Programma allenamento" (solo C. Militari) =====================
-// Una nota unica di testo semplice, condivisa per tutta la sezione atleti
-// militari — non è legata a un singolo atleta. Le formattazioni (grassetto/
-// corsivo/sottolineato) sono marcatori di testo semplice (**grassetto**,
-// *corsivo*, _sottolineato_) inseriti attorno alla selezione, non HTML: il
-// testo resta un dato semplice, leggibile anche fuori dall'app.
+// Elenco di voci a fisarmonica (titolo + testo), condiviso per tutta la
+// sezione atleti militari — non legato a un singolo atleta. Ogni voce ha un
+// corpo "contenteditable" con formattazione vera (grassetto/corsivo/
+// sottolineato/colore), non marcatori di testo: la barra dei pulsanti resta
+// ancorata subito sotto l'intestazione (non in fondo, dove su iPhone la
+// tastiera la coprirebbe) e agisce sulla voce aperta in quel momento.
 const STORAGE_KEY_TRAINING_NOTES = 'lapsi-training-notes';
-const TRAINING_NOTES_MARKERS = { bold: '**', italic: '*', underline: '_' };
+const TRAINING_NOTES_COLOR = '#2563eb';
 
 const trainingNotesBackdrop = document.getElementById('training-notes-backdrop');
 const trainingNotesOverlay = document.getElementById('training-notes-overlay');
 const trainingNotesClose = document.getElementById('training-notes-close');
-const trainingNotesTextarea = document.getElementById('training-notes-textarea');
+const trainingNotesList = document.getElementById('training-notes-list');
+const trainingNotesAdd = document.getElementById('training-notes-add');
 const trainingNotesSave = document.getElementById('training-notes-save');
 
-function readTrainingNotes() {
-  try {
-    return localStorage.getItem(STORAGE_KEY_TRAINING_NOTES) || '';
-  } catch (error) {
-    console.warn('Errore lettura programma allenamento:', error);
-    return '';
-  }
+let trainingActiveEditor = null;
+
+function newTrainingEntryId() {
+  return `tn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function saveTrainingNotesText(text) {
+// Toglie tag/attributi pericolosi da un HTML prima di salvarlo o rimetterlo in
+// pagina (l'editor produce solo b/i/u/font/div/br, ma un incolla potrebbe
+// portare dentro altro).
+function sanitizeTrainingHtml(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  const stripTags = ['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'form'];
+  const walk = (node) => {
+    [...node.childNodes].forEach((child) => {
+      if (child.nodeType === 1) {
+        if (stripTags.includes(child.tagName.toLowerCase())) {
+          child.remove();
+          return;
+        }
+        [...child.attributes].forEach((attr) => {
+          const isEventAttr = /^on/i.test(attr.name);
+          const isUnsafeUrl = /^(href|src)$/i.test(attr.name) && /^\s*javascript:/i.test(attr.value);
+          if (isEventAttr || isUnsafeUrl) {
+            child.removeAttribute(attr.name);
+          }
+        });
+        walk(child);
+      } else if (child.nodeType !== 3) {
+        child.remove();
+      }
+    });
+  };
+  walk(temp);
+  return temp.innerHTML;
+}
+
+// Legge le voci salvate; converte automaticamente il vecchio formato (una
+// singola stringa di testo semplice, con o senza marcatori **/*/_) in
+// un'unica voce, senza perdere nulla.
+function readTrainingEntries() {
+  let raw;
   try {
-    localStorage.setItem(STORAGE_KEY_TRAINING_NOTES, text);
+    raw = localStorage.getItem(STORAGE_KEY_TRAINING_NOTES);
+  } catch (error) {
+    console.warn('Errore lettura programma allenamento:', error);
+    return [];
+  }
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          id: entry.id || newTrainingEntryId(),
+          title: String(entry.title || ''),
+          html: String(entry.html || ''),
+        }));
+    }
+  } catch (error) {
+    // Non era JSON valido: è il vecchio formato a testo semplice, si migra sotto.
+  }
+  const legacyText = String(raw).trim();
+  if (!legacyText) {
+    return [];
+  }
+  return [{
+    id: newTrainingEntryId(),
+    title: 'Programma',
+    html: escapeHtml(legacyText).replace(/\n/g, '<br>'),
+  }];
+}
+
+function saveTrainingEntries(entries) {
+  try {
+    localStorage.setItem(STORAGE_KEY_TRAINING_NOTES, JSON.stringify(entries));
   } catch (error) {
     console.error('Impossibile salvare il programma allenamento:', error);
   }
 }
 
-function openTrainingNotes() {
-  if (!trainingNotesOverlay || !trainingNotesBackdrop) {
+function collectTrainingEntriesFromDom() {
+  if (!trainingNotesList) {
+    return [];
+  }
+  return [...trainingNotesList.querySelectorAll('.training-entry')].map((el) => ({
+    id: el.dataset.id,
+    title: el.querySelector('.training-entry-title').value.trim(),
+    html: sanitizeTrainingHtml(el.querySelector('.training-entry-editor').innerHTML),
+  }));
+}
+
+function trainingEntryTemplate(entry, { expanded = false } = {}) {
+  const chevron = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const trash = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+
+  const item = document.createElement('div');
+  item.className = 'training-entry';
+  item.dataset.id = entry.id;
+  item.innerHTML = `
+    <div class="training-entry-header">
+      <input type="text" class="training-entry-title" value="${escapeHtml(entry.title)}" placeholder="Titolo…" />
+      <button type="button" class="training-entry-del" aria-label="Elimina voce">${trash}</button>
+      <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi voce">${chevron}</button>
+    </div>
+    <div class="training-entry-body" ${expanded ? '' : 'hidden'}>
+      <div class="training-entry-editor" contenteditable="true" data-placeholder="Scrivi qui…"></div>
+    </div>
+  `;
+  item.querySelector('.training-entry-editor').innerHTML = entry.html || '';
+  return item;
+}
+
+function renderTrainingEntries(entries) {
+  if (!trainingNotesList) {
     return;
   }
-  trainingNotesTextarea.value = readTrainingNotes();
+  trainingNotesList.innerHTML = '';
+  trainingActiveEditor = null;
+  const list = entries.length ? entries : [{ id: newTrainingEntryId(), title: '', html: '' }];
+  list.forEach((entry, index) => {
+    trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: index === 0 }));
+  });
+  const firstEditor = trainingNotesList.querySelector('.training-entry-editor');
+  if (firstEditor) {
+    trainingActiveEditor = firstEditor;
+  }
+}
+
+// Una sola voce aperta per volta.
+function toggleTrainingEntry(entryEl) {
+  const body = entryEl.querySelector('.training-entry-body');
+  const toggleBtn = entryEl.querySelector('.training-entry-toggle');
+  const wasOpen = body && !body.hidden;
+
+  trainingNotesList.querySelectorAll('.training-entry').forEach((other) => {
+    const otherBody = other.querySelector('.training-entry-body');
+    const otherToggle = other.querySelector('.training-entry-toggle');
+    if (otherBody) otherBody.hidden = true;
+    if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
+  });
+
+  if (!wasOpen) {
+    if (body) body.hidden = false;
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+    const editor = entryEl.querySelector('.training-entry-editor');
+    if (editor) {
+      trainingActiveEditor = editor;
+      editor.focus();
+    }
+  }
+}
+
+function openTrainingNotes() {
+  if (!trainingNotesOverlay || !trainingNotesBackdrop || !trainingNotesList) {
+    return;
+  }
+  renderTrainingEntries(readTrainingEntries());
   trainingNotesBackdrop.hidden = false;
   trainingNotesOverlay.hidden = false;
   document.body.classList.add('register-open');
-  trainingNotesTextarea.focus();
 }
 
 function closeTrainingNotes() {
@@ -3897,25 +4037,21 @@ function closeTrainingNotes() {
   document.body.classList.remove('register-open');
 }
 
-// Racchiude la selezione tra i marcatori di formattazione (o li inserisce
-// vuoti, col cursore in mezzo, se non c'è nulla di selezionato).
-function wrapTrainingNotesSelection(marker) {
-  const el = trainingNotesTextarea;
-  if (!el) {
+function applyTrainingFormat(format) {
+  const editor = trainingActiveEditor;
+  if (!editor) {
     return;
   }
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  const value = el.value;
-  const selected = value.slice(start, end);
-  const before = value.slice(0, start);
-  const after = value.slice(end);
-
-  el.value = `${before}${marker}${selected}${marker}${after}`;
-  el.focus();
-  const cursorStart = start + marker.length;
-  const cursorEnd = cursorStart + selected.length;
-  el.setSelectionRange(cursorStart, cursorEnd);
+  editor.focus();
+  try {
+    if (format === 'color') {
+      document.execCommand('foreColor', false, TRAINING_NOTES_COLOR);
+    } else {
+      document.execCommand(format, false, null);
+    }
+  } catch (error) {
+    console.warn('Formattazione non disponibile:', error);
+  }
 }
 
 if (trainingNotesFab) {
@@ -3927,19 +4063,62 @@ if (trainingNotesClose) {
 if (trainingNotesBackdrop) {
   trainingNotesBackdrop.addEventListener('click', closeTrainingNotes);
 }
+if (trainingNotesAdd) {
+  trainingNotesAdd.addEventListener('click', () => {
+    const item = trainingEntryTemplate({ id: newTrainingEntryId(), title: '', html: '' }, { expanded: false });
+    trainingNotesList.appendChild(item);
+    toggleTrainingEntry(item);
+    item.querySelector('.training-entry-title').focus();
+    item.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  });
+}
 if (trainingNotesSave) {
   trainingNotesSave.addEventListener('click', () => {
-    saveTrainingNotesText(trainingNotesTextarea.value);
+    const entries = collectTrainingEntriesFromDom()
+      .filter((entry) => entry.title.trim() || entry.html.replace(/<[^>]*>/g, '').trim());
+    saveTrainingEntries(entries);
     showToast('Salvato!');
   });
 }
-document.querySelectorAll('.training-notes-fmt-btn').forEach((button) => {
-  button.addEventListener('click', () => {
-    const marker = TRAINING_NOTES_MARKERS[button.dataset.format];
-    if (marker) {
-      wrapTrainingNotesSelection(marker);
+if (trainingNotesList) {
+  trainingNotesList.addEventListener('click', async (event) => {
+    const toggleBtn = event.target.closest('.training-entry-toggle');
+    const delBtn = event.target.closest('.training-entry-del');
+
+    if (toggleBtn) {
+      toggleTrainingEntry(toggleBtn.closest('.training-entry'));
+      return;
+    }
+
+    if (delBtn) {
+      const entryEl = delBtn.closest('.training-entry');
+      const title = entryEl.querySelector('.training-entry-title').value.trim() || 'questa voce';
+      const confirmed = await showConfirm(`Eliminare "${title}"?`, {
+        detail: 'Diventa definitivo solo premendo Salva.',
+        confirmText: 'Elimina',
+      });
+      if (!confirmed) {
+        return;
+      }
+      if (trainingActiveEditor && entryEl.contains(trainingActiveEditor)) {
+        trainingActiveEditor = null;
+      }
+      entryEl.remove();
     }
   });
+  trainingNotesList.addEventListener('focusin', (event) => {
+    const editor = event.target.closest('.training-entry-editor');
+    if (editor) {
+      trainingActiveEditor = editor;
+    }
+  });
+}
+document.querySelectorAll('.training-notes-fmt-btn').forEach((button) => {
+  // mousedown/touchstart con preventDefault: evita che il click sul pulsante
+  // tolga il focus (e la selezione) dall'editor prima di poter formattare.
+  button.addEventListener('mousedown', (event) => event.preventDefault());
+  button.addEventListener('touchstart', (event) => event.preventDefault(), { passive: false });
+  button.addEventListener('click', () => applyTrainingFormat(button.dataset.format));
 });
 
 async function initializeApp() {

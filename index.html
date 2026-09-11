@@ -356,13 +356,15 @@
           </svg>
         </button>
       </header>
-      <textarea id="training-notes-textarea" class="training-notes-textarea" placeholder="Scrivi qui il programma di allenamento…"></textarea>
-      <div class="training-notes-toolbar">
-        <div class="training-notes-format">
-          <button type="button" class="training-notes-fmt-btn" data-format="bold" aria-label="Grassetto" title="Grassetto"><b>B</b></button>
-          <button type="button" class="training-notes-fmt-btn training-notes-fmt-italic" data-format="italic" aria-label="Corsivo" title="Corsivo"><i>i</i></button>
-          <button type="button" class="training-notes-fmt-btn training-notes-fmt-underline" data-format="underline" aria-label="Sottolineato" title="Sottolineato"><u>s</u></button>
-        </div>
+      <div class="training-notes-toolbar-top" id="training-notes-toolbar-top">
+        <button type="button" class="training-notes-fmt-btn" data-format="bold" aria-label="Grassetto" title="Grassetto"><b>B</b></button>
+        <button type="button" class="training-notes-fmt-btn training-notes-fmt-italic" data-format="italic" aria-label="Corsivo" title="Corsivo"><i>i</i></button>
+        <button type="button" class="training-notes-fmt-btn training-notes-fmt-underline" data-format="underline" aria-label="Sottolineato" title="Sottolineato"><u>s</u></button>
+        <button type="button" class="training-notes-fmt-btn training-notes-fmt-color" data-format="color" aria-label="Testo blu" title="Testo blu">A</button>
+      </div>
+      <div class="training-notes-list" id="training-notes-list"></div>
+      <div class="training-notes-footer">
+        <button type="button" id="training-notes-add" class="secondary-btn training-notes-add">+ Nuova voce</button>
         <button type="button" id="training-notes-save" class="primary-btn training-notes-save">Salva</button>
       </div>
     </div>
