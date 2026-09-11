@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11g';
-console.log('[Lapsi] build', APP_BUILD, '— padding sul placeholder "Nessun risultato" dei velocisti');
+const APP_BUILD = '2026-09-11h';
+console.log('[Lapsi] build', APP_BUILD, '— taccuino velocisti: risultati, test e note');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -609,20 +609,7 @@ function createEditForm(entry) {
     const d = new Date(ts);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   })();
-  const todayNativeValue = (() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  })();
-  const checkIcon = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
-
-  const resultDateField = (prefix) => `
-    <label class="result-date-toggle">
-      <input type="checkbox" class="result-date-checkbox" name="edit-${prefix}-setdate" />
-      <span class="result-date-box" aria-hidden="true">${checkIcon}</span>
-      <span class="result-date-text">Cambia data del risultato</span>
-    </label>
-    <input class="native-date result-date-field" name="edit-${prefix}-date" type="date" value="${todayNativeValue}" hidden />
-  `;
+  const resultDateField = (prefix) => resultDateFieldHtml(prefix);
 
   const dateParts = (value) => {
     const parts = String(value || '').split('/');
@@ -704,18 +691,7 @@ function createEditForm(entry) {
 
   // Sezioni a fisarmonica: collassate di default, un click sull'intestazione
   // apre quella sezione e chiude le altre (vedi wiring su .edit-section-toggle).
-  const sectionChevron = '<svg class="edit-section-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
-  const sectionWrap = (title, bodyHtml) => `
-    <div class="edit-section">
-      <button type="button" class="edit-section-toggle" aria-expanded="false">
-        <span class="edit-section-title">${title}</span>
-        ${sectionChevron}
-      </button>
-      <div class="edit-section-body" hidden>
-        ${bodyHtml}
-      </div>
-    </div>
-  `;
+  const sectionWrap = editSectionWrap;
 
   const pastSection = (pastRuns.length || pastJumps.length) ? sectionWrap('Modifica risultati precedenti', `
       <div class="edit-subgroup">
@@ -948,6 +924,61 @@ function militaryShieldIcon(size = 11) {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">`
     + '<path d="M12 2 4 5v6c0 5 3.5 8.5 8 10 4.5-1.5 8-5 8-10V5l-8-3z"/>'
     + '</svg>';
+}
+
+// Data odierna in formato input[type=date] (yyyy-mm-dd), per precompilare i
+// date picker dei form di modifica.
+function todayNativeDateValue() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Checkbox "Cambia data del risultato" (casella custom con spunta) + date
+// picker nascosto sotto: condivisa tra il form di modifica atleti militari e
+// quello dei velocisti.
+// Sezione a fisarmonica dei form di modifica: intestazione cliccabile (con
+// chevron) + corpo collassabile. Condivisa tra atleti e velocisti — l'apertura
+// esclusiva delle sezioni è gestita da toggleEditSection.
+function editSectionWrap(title, bodyHtml) {
+  const chevron = '<svg class="edit-section-chevron" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  return `
+    <div class="edit-section">
+      <button type="button" class="edit-section-toggle" aria-expanded="false">
+        <span class="edit-section-title">${title}</span>
+        ${chevron}
+      </button>
+      <div class="edit-section-body" hidden>
+        ${bodyHtml}
+      </div>
+    </div>
+  `;
+}
+
+function resultDateFieldHtml(prefix, todayNativeValue = todayNativeDateValue()) {
+  const checkIcon = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+  return `
+    <label class="result-date-toggle">
+      <input type="checkbox" class="result-date-checkbox" name="edit-${prefix}-setdate" />
+      <span class="result-date-box" aria-hidden="true">${checkIcon}</span>
+      <span class="result-date-text">Cambia data del risultato</span>
+    </label>
+    <input class="native-date result-date-field" name="edit-${prefix}-date" type="date" value="${todayNativeValue}" hidden />
+  `;
+}
+
+// Legge il valore di "Cambia data del risultato" per un prefisso di campo del
+// form di modifica: se flaggata restituisce la data scelta (date/iso/label
+// breve), altrimenti la data/ora corrente. Condivisa tra atleti e velocisti.
+function resultDateFrom(editForm, prefix, now) {
+  const checkbox = editForm.querySelector(`[name="edit-${prefix}-setdate"]`);
+  const field = editForm.querySelector(`[name="edit-${prefix}-date"]`);
+  if (!checkbox || !checkbox.checked || !field || !field.value) {
+    return { date: now.date, iso: now.iso, concorso: shortYearDate(now.date) };
+  }
+  const [year, month, day] = field.value.split('-').map(Number);
+  const localDate = `${pad(day)}/${pad(month)}/${year}`;
+  const ts = new Date(year, month - 1, day, 12, 0, 0).getTime();
+  return { date: localDate, iso: new Date(ts).toISOString(), concorso: shortYearDate(localDate) };
 }
 
 function targetIcon(size = 12) {
@@ -1195,8 +1226,8 @@ function buildResultsChart(runHistory, jumpHistory) {
         <text x="${plotX + plotW / 2}" y="${H - 2}" text-anchor="middle" class="chart-axis-label">tempo</text>
       </svg>
       <div class="results-chart-legend">
-        <span><i style="background:${CHART_RUN_COLOR}"></i>Corsa</span>
-        <span><i style="background:${CHART_JUMP_COLOR}"></i>Salto in alto</span>
+        ${hasRun ? `<span><i style="background:${CHART_RUN_COLOR}"></i>Corsa</span>` : ''}
+        ${hasJump ? `<span><i style="background:${CHART_JUMP_COLOR}"></i>Salto in alto</span>` : ''}
       </div>
     </div>
   `;
@@ -1988,23 +2019,13 @@ async function handleEditSubmit(event) {
 
   const editVal = (name) => Number(editForm.querySelector(`[name="${name}"]`).value || 0);
   const now = getNowParts();
-  const concorso = shortYearDate(now.date);
   const newId = () => `time-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const added = [];
 
-  // Data del nuovo risultato: se la checkbox "Setta data del risultato" è flaggata
-  // si usa la data scelta (per date / createdAt / concorsoDate), altrimenti oggi.
-  const resultDate = (prefix) => {
-    const checkbox = editForm.querySelector(`[name="edit-${prefix}-setdate"]`);
-    const field = editForm.querySelector(`[name="edit-${prefix}-date"]`);
-    if (!checkbox || !checkbox.checked || !field || !field.value) {
-      return { date: now.date, iso: now.iso, concorso };
-    }
-    const [year, month, day] = field.value.split('-').map(Number);
-    const localDate = `${pad(day)}/${pad(month)}/${year}`;
-    const ts = new Date(year, month - 1, day, 12, 0, 0).getTime();
-    return { date: localDate, iso: new Date(ts).toISOString(), concorso: shortYearDate(localDate) };
-  };
+  // Data del nuovo risultato: se la checkbox "Cambia data del risultato" è
+  // flaggata si usa la data scelta (per date / createdAt / concorsoDate),
+  // altrimenti oggi.
+  const resultDate = (prefix) => resultDateFrom(editForm, prefix, now);
 
   const newTime = formatTimeFromParts({
     hours: editVal('edit-nt-hours'),
@@ -2655,11 +2676,14 @@ if (nicknameInput) {
 athleteSuggestions.addEventListener('click', handleListClick);
 
 // ===================== Sezione "Velocisti" =====================
-// Dominio dati separato e più semplice: solo avatar, nome/cognome e specialità
-// (100mt/200mt/400mt). Nessun risultato/cronologia/grafico per ora — il pulsante
-// "→" resta pronto per quando arriveranno.
+// Dominio dati separato dagli atleti militari (storage a parte): anagrafica
+// leggera (avatar, nome/cognome, specialità) + un taccuino con tre registri —
+// risultati cronometrati (100/200/400, vento facoltativo), test rapidi
+// (balzi/lanciati/VAM...) e note — riusando dove possibile grafico e notes
+// già costruiti per gli atleti militari.
 const STORAGE_KEY_VELOCISTI = 'lapsi-velocisti';
 const SPECIALTY_OPTIONS = ['100mt', '200mt', '400mt'];
+const TEST_TYPE_OPTIONS = ['30m lanciati', 'CMJ', 'SJ', 'Balzo da fermo', 'Altro'];
 const VEL_PAGE_SIZE = 5;
 const VEL_FILTER_DEFAULTS = { specialty: 'Tutte', sort: 'az' };
 
@@ -2697,6 +2721,46 @@ function getVelocisti() {
   return [...cachedVelocisti];
 }
 
+// Un risultato cronometrato (100/200/400). Il vento è facoltativo: si registra
+// solo se lo si conosce, non è un dato obbligatorio come nel modello da pista.
+function normalizeVelResult(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const time = String(record.time || '').trim();
+  if (!time || time === '00:00:00.0') {
+    return null;
+  }
+  return {
+    id: record.id || `vr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    activity: SPECIALTY_OPTIONS.includes(record.activity) ? record.activity : SPECIALTY_OPTIONS[0],
+    time,
+    date: String(record.date || ''),
+    wind: record.wind != null ? String(record.wind).trim() : '',
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
+// Una prova/test non cronometrato (balzi, lanciati, VAM...): tipo libero da un
+// piccolo elenco + valore libero, niente catalogo/protocollo rigido.
+function normalizeVelTest(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const value = String(record.value || '').trim();
+  if (!value) {
+    return null;
+  }
+  return {
+    id: record.id || `vt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: record.type ? String(record.type) : 'Altro',
+    value,
+    note: record.note ? String(record.note) : '',
+    date: String(record.date || ''),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
 function normalizeVelocista(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -2708,6 +2772,9 @@ function normalizeVelocista(entry) {
     avatar: entry.avatar || null,
     specialty: SPECIALTY_OPTIONS.includes(entry.specialty) ? entry.specialty : '',
     createdAt: entry.createdAt || new Date(0).toISOString(),
+    results: Array.isArray(entry.results) ? entry.results.map(normalizeVelResult).filter(Boolean) : [],
+    tests: Array.isArray(entry.tests) ? entry.tests.map(normalizeVelTest).filter(Boolean) : [],
+    notes: normalizeNotes(entry.notes),
   };
 }
 
@@ -2734,8 +2801,12 @@ function readVelocisti() {
 }
 
 async function saveVelocisti(entries) {
-  cachedVelocisti = entries;
-  persistVelocisti(entries);
+  // Rinormalizza sempre prima di salvare: evita che un record creato "a mano"
+  // (es. in un punto del codice che dimentica results/tests/notes) rompa il
+  // rendering più avanti — stesso principio di readVelocisti.
+  const normalized = entries.map(normalizeVelocista).filter(Boolean);
+  cachedVelocisti = normalized;
+  persistVelocisti(normalized);
 }
 
 function getFilteredVelocisti() {
@@ -2816,6 +2887,117 @@ function velCollapseOtherCards(exceptItem) {
   });
 }
 
+// Blocco note del velocista: stessa markup/logica di buildNotesBlock, ma
+// legge/scrive nello store dei velocisti invece che in quello degli atleti.
+function buildVelNotesBlock(entry) {
+  const notes = Array.isArray(entry.notes) ? entry.notes : [];
+  const logMarkup = notes.length
+    ? notes.map((note) => `
+        <div class="notes-entry">
+          <div class="notes-entry-text">${escapeHtml(note.text)}</div>
+          <div class="notes-entry-date">${escapeHtml(note.savedAt)}</div>
+        </div>
+      `).join('')
+    : '<div class="notes-empty">Nessuna nota</div>';
+  return `
+    <div class="notes-block" data-velocista-id="${escapeHtml(entry.id)}">
+      <div class="notes-label">Note</div>
+      <div class="notes-log">${logMarkup}</div>
+      <div class="notes-new">
+        <textarea class="notes-input" rows="2" placeholder="Aggiungi una nota…"></textarea>
+        <div class="notes-foot">
+          <button type="button" class="notes-clear" aria-label="Cancella tutte le note" title="Cancella tutte le note" ${notes.length ? '' : 'hidden'}>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" />
+            </svg>
+          </button>
+          <button type="button" class="notes-btn" disabled>Salva</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function handleVelNotesAdd(button) {
+  const block = button.closest('.notes-block');
+  if (!block) {
+    return;
+  }
+  const input = block.querySelector('.notes-input');
+  const text = input.value.trim();
+  if (!text) {
+    return;
+  }
+
+  const velocistaId = block.dataset.velocistaId;
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === velocistaId);
+  if (index === -1) {
+    return;
+  }
+
+  const now = getNowParts();
+  const stamp = `${shortYearDate(now.date)} ${now.time.slice(0, 5)}`;
+  const newNote = {
+    id: `note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    text,
+    savedAt: stamp,
+  };
+  const current = Array.isArray(entries[index].notes) ? entries[index].notes : [];
+  entries[index] = { ...entries[index], notes: [...current, newNote] };
+  await saveVelocisti(entries);
+
+  const log = block.querySelector('.notes-log');
+  const empty = log.querySelector('.notes-empty');
+  if (empty) {
+    empty.remove();
+  }
+  const entryEl = document.createElement('div');
+  entryEl.className = 'notes-entry';
+  entryEl.innerHTML = `<div class="notes-entry-text">${escapeHtml(text)}</div><div class="notes-entry-date">${escapeHtml(stamp)}</div>`;
+  log.appendChild(entryEl);
+  log.scrollTop = log.scrollHeight;
+
+  input.value = '';
+  button.disabled = true;
+  const clearButton = block.querySelector('.notes-clear');
+  if (clearButton) {
+    clearButton.hidden = false;
+  }
+  showToast('Nota aggiunta!');
+}
+
+async function handleVelNotesClear(button) {
+  const block = button.closest('.notes-block');
+  if (!block) {
+    return;
+  }
+  const velocistaId = block.dataset.velocistaId;
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === velocistaId);
+  if (index === -1) {
+    return;
+  }
+  if (!(Array.isArray(entries[index].notes) && entries[index].notes.length)) {
+    return;
+  }
+
+  const confirmed = await showConfirm('Cancellare tutte le note?', {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Cancella',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  entries[index] = { ...entries[index], notes: [] };
+  await saveVelocisti(entries);
+
+  block.querySelector('.notes-log').innerHTML = '<div class="notes-empty">Nessuna nota</div>';
+  button.hidden = true;
+  showToast('Note cancellate!');
+}
+
 function renderVelocisti() {
   const entries = getFilteredVelocisti();
   const searchQuery = velSearchInput.value.trim().toLowerCase();
@@ -2847,6 +3029,24 @@ function renderVelocisti() {
 
     const specialtyLabel = entry.specialty || 'Nessuna specialità';
 
+    const results = [...entry.results].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const tests = [...entry.tests].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+    const timedResults = results.filter((r) => parseTimeToSeconds(r.time) > 0);
+    const bestResult = timedResults.length
+      ? timedResults.reduce((best, r) => (parseTimeToSeconds(r.time) < parseTimeToSeconds(best.time) ? r : best))
+      : null;
+
+    const pb = '<span class="v2-pb">PB</span>';
+    const resultTile = bestResult ? `
+      <div class="v2-tile">
+        <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>Corsa ${pb}</div>
+        <div class="v2-tile-val">${escapeHtml(bestResult.time)}</div>
+        <div class="v2-tile-sub">${escapeHtml(bestResult.activity)} · ${escapeHtml(shortYearDate(bestResult.date || ''))}${bestResult.wind ? ` · ${escapeHtml(bestResult.wind)} m/s` : ''}</div>
+      </div>` : '';
+    const tilesMarkup = resultTile
+      ? `<div class="v2-tiles">${resultTile}</div>`
+      : '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato registrato</div></div>';
+
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
       <div class="v2-head">
@@ -2858,6 +3058,7 @@ function renderVelocisti() {
           </div>
         </div>
       </div>
+      ${tilesMarkup}
       <div class="v2-actions"></div>
     `;
 
@@ -2892,7 +3093,45 @@ function renderVelocisti() {
     const panel = document.createElement('div');
     panel.className = 'projection-panel';
     panel.hidden = true;
-    panel.innerHTML = '<div class="history-row history-empty">Nessun risultato registrato ancora.</div>';
+
+    const smallTrashIcon = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+
+    const resultsHistoryMarkup = results.length
+      ? results.map((record) => `
+          <div class="history-row">
+            <span>${escapeHtml(record.activity)} • ${escapeHtml(shortYearDate(record.date || ''))}${record.wind ? ` • ${escapeHtml(record.wind)} m/s` : ''}</span>
+            <span class="history-row-right">
+              <strong>${escapeHtml(record.time)}</strong>
+              <button type="button" class="history-del-btn vel-result-del" data-id="${escapeHtml(record.id)}" aria-label="Elimina risultato">${smallTrashIcon}</button>
+            </span>
+          </div>
+        `).join('')
+      : '<div class="history-row history-empty">Nessun risultato registrato ancora.</div>';
+
+    const testsMarkup = tests.length
+      ? tests.map((record) => `
+          <div class="projection-row">
+            <span>${escapeHtml(record.type)} • ${escapeHtml(shortYearDate(record.date || ''))}${record.note ? ` — ${escapeHtml(record.note)}` : ''}</span>
+            <span class="history-row-right">
+              <strong>${escapeHtml(record.value)}</strong>
+              <button type="button" class="history-del-btn vel-test-del" data-id="${escapeHtml(record.id)}" aria-label="Elimina test">${smallTrashIcon}</button>
+            </span>
+          </div>
+        `).join('')
+      : '<div class="history-row history-empty">Nessun test registrato ancora.</div>';
+
+    panel.innerHTML = `
+      <div class="time-history">
+        <div class="history-header">Risultati</div>
+        ${resultsHistoryMarkup}
+      </div>
+      ${buildResultsChart(results, [])}
+      <div class="projection-section">
+        <div class="projection-label">Test</div>
+        ${testsMarkup}
+      </div>
+      ${buildVelNotesBlock(entry)}
+    `;
     item.appendChild(panel);
 
     velList.appendChild(item);
@@ -2910,11 +3149,26 @@ function createVelocistaEditForm(entry) {
   const specialtyOptionsHtml = ['', ...SPECIALTY_OPTIONS]
     .map((value) => `<option value="${value}" ${entry.specialty === value ? 'selected' : ''}>${value || 'Seleziona'}</option>`)
     .join('');
+  const activityOptionsHtml = SPECIALTY_OPTIONS
+    .map((value) => `<option value="${value}">${value}</option>`)
+    .join('');
+  const testTypeOptionsHtml = TEST_TYPE_OPTIONS
+    .map((value) => `<option value="${value}">${value}</option>`)
+    .join('');
 
-  editForm.innerHTML = `
-    <div class="edit-section">
-      <div class="edit-section-title">Anagrafica</div>
+  const anagraficaBody = `
+    <div class="field-row">
       <div class="field-group">
+        <label>Nome</label>
+        <input name="edit-vel-name" type="text" value="${escapeHtml(entry.name)}" />
+      </div>
+      <div class="field-group">
+        <label>Cognome</label>
+        <input name="edit-vel-surname" type="text" value="${escapeHtml(entry.surname)}" />
+      </div>
+    </div>
+    <div class="field-row-avatar">
+      <div class="field-group avatar-field">
         <label>Foto profilo</label>
         <div class="avatar-edit-wrapper">
           <input class="edit-avatar-input" type="file" accept="image/*" />
@@ -2929,21 +3183,66 @@ function createVelocistaEditForm(entry) {
           </div>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label>Nome</label>
-          <input name="edit-vel-name" type="text" value="${escapeHtml(entry.name)}" />
-        </div>
-        <div class="field-group">
-          <label>Cognome</label>
-          <input name="edit-vel-surname" type="text" value="${escapeHtml(entry.surname)}" />
-        </div>
-      </div>
       <div class="field-group">
         <label>Specialità</label>
         <select name="edit-vel-specialty">${specialtyOptionsHtml}</select>
       </div>
     </div>
+  `;
+
+  const risultatoBody = `
+    <div class="field-group">
+      <label>Nuovo risultato</label>
+      <select name="edit-vr-activity">${activityOptionsHtml}</select>
+      <div class="seg-input" role="group" aria-label="Nuovo tempo">
+        <div class="seg-field">
+          <span class="seg-label">h</span>
+          <input class="seg-cell" name="edit-vr-hours" type="text" inputmode="numeric" maxlength="2" data-max="99" value="00" aria-label="ore" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+        </div>
+        <span class="seg-colon">:</span>
+        <div class="seg-field">
+          <span class="seg-label">min</span>
+          <input class="seg-cell" name="edit-vr-minutes" type="text" inputmode="numeric" maxlength="2" data-max="59" value="00" aria-label="minuti" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+        </div>
+        <span class="seg-colon">:</span>
+        <div class="seg-field">
+          <span class="seg-label">sec</span>
+          <input class="seg-cell" name="edit-vr-seconds" type="text" inputmode="numeric" maxlength="2" data-max="59" value="00" aria-label="secondi" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+        </div>
+        <span class="seg-colon">.</span>
+        <div class="seg-field">
+          <span class="seg-label">dec</span>
+          <input class="seg-cell seg-cell-narrow" name="edit-vr-tenths" type="text" inputmode="numeric" maxlength="1" data-max="9" value="0" aria-label="decimi" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" />
+        </div>
+      </div>
+    </div>
+    <div class="field-group field-group-jump">
+      <label>Vento (facoltativo)</label>
+      <input name="edit-vr-wind" type="text" inputmode="decimal" placeholder="es. +1.2" autocomplete="off" />
+    </div>
+    ${resultDateFieldHtml('vr')}
+  `;
+
+  const testBody = `
+    <div class="field-group">
+      <label>Tipo di test</label>
+      <select name="edit-vt-type">${testTypeOptionsHtml}</select>
+    </div>
+    <div class="field-group field-group-jump">
+      <label>Valore</label>
+      <input name="edit-vt-value" type="text" inputmode="decimal" placeholder="es. 2.45 m, 38 cm..." autocomplete="off" />
+    </div>
+    <div class="field-group">
+      <label>Nota (facoltativa)</label>
+      <input name="edit-vt-note" type="text" autocomplete="off" placeholder="es. recupero 3'..." />
+    </div>
+    ${resultDateFieldHtml('vt')}
+  `;
+
+  editForm.innerHTML = `
+    ${editSectionWrap('Anagrafica', anagraficaBody)}
+    ${editSectionWrap('Aggiungi risultato', risultatoBody)}
+    ${editSectionWrap('Aggiungi test', testBody)}
     <div class="edit-actions">
       <button type="submit" class="primary-btn save-edit-btn">Salva</button>
       <button type="button" class="secondary-btn cancel-edit-btn">Annulla</button>
@@ -3015,6 +3314,53 @@ async function handleVelEditSubmit(event) {
     updatedEntry.avatar = editAvatarData;
   }
 
+  const now = getNowParts();
+  const newVelId = (prefix) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const editVal = (name) => {
+    const el = editForm.querySelector(`[name="${name}"]`);
+    return Number(el ? el.value : 0) || 0;
+  };
+
+  // Nuovo risultato: solo se è stato inserito un tempo reale.
+  const results = Array.isArray(updatedEntry.results) ? [...updatedEntry.results] : [];
+  const newTime = formatTimeFromParts({
+    hours: editVal('edit-vr-hours'),
+    minutes: editVal('edit-vr-minutes'),
+    seconds: editVal('edit-vr-seconds'),
+    tenths: editVal('edit-vr-tenths'),
+  });
+  if (newTime !== '00:00:00.0') {
+    const rd = resultDateFrom(editForm, 'vr', now);
+    const windInput = editForm.querySelector('[name="edit-vr-wind"]');
+    results.push({
+      id: newVelId('vr'),
+      activity: editForm.querySelector('[name="edit-vr-activity"]').value || SPECIALTY_OPTIONS[0],
+      time: newTime,
+      date: rd.date,
+      wind: windInput ? windInput.value.trim() : '',
+      createdAt: rd.iso,
+    });
+  }
+  updatedEntry.results = results;
+
+  // Nuovo test: solo se è stato inserito un valore.
+  const tests = Array.isArray(updatedEntry.tests) ? [...updatedEntry.tests] : [];
+  const testValueInput = editForm.querySelector('[name="edit-vt-value"]');
+  const testValue = testValueInput ? testValueInput.value.trim() : '';
+  if (testValue) {
+    const rd = resultDateFrom(editForm, 'vt', now);
+    const testNoteInput = editForm.querySelector('[name="edit-vt-note"]');
+    tests.push({
+      id: newVelId('vt'),
+      type: editForm.querySelector('[name="edit-vt-type"]').value || 'Altro',
+      value: testValue,
+      note: testNoteInput ? testNoteInput.value.trim() : '',
+      date: rd.date,
+      createdAt: rd.iso,
+    });
+  }
+  updatedEntry.tests = tests;
+
   entries[targetIndex] = updatedEntry;
   await saveVelocisti(entries);
   renderVelocisti();
@@ -3025,6 +3371,68 @@ async function handleVelListClick(event) {
   const editButton = event.target.closest('.edit-btn');
   const cancelButton = event.target.closest('.cancel-edit-btn');
   const projectionButton = event.target.closest('.projection-toggle');
+  const editSectionToggle = event.target.closest('.edit-section-toggle');
+  const resultDelButton = event.target.closest('.vel-result-del');
+  const testDelButton = event.target.closest('.vel-test-del');
+  const notesButton = event.target.closest('.notes-btn');
+  const notesClearButton = event.target.closest('.notes-clear');
+
+  if (editSectionToggle) {
+    toggleEditSection(editSectionToggle);
+    return;
+  }
+
+  if (notesClearButton) {
+    await handleVelNotesClear(notesClearButton);
+    return;
+  }
+
+  if (notesButton) {
+    await handleVelNotesAdd(notesButton);
+    return;
+  }
+
+  if (resultDelButton) {
+    const entryId = resultDelButton.closest('.athlete-item')?.querySelector('.delete-btn')?.dataset.id;
+    const entries = getVelocisti();
+    const index = entries.findIndex((entry) => entry.id === entryId);
+    if (index === -1) {
+      return;
+    }
+    const confirmed = await showConfirm('Eliminare questo risultato?', {
+      detail: "L'operazione non è reversibile.",
+      confirmText: 'Elimina',
+    });
+    if (!confirmed) {
+      return;
+    }
+    entries[index] = { ...entries[index], results: entries[index].results.filter((r) => r.id !== resultDelButton.dataset.id) };
+    await saveVelocisti(entries);
+    renderVelocisti();
+    showToast('Eliminato!');
+    return;
+  }
+
+  if (testDelButton) {
+    const entryId = testDelButton.closest('.athlete-item')?.querySelector('.delete-btn')?.dataset.id;
+    const entries = getVelocisti();
+    const index = entries.findIndex((entry) => entry.id === entryId);
+    if (index === -1) {
+      return;
+    }
+    const confirmed = await showConfirm('Eliminare questo test?', {
+      detail: "L'operazione non è reversibile.",
+      confirmText: 'Elimina',
+    });
+    if (!confirmed) {
+      return;
+    }
+    entries[index] = { ...entries[index], tests: entries[index].tests.filter((t) => t.id !== testDelButton.dataset.id) };
+    await saveVelocisti(entries);
+    renderVelocisti();
+    showToast('Eliminato!');
+    return;
+  }
 
   if (deleteButton) {
     const entryId = deleteButton.dataset.id;
@@ -3076,6 +3484,7 @@ async function handleVelListClick(event) {
       velCollapseOtherCards(item);
       editForm = createVelocistaEditForm(entry);
       item.appendChild(editForm);
+      wireCustomInputs(editForm);
       editForm.hidden = false;
       scrollCardIntoView(item);
       return;
@@ -3117,6 +3526,14 @@ async function handleVelListClick(event) {
 
 velList.addEventListener('click', handleVelListClick);
 velList.addEventListener('submit', handleVelEditSubmit);
+velList.addEventListener('input', (event) => {
+  const input = event.target.closest('.notes-input');
+  if (!input) {
+    return;
+  }
+  const button = input.closest('.notes-block').querySelector('.notes-btn');
+  button.disabled = input.value.trim() === '';
+});
 
 function velSyncFilterChips() {
   setChipGroupSelection(velSpecialtyChips, velActiveSpecialty);
@@ -3315,6 +3732,9 @@ velForm.addEventListener('submit', async (event) => {
     avatar: currentVelAvatarData,
     specialty: velSpecialtyInput.value,
     createdAt: new Date().toISOString(),
+    results: [],
+    tests: [],
+    notes: [],
   });
 
   await saveVelocisti(entries);

@@ -1799,6 +1799,33 @@ button:active {
   font-size: 0.82rem;
 }
 
+/* Riga di storico con pulsante elimina accanto al valore (risultati/test dei
+   velocisti): il valore e il pulsante restano raggruppati a destra. */
+.history-row-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.history-del-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-del-btn:hover {
+  background: #fdeaea;
+  color: #c0392b;
+}
+
 .results-chart {
   margin: 2px 0 4px;
 }
