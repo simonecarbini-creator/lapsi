@@ -1,5 +1,23 @@
-const APP_BUILD = '2026-09-11m';
-console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: formattazione vera, toolbar in alto, voci a fisarmonica');
+const APP_BUILD = '2026-09-11n';
+console.log('[Lapsi] build', APP_BUILD, '— autodetect pagina in cache (HTML/JS disallineati)');
+
+// Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
+// restare bloccata su un index.html vecchio mentre questo script (grazie al
+// cache-busting sull'URL) è sempre l'ultima versione. Se l'HTML non ha gli
+// elementi che questa versione del JS si aspetta, va tutto silenziosamente in
+// errore — non è mai successo un crash rumoroso, semplicemente i pulsanti non
+// fanno più nulla. Qui confrontiamo un marcatore di versione scritto
+// nell'HTML con APP_BUILD: se non combaciano, la pagina è in cache e forziamo
+// una navigazione vera (non un semplice reload) per andare a riprendere
+// l'HTML fresco dal server.
+(function ensureFreshHtml() {
+  const htmlBuild = document.documentElement.dataset.build;
+  if (htmlBuild && htmlBuild !== APP_BUILD) {
+    console.warn('[Lapsi] HTML in cache (build', htmlBuild, ') diverso dallo script (build', APP_BUILD, ') — ricarico una copia fresca.');
+    location.href = `${location.pathname}?_=${Date.now()}`;
+    throw new Error('Pagina in cache: navigazione di ricarica in corso.');
+  }
+})();
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
