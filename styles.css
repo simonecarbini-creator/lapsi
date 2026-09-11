@@ -208,6 +208,12 @@ button, input {
   border-radius: 14px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.7);
+  /* Dentro un flex container in colonna, un elemento con overflow diverso da
+     "visible" ottiene un'altezza minima automatica di 0 (spec flexbox): senza
+     flex-shrink:0 verrebbe schiacciato per stare nello spazio visibile invece
+     di mantenere l'altezza del contenuto, tagliando il testo e rendendo
+     .training-notes-list non scrollabile (niente eccede più i suoi limiti). */
+  flex-shrink: 0;
 }
 
 .training-entry-header {

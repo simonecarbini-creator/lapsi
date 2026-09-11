@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11o';
-console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: fix formattazione touch + scroll bloccato dietro overlay');
+const APP_BUILD = '2026-09-11p';
+console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: fix scroll voce (era clippata, non scrollabile)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
