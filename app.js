@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11f';
-console.log('[Lapsi] build', APP_BUILD, '— sezioni accordion più vicine, select corpo militare a tutta larghezza, piede "Centrale"');
+const APP_BUILD = '2026-09-11g';
+console.log('[Lapsi] build', APP_BUILD, '— padding sul placeholder "Nessun risultato" dei velocisti');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).

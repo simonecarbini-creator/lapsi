@@ -1780,6 +1780,7 @@ button:active {
 }
 
 .history-row.history-empty {
+  padding: 8px 0;
   font-style: italic;
   opacity: 0.75;
 }
