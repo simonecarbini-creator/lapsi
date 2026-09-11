@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11j';
-console.log('[Lapsi] build', APP_BUILD, '— data concorso vuota di default in registrazione (--/--/--)');
+const APP_BUILD = '2026-09-11k';
+console.log('[Lapsi] build', APP_BUILD, '— filtri: Miglior/Peggior salto, parità alfabetica su tutti gli ordinamenti');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -330,6 +330,19 @@ function getBestAthleteTime(athlete) {
   ));
 }
 
+function getBestAthleteJump(athlete) {
+  const jumps = getAthleteTimeRecords(athlete)
+    .filter((record) => record.activity === 'Salto in alto' && parseFloat(record.jumpHeight || 0) > 0);
+
+  if (!jumps.length) {
+    return null;
+  }
+
+  return jumps.reduce((best, current) => (
+    parseFloat(current.jumpHeight || 0) > parseFloat(best.jumpHeight || 0) ? current : best
+  ));
+}
+
 function normalizeAthlete(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -555,25 +568,41 @@ function getFilteredEntries() {
     return activityMatch && searchMatch;
   });
 
+  // A parità di tempo/misura/data, si va in ordine alfabetico per nome e cognome.
+  const alphaCompare = (a, b) => {
+    const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+    const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+    return aName.localeCompare(bName, 'it');
+  };
+
   filtered.sort((a, b) => {
     if (sortValue === 'az' || sortValue === 'za') {
-      const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
-      const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
-      const cmp = aName.localeCompare(bName, 'it');
+      const cmp = alphaCompare(a, b);
       return sortValue === 'az' ? cmp : -cmp;
     }
 
     if (sortValue === 'recent' || sortValue === 'oldest') {
       const aDate = new Date(getLatestAthleteTime(a)?.createdAt || 0).getTime();
       const bDate = new Date(getLatestAthleteTime(b)?.createdAt || 0).getTime();
-      return sortValue === 'recent' ? bDate - aDate : aDate - bDate;
+      const cmp = sortValue === 'recent' ? bDate - aDate : aDate - bDate;
+      return cmp !== 0 ? cmp : alphaCompare(a, b);
+    }
+
+    if (sortValue === 'bestjump' || sortValue === 'worstjump') {
+      const aBest = getBestAthleteJump(a);
+      const bBest = getBestAthleteJump(b);
+      const aHeight = aBest ? parseFloat(aBest.jumpHeight || 0) : -1;
+      const bHeight = bBest ? parseFloat(bBest.jumpHeight || 0) : -1;
+      const cmp = sortValue === 'bestjump' ? bHeight - aHeight : aHeight - bHeight;
+      return cmp !== 0 ? cmp : alphaCompare(a, b);
     }
 
     const aBest = getBestAthleteTime(a);
     const bBest = getBestAthleteTime(b);
     const aSeconds = aBest ? parseTimeToSeconds(aBest.time) : Number.MAX_SAFE_INTEGER;
     const bSeconds = bBest ? parseTimeToSeconds(bBest.time) : Number.MAX_SAFE_INTEGER;
-    return sortValue === 'worst' ? bSeconds - aSeconds : aSeconds - bSeconds;
+    const cmp = sortValue === 'worst' ? bSeconds - aSeconds : aSeconds - bSeconds;
+    return cmp !== 0 ? cmp : alphaCompare(a, b);
   });
 
   return filtered;
