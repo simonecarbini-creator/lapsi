@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11e';
-console.log('[Lapsi] build', APP_BUILD, '— sezioni a fisarmonica nel form di modifica, foto+corpo militare allineati, più respiro nei campi');
+const APP_BUILD = '2026-09-11f';
+console.log('[Lapsi] build', APP_BUILD, '— sezioni accordion più vicine, select corpo militare a tutta larghezza, piede "Centrale"');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -812,6 +812,7 @@ function createEditForm(entry) {
         <select name="edit-new-foot">
           <option value="" ${defaultTakeoffFoot === '' ? 'selected' : ''}>Piede di stacco</option>
           <option value="Sinistro" ${defaultTakeoffFoot === 'Sinistro' ? 'selected' : ''}>Sinistro</option>
+          <option value="Centrale" ${defaultTakeoffFoot === 'Centrale' ? 'selected' : ''}>Centrale</option>
           <option value="Destro" ${defaultTakeoffFoot === 'Destro' ? 'selected' : ''}>Destro</option>
         </select>
         <div class="ruler" data-min="0" data-max="250" data-step="5" aria-label="Nuova altezza salto">
@@ -966,9 +967,13 @@ function takeoffFootIcon(foot) {
     + '<ellipse cx="6.5" cy="17.4" rx="3.9" ry="3.4"/>'
     + '</g>';
 
+  // "Centrale": entrambi i piedi colorati (stacco simmetrico).
+  const leftOn = foot === 'Sinistro' || foot === 'Centrale';
+  const rightOn = foot === 'Destro' || foot === 'Centrale';
+
   return '<svg class="foot-icon" viewBox="0 0 32 22" width="34" height="22" aria-hidden="true" focusable="false">'
-    + single(2, foot === 'Sinistro')
-    + single(17, foot === 'Destro')
+    + single(2, leftOn)
+    + single(17, rightOn)
     + '</svg>';
 }
 
