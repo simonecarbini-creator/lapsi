@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11h';
-console.log('[Lapsi] build', APP_BUILD, '— taccuino velocisti: risultati, test e note');
+const APP_BUILD = '2026-09-11i';
+console.log('[Lapsi] build', APP_BUILD, '— export/import unico (atleti + velocisti)');
 
 // Chiave nuova: ignora eventuali dati vecchi salvati da versioni precedenti
 // sotto 'run-tracker-athletes' (che potrebbero essere obsoleti/incompleti).
@@ -2153,22 +2153,33 @@ async function handleEditSubmit(event) {
   renderEntries();
 }
 
+// Esporta/Importa sono unici per tutta l'app (atleti militari + velocisti
+// insieme in un solo file), non per singola sezione — coerente con l'averli
+// spostati nel menu principale invece che nelle rispettive schermate.
 function exportEntriesAsJson() {
-  const entries = getAthletes();
+  const athletes = getAthletes();
+  const velocisti = getVelocisti();
 
-  if (!entries.length) {
+  if (!athletes.length && !velocisti.length) {
     alert('Nessun dato da esportare.');
     return;
   }
 
-  const blob = new Blob([JSON.stringify(entries, null, 2)], {
+  const payload = {
+    lapsi: true,
+    exportedAt: new Date().toISOString(),
+    athletes,
+    velocisti,
+  };
+
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json',
   });
 
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'atleti-run.json';
+  link.download = 'lapsi-dati.json';
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -2191,29 +2202,46 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.athletes) ? parsed.athletes : null;
-  if (!list) {
+  // Formato unico { athletes, velocisti } (esportato da questa build), ma
+  // resta leggibile anche un vecchio export "solo atleti" (un array nudo).
+  const athletesList = Array.isArray(parsed)
+    ? parsed
+    : (parsed && Array.isArray(parsed.athletes)) ? parsed.athletes : null;
+  const velocistiList = (parsed && !Array.isArray(parsed) && Array.isArray(parsed.velocisti))
+    ? parsed.velocisti
+    : null;
+
+  if (!athletesList && !velocistiList) {
     await showConfirm('File non valido', {
-      detail: 'Il JSON non contiene un elenco di atleti.',
+      detail: 'Il JSON non contiene dati di Lapsi riconoscibili.',
       confirmText: 'Ok',
       cancelText: 'Chiudi',
     });
     return;
   }
 
-  const normalized = list.map(normalizeAthlete).filter(Boolean);
-  if (!normalized.length) {
-    await showConfirm('Nessun atleta valido nel file', {
+  const normalizedAthletes = athletesList ? athletesList.map(normalizeAthlete).filter(Boolean) : null;
+  const normalizedVelocisti = velocistiList ? velocistiList.map(normalizeVelocista).filter(Boolean) : null;
+
+  if (!(normalizedAthletes && normalizedAthletes.length) && !(normalizedVelocisti && normalizedVelocisti.length)) {
+    await showConfirm('Nessun dato valido nel file', {
       confirmText: 'Ok',
       cancelText: 'Chiudi',
     });
     return;
   }
 
-  const current = getAthletes().length;
-  const confirmed = await showConfirm(`Importare ${normalized.length} atleti?`, {
-    detail: current
-      ? `Sostituiranno i ${current} atleti attualmente presenti su questo dispositivo.`
+  const importParts = [];
+  if (normalizedAthletes) importParts.push(`${normalizedAthletes.length} atleti`);
+  if (normalizedVelocisti) importParts.push(`${normalizedVelocisti.length} velocisti`);
+
+  const currentParts = [];
+  if (normalizedAthletes && getAthletes().length) currentParts.push(`${getAthletes().length} atleti`);
+  if (normalizedVelocisti && getVelocisti().length) currentParts.push(`${getVelocisti().length} velocisti`);
+
+  const confirmed = await showConfirm(`Importare ${importParts.join(' e ')}?`, {
+    detail: currentParts.length
+      ? `Sostituiranno i dati attualmente presenti su questo dispositivo (${currentParts.join(', ')}).`
       : 'Verranno caricati su questo dispositivo.',
     confirmText: 'Importa',
     cancelText: 'Annulla',
@@ -2222,9 +2250,16 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  await saveEntries(normalized);
-  currentPage = 1;
-  renderEntries();
+  if (normalizedAthletes) {
+    await saveEntries(normalizedAthletes);
+    currentPage = 1;
+    renderEntries();
+  }
+  if (normalizedVelocisti) {
+    await saveVelocisti(normalizedVelocisti);
+    velCurrentPage = 1;
+    renderVelocisti();
+  }
   showToast('Import completato!');
 }
 
