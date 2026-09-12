@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-12a';
-console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: rimossa toolbar formattazione, spazio extra sotto per la tastiera');
+const APP_BUILD = '2026-09-12b';
+console.log('[Lapsi] build', APP_BUILD, '— Velocisti temporaneamente disabilitato per user test (solo C. Militari)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
