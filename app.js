@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-11p';
-console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: fix scroll voce (era clippata, non scrollabile)');
+const APP_BUILD = '2026-09-12a';
+console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: rimossa toolbar formattazione, spazio extra sotto per la tastiera');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3888,12 +3888,10 @@ velForm.addEventListener('submit', async (event) => {
 // ===================== "Programma allenamento" (solo C. Militari) =====================
 // Elenco di voci a fisarmonica (titolo + testo), condiviso per tutta la
 // sezione atleti militari — non legato a un singolo atleta. Ogni voce ha un
-// corpo "contenteditable" con formattazione vera (grassetto/corsivo/
-// sottolineato/colore), non marcatori di testo: la barra dei pulsanti resta
-// ancorata subito sotto l'intestazione (non in fondo, dove su iPhone la
-// tastiera la coprirebbe) e agisce sulla voce aperta in quel momento.
+// corpo "contenteditable"; la formattazione (grassetto/corsivo/ecc.) si fa
+// con i comandi nativi di iPhone sul testo selezionato, non con pulsanti
+// nostri.
 const STORAGE_KEY_TRAINING_NOTES = 'lapsi-training-notes';
-const TRAINING_NOTES_COLOR = '#2563eb';
 
 const trainingNotesBackdrop = document.getElementById('training-notes-backdrop');
 const trainingNotesOverlay = document.getElementById('training-notes-overlay');
@@ -3903,24 +3901,6 @@ const trainingNotesAdd = document.getElementById('training-notes-add');
 const trainingNotesSave = document.getElementById('training-notes-save');
 
 let trainingActiveEditor = null;
-// Su iOS Safari toccare il pulsante di formattazione può far collassare la
-// selezione nativa prima ancora che scatti il click (la gestione della
-// selezione di testo è nativa, non intercettabile con preventDefault). Per
-// questo teniamo traccia dell'ultimo range non vuoto selezionato dentro
-// l'editor attivo e lo ripristiniamo a mano appena prima di formattare.
-let trainingSavedRange = null;
-document.addEventListener('selectionchange', () => {
-  if (!trainingActiveEditor) {
-    return;
-  }
-  const sel = window.getSelection();
-  if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-    const range = sel.getRangeAt(0);
-    if (trainingActiveEditor.contains(range.commonAncestorContainer)) {
-      trainingSavedRange = range.cloneRange();
-    }
-  }
-});
 
 function newTrainingEntryId() {
   return `tn-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -4042,7 +4022,6 @@ function renderTrainingEntries(entries) {
   }
   trainingNotesList.innerHTML = '';
   trainingActiveEditor = null;
-  trainingSavedRange = null;
   const list = entries.length ? entries : [{ id: newTrainingEntryId(), title: '', html: '' }];
   list.forEach((entry, index) => {
     trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: index === 0 }));
@@ -4072,7 +4051,6 @@ function toggleTrainingEntry(entryEl) {
     const editor = entryEl.querySelector('.training-entry-editor');
     if (editor) {
       trainingActiveEditor = editor;
-      trainingSavedRange = null;
       editor.focus();
     }
   }
@@ -4095,28 +4073,6 @@ function closeTrainingNotes() {
   trainingNotesOverlay.hidden = true;
   trainingNotesBackdrop.hidden = true;
   unlockBodyScroll();
-}
-
-function applyTrainingFormat(format) {
-  const editor = trainingActiveEditor;
-  if (!editor) {
-    return;
-  }
-  editor.focus({ preventScroll: true });
-  if (trainingSavedRange && editor.contains(trainingSavedRange.commonAncestorContainer)) {
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(trainingSavedRange);
-  }
-  try {
-    if (format === 'color') {
-      document.execCommand('foreColor', false, TRAINING_NOTES_COLOR);
-    } else {
-      document.execCommand(format, false, null);
-    }
-  } catch (error) {
-    console.warn('Formattazione non disponibile:', error);
-  }
 }
 
 if (trainingNotesFab) {
@@ -4167,7 +4123,6 @@ if (trainingNotesList) {
       }
       if (trainingActiveEditor && entryEl.contains(trainingActiveEditor)) {
         trainingActiveEditor = null;
-        trainingSavedRange = null;
       }
       entryEl.remove();
     }
@@ -4176,17 +4131,9 @@ if (trainingNotesList) {
     const editor = event.target.closest('.training-entry-editor');
     if (editor && editor !== trainingActiveEditor) {
       trainingActiveEditor = editor;
-      trainingSavedRange = null;
     }
   });
 }
-document.querySelectorAll('.training-notes-fmt-btn').forEach((button) => {
-  // mousedown/touchstart con preventDefault: evita che il click sul pulsante
-  // tolga il focus (e la selezione) dall'editor prima di poter formattare.
-  button.addEventListener('mousedown', (event) => event.preventDefault());
-  button.addEventListener('touchstart', (event) => event.preventDefault(), { passive: false });
-  button.addEventListener('click', () => applyTrainingFormat(button.dataset.format));
-});
 
 async function initializeApp() {
   populateInsertionFields();

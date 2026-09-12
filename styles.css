@@ -137,52 +137,11 @@ button, input {
   font-size: 1.05rem;
 }
 
-/* Barra di formattazione ancorata subito sotto l'intestazione: su iPhone la
-   tastiera copre il fondo dello schermo, qui resta sempre visibile. */
-.training-notes-toolbar-top {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--card-border);
-  background: rgba(255, 255, 255, 0.95);
-}
-
-.training-notes-fmt-btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--text);
-  font-size: 0.9rem;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.training-notes-fmt-btn:active {
-  transform: scale(0.94);
-}
-
-.training-notes-fmt-italic {
-  font-style: italic;
-}
-
-.training-notes-fmt-underline {
-  text-decoration: underline;
-}
-
-.training-notes-fmt-color {
-  color: #2563eb;
-  font-weight: 800;
-}
-
-/* Elenco delle voci: scorre da solo, così la tastiera/la toolbar restano ferme. */
+/* Elenco delle voci: scorre da solo, così la tastiera resta ferma sotto.
+   Il padding-bottom generoso è spazio vuoto ma scrollabile: senza quello,
+   l'ultima riga di testo resterebbe sempre nascosta sotto la tastiera di
+   iPhone quando si prova a selezionarla (la tastiera copre la parte bassa
+   dello schermo, non riduce l'altezza scrollabile della lista). */
 .training-notes-list {
   flex: 1;
   min-height: 0;
@@ -191,6 +150,7 @@ button, input {
   overscroll-behavior: contain;
   touch-action: pan-y;
   padding: 12px;
+  padding-bottom: max(340px, 12px);
   display: flex;
   flex-direction: column;
   gap: 10px;
