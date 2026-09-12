@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-12b';
-console.log('[Lapsi] build', APP_BUILD, '— Velocisti temporaneamente disabilitato per user test (solo C. Militari)');
+const APP_BUILD = '2026-09-12c';
+console.log('[Lapsi] build', APP_BUILD, '— Velocisti riabilitato');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
