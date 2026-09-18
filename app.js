@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-18b';
-console.log('[Lapsi] build', APP_BUILD, '— rifiniture badge/filtri/paginazione/picker');
+const APP_BUILD = '2026-09-18c';
+console.log('[Lapsi] build', APP_BUILD, '— badge giallo più chiaro, popup senza sovrapposizione alla X');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al

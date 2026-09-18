@@ -2333,8 +2333,8 @@ button:active {
 
 .result-badge-pending {
   background: #fde68a;
-  border: 1.5px solid #a16207;
-  color: #854d0e;
+  border: 1.5px solid #ca8a04;
+  color: #a16207;
 }
 
 .result-badge-passed {
@@ -3176,6 +3176,9 @@ button:active {
 }
 
 .app-confirm-text {
+  /* Spazio ai lati (simmetrico, per restare centrato) così una frase lunga
+     non finisce sotto la X di chiusura in alto a dx. */
+  padding: 0 26px;
   font-size: 1.15rem;
   font-weight: 800;
   color: var(--text);
