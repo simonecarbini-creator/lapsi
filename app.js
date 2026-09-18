@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-12c';
-console.log('[Lapsi] build', APP_BUILD, '— Velocisti riabilitato');
+const APP_BUILD = '2026-09-18a';
+console.log('[Lapsi] build', APP_BUILD, '— Badge esito concorso su card militari + popup giorno-dopo + filtro esito');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -61,12 +61,17 @@ const filtersApplyButton = document.getElementById('filters-apply');
 const filtersResetButton = document.getElementById('filters-reset');
 const athleteSuggestions = document.getElementById('athlete-suggestions');
 
-const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'az' };
+const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'az', includeDecided: null };
 // activeDistance/activeSort = ciò che la lista mostra ora (anche l'anteprima live
 // mentre il pannello filtri è aperto). filterSnapshot = valori confermati da
 // ripristinare se si chiude senza premere "Applica".
+// activeIncludeDecided: null = non ancora scelto (default: chi ha già un
+// esito Superato/Non superato resta incluso ma va in fondo alla lista);
+// true = scelto "Sì" all'Applica (incluso e mischiato normalmente
+// nell'ordinamento); false = scelto "No" (escluso dai risultati).
 let activeDistance = FILTER_DEFAULTS.distance;
 let activeSort = FILTER_DEFAULTS.sort;
+let activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
 let filterSnapshot = null;
 
 const PAGE_SIZE = 5;
@@ -393,6 +398,16 @@ function normalizeAthlete(entry) {
     return null;
   }
 
+  // Esito del concorso: null = in corso (default), 'passed' = superato,
+  // 'failed' = non superato. competitionAskedOn tiene la data (YYYY-MM-DD)
+  // dell'ultima volta che il popup automatico del giorno-dopo è stato
+  // mostrato/rimandato con "Non lo so ancora", per non richiederlo più volte
+  // lo stesso giorno.
+  const competitionResult = entry.competitionResult === 'passed' || entry.competitionResult === 'failed'
+    ? entry.competitionResult
+    : null;
+  const competitionAskedOn = entry.competitionAskedOn || null;
+
   if (Array.isArray(entry.times)) {
     return {
       id: entry.id || `athlete-${Math.random().toString(36).slice(2, 8)}`,
@@ -403,6 +418,8 @@ function normalizeAthlete(entry) {
       activity: entry.activity || '1km',
       avatar: entry.avatar || null,
       notes: normalizeNotes(entry.notes, entry.notesSavedAt),
+      competitionResult,
+      competitionAskedOn,
       times: entry.times.map((timeEntry) => ({
         ...timeEntry,
         id: timeEntry.id || `${entry.id || 'time'}-${Math.random().toString(36).slice(2, 8)}`,
@@ -420,6 +437,8 @@ function normalizeAthlete(entry) {
       activity: entry.activity || '1km',
       avatar: entry.avatar || null,
       notes: normalizeNotes(entry.notes, entry.notesSavedAt),
+      competitionResult,
+      competitionAskedOn,
       times: [{
         id: entry.id || `time-${Math.random().toString(36).slice(2, 8)}`,
         activity: entry.activity || '1km',
@@ -576,6 +595,7 @@ function openEditFormFor(athleteId) {
     if (searchClearBtn) searchClearBtn.hidden = true;
     activeDistance = FILTER_DEFAULTS.distance;
     activeSort = FILTER_DEFAULTS.sort;
+    activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
     syncFilterChips();
     const targetIdx = getFilteredEntries().findIndex((a) => a.id === athleteId);
     currentPage = targetIdx >= 0 ? Math.floor(targetIdx / PAGE_SIZE) + 1 : 1;
@@ -610,7 +630,10 @@ function getFilteredEntries() {
       || name.includes(query)
       || surname.includes(query)
       || `${name} ${surname}`.includes(query);
-    return activityMatch && searchMatch;
+    // Scelto "No" all'Applica: chi ha già un esito (Superato/Non superato)
+    // esce del tutto dai risultati, non solo in coda.
+    const decidedMatch = activeIncludeDecided !== false || !athlete.competitionResult;
+    return activityMatch && searchMatch && decidedMatch;
   });
 
   // A parità di tempo/misura/data, si va in ordine alfabetico per nome e cognome.
@@ -649,6 +672,16 @@ function getFilteredEntries() {
     const cmp = sortValue === 'worst' ? bSeconds - aSeconds : aSeconds - bSeconds;
     return cmp !== 0 ? cmp : alphaCompare(a, b);
   });
+
+  // Finché non si sceglie esplicitamente "Sì" all'Applica, chi ha già un
+  // esito (Superato/Non superato) resta incluso ma va sempre in fondo,
+  // qualunque sia l'ordinamento attivo (con "No" sono già stati esclusi sopra,
+  // quindi qui "decided" è vuoto e la partizione è un no-op).
+  if (activeIncludeDecided !== true) {
+    const pending = filtered.filter((athlete) => !athlete.competitionResult);
+    const decided = filtered.filter((athlete) => athlete.competitionResult);
+    return [...pending, ...decided];
+  }
 
   return filtered;
 }
@@ -999,6 +1032,42 @@ function calendarIcon(size = 12) {
     + '<line x1="3.5" y1="9.5" x2="20.5" y2="9.5"/>'
     + '<line x1="8" y1="3" x2="8" y2="6.5" stroke-linecap="round"/>'
     + '<line x1="16" y1="3" x2="16" y2="6.5" stroke-linecap="round"/>'
+    + '</svg>';
+}
+
+function hourglassIcon(size = 14) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + '<path d="M6 3h12"/>'
+    + '<path d="M6 21h12"/>'
+    + '<path d="M7 3v3.5c0 1.4.9 2.6 2.3 3.3L12 11l2.7-1.2C16.1 9.1 17 7.9 17 6.5V3"/>'
+    + '<path d="M7 21v-3.5c0-1.4.9-2.6 2.3-3.3L12 13l2.7 1.2c1.4.7 2.3 1.9 2.3 3.3V21"/>'
+    + '</svg>';
+}
+
+function trophyIcon(size = 14) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + '<path d="M7 4h10v4a5 5 0 01-10 0V4z"/>'
+    + '<path d="M7 5H4v1a4 4 0 004 4"/>'
+    + '<path d="M17 5h3v1a4 4 0 01-4 4"/>'
+    + '<line x1="12" y1="13" x2="12" y2="17"/>'
+    + '<path d="M9 20h6"/>'
+    + '<line x1="9" y1="20" x2="9.6" y2="17"/>'
+    + '<line x1="15" y1="20" x2="14.4" y2="17"/>'
+    + '</svg>';
+}
+
+function thumbsDownIcon(size = 14) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
+    + '<path d="M17 14V4"/>'
+    + '<path d="M17 14l-5.5 6.5a1.5 1.5 0 01-2.7-1l1-4.5H4.8a2 2 0 01-2-2.3l1-6A2 2 0 015.8 5H17"/>'
+    + '<rect x="17" y="3" width="4" height="11" rx="1"/>'
+    + '</svg>';
+}
+
+function reloadIcon(size = 14) {
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">`
+    + '<path d="M20 11A8 8 0 104 13"/>'
+    + '<path d="M20 5v6h-6"/>'
     + '</svg>';
 }
 
@@ -1536,6 +1605,63 @@ function showConfirm(message, { detail = '', confirmText = 'Conferma', cancelTex
   });
 }
 
+// Variante di showConfirm con N pulsanti a scelta libera (invece dei soli
+// ok/annulla). Risolve con il "value" del pulsante scelto, oppure null se
+// chiuso senza scegliere (backdrop/Escape) — usata per l'esito del concorso
+// (Superato/Non superato/Riabilita) e per il popup automatico del giorno-dopo.
+function showChoice(message, { detail = '', options = [] } = {}) {
+  document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'app-overlay app-confirm';
+    const buttonsHtml = options.map((opt) => `
+      <button type="button" class="app-btn ${opt.className || 'app-btn-ghost'}" data-choice="${escapeHtml(opt.value)}" ${opt.disabled ? 'disabled' : ''}>
+        ${opt.icon || ''}<span>${escapeHtml(opt.label)}</span>
+      </button>
+    `).join('');
+    overlay.innerHTML = `
+      <div class="app-confirm-box" role="dialog" aria-modal="true">
+        <div class="app-confirm-text">${escapeHtml(message)}</div>
+        ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
+        <div class="app-confirm-actions app-confirm-actions-col">
+          ${buttonsHtml}
+        </div>
+      </div>
+    `;
+
+    let settled = false;
+    const close = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      document.removeEventListener('keydown', onKey);
+      dismissOverlay(overlay, () => resolve(result));
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        close(null);
+      }
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close(null);
+        return;
+      }
+      const choiceButton = event.target.closest('[data-choice]');
+      if (choiceButton && !choiceButton.disabled) {
+        close(choiceButton.dataset.choice);
+      }
+    });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('is-open'));
+  });
+}
+
 // Paginazione adattiva: numeri se poche pagine, "Pagina X / Y" se tante.
 function renderPagination(total) {
   const nav = document.getElementById('athlete-pagination');
@@ -1617,6 +1743,24 @@ function renderEntries() {
 
     const concorsoDate = latestTime && latestTime.concorsoDate ? latestTime.concorsoDate : '--/--/--';
 
+    // Esito concorso: badge sempre visibile (default "in corso"). Una volta
+    // deciso l'esito la card si disabilita con una velina sopra al resto,
+    // ma il badge resta sopra la velina e quindi sempre cliccabile.
+    const competitionResult = entry.competitionResult;
+    const isDecided = competitionResult === 'passed' || competitionResult === 'failed';
+    item.classList.toggle('is-decided', isDecided);
+    const badgeClass = competitionResult === 'passed' ? 'result-badge-passed'
+      : competitionResult === 'failed' ? 'result-badge-failed'
+      : 'result-badge-pending';
+    const badgeIcon = competitionResult === 'passed' ? trophyIcon(15)
+      : competitionResult === 'failed' ? thumbsDownIcon(15)
+      : hourglassIcon(14);
+    const badgeLabel = competitionResult === 'passed' ? 'Concorso superato'
+      : competitionResult === 'failed' ? 'Concorso non superato'
+      : 'Concorso in corso';
+    const badgeMarkup = `<button type="button" class="result-badge ${badgeClass}" data-id="${entry.id}" aria-label="${escapeHtml(badgeLabel)} — cambia esito" title="${escapeHtml(badgeLabel)}">${badgeIcon}</button>`;
+    const veilMarkup = isDecided ? '<div class="card-veil" aria-hidden="true"></div>' : '';
+
     const avatarMarkup = entry.avatar
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
@@ -1645,6 +1789,8 @@ function renderEntries() {
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
+      ${veilMarkup}
+      ${badgeMarkup}
       <div class="v2-head">
         ${avatarMarkup}
         <div class="v2-id">
@@ -1917,6 +2063,55 @@ function collapseOtherCards(exceptItem) {
   });
 }
 
+// Popup dell'esito concorso, aperto dal badge in alto a dx della card. Chi
+// clicca può segnare Superato/Non superato (anche cambiando idea su una card
+// già decisa) o Riabilitare la card (disponibile solo se un esito era già
+// stato scelto in precedenza).
+async function handleCompetitionBadgeClick(badgeButton) {
+  const entryId = badgeButton.dataset.id;
+  const athletes = getAthletes();
+  const entry = athletes.find((item) => item.id === entryId);
+  if (!entry) {
+    return;
+  }
+  const label = `${entry.name} ${entry.surname}`.trim() || 'questo atleta';
+  const isDecided = entry.competitionResult === 'passed' || entry.competitionResult === 'failed';
+
+  const choice = await showChoice(`Esito concorso — ${label}`, {
+    detail: isDecided
+      ? 'La card è disabilitata: puoi cambiare l\'esito o riabilitarla.'
+      : 'Segna l\'esito quando il concorso è concluso.',
+    options: [
+      { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: trophyIcon(16) },
+      { value: 'failed', label: 'Non superato', className: 'app-btn-danger', icon: thumbsDownIcon(16) },
+      { value: 'reactivate', label: 'Riabilita', className: 'app-btn-ghost', icon: reloadIcon(14), disabled: !isDecided },
+    ],
+  });
+
+  if (!choice) {
+    return;
+  }
+
+  const current = getAthletes();
+  const index = current.findIndex((item) => item.id === entryId);
+  if (index === -1) {
+    return;
+  }
+
+  if (choice === 'reactivate') {
+    current[index] = { ...current[index], competitionResult: null, competitionAskedOn: null };
+    await saveEntries(current);
+    renderEntries();
+    showToast('Card riabilitata!');
+    return;
+  }
+
+  current[index] = { ...current[index], competitionResult: choice, competitionAskedOn: null };
+  await saveEntries(current);
+  renderEntries();
+  showToast(choice === 'passed' ? 'Segnato come superato!' : 'Segnato come non superato!');
+}
+
 async function handleListClick(event) {
   const deleteButton = event.target.closest('.delete-btn');
   const projectionButton = event.target.closest('.projection-toggle');
@@ -1928,6 +2123,12 @@ async function handleListClick(event) {
   const notesButton = event.target.closest('.notes-btn');
   const notesClearButton = event.target.closest('.notes-clear');
   const editSectionToggle = event.target.closest('.edit-section-toggle');
+  const badgeButton = event.target.closest('.result-badge');
+
+  if (badgeButton) {
+    await handleCompetitionBadgeClick(badgeButton);
+    return;
+  }
 
   if (editSectionToggle) {
     toggleEditSection(editSectionToggle);
@@ -2687,6 +2888,7 @@ function revertFiltersDraft() {
   }
   activeDistance = filterSnapshot.distance;
   activeSort = filterSnapshot.sort;
+  activeIncludeDecided = filterSnapshot.includeDecided;
   filterSnapshot = null;
   currentPage = 1;
   syncFilterChips();
@@ -2710,15 +2912,36 @@ function revertFiltersDraft() {
   });
 });
 
-filtersApplyButton.addEventListener('click', () => {
+filtersApplyButton.addEventListener('click', async () => {
+  // Solo se esiste almeno un atleta con un esito già deciso ha senso chiedere
+  // se includerlo: altrimenti non c'è nulla da includere/escludere.
+  const hasDecided = getAthletes().some((entry) => entry.competitionResult);
+  if (hasDecided) {
+    const choice = await showChoice('Includere anche chi ha già un esito?', {
+      detail: 'Atleti già segnati come Superato o Non superato.',
+      options: [
+        { value: 'yes', label: 'Sì, tra tutti', className: 'app-btn-ghost' },
+        { value: 'no', label: 'No, solo attivi', className: 'app-btn-ghost' },
+      ],
+    });
+    if (choice === 'yes') {
+      activeIncludeDecided = true;
+    } else if (choice === 'no') {
+      activeIncludeDecided = false;
+    }
+    // popup chiuso senza scegliere: lascia invariato il valore attuale
+  }
   filterSnapshot = null;
+  currentPage = 1;
   setCollapsibleOpen(toggleFiltersButton, filtersPanel, false);
   toggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  renderEntries();
 });
 
 filtersResetButton.addEventListener('click', () => {
   activeDistance = FILTER_DEFAULTS.distance;
   activeSort = FILTER_DEFAULTS.sort;
+  activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
   currentPage = 1;
   syncFilterChips();
   renderEntries();
@@ -2794,7 +3017,7 @@ toggleFiltersButton.addEventListener('click', () => {
   const open = filtersPanel.hidden;
   closeToolPanels('filters');
   if (open) {
-    filterSnapshot = { distance: activeDistance, sort: activeSort };
+    filterSnapshot = { distance: activeDistance, sort: activeSort, includeDecided: activeIncludeDecided };
     syncFilterChips();
     setCollapsibleOpen(toggleFiltersButton, filtersPanel, true);
     toggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
@@ -4135,9 +4358,85 @@ if (trainingNotesList) {
   });
 }
 
+// Controllo "giorno dopo": ogni atleta ancora "in corso" il cui concorso
+// (data dell'ultimo risultato registrato) è passato da almeno un giorno viene
+// chiesto uno per volta. "Non lo so ancora" rimanda la domanda a domani senza
+// cambiare l'esito; una scelta definitiva (Superato/Non superato) non verrà
+// più richiesta. Un atleta viene chiesto al massimo una volta al giorno.
+async function checkExpiredConcorsi() {
+  const todayKey = todayNativeDateValue();
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  const pendingIds = getAthletes()
+    .filter((entry) => {
+      if (entry.competitionResult) {
+        return false;
+      }
+      if (entry.competitionAskedOn === todayKey) {
+        return false;
+      }
+      const latest = getLatestAthleteTime(entry);
+      const concorsoStr = latest ? latest.concorsoDate : '';
+      if (!concorsoStr || concorsoStr === '--/--/--') {
+        return false;
+      }
+      const concorsoMs = parseItDate(concorsoStr);
+      if (concorsoMs === null) {
+        return false;
+      }
+      const concorsoDay = new Date(concorsoMs);
+      concorsoDay.setHours(0, 0, 0, 0);
+      const dayAfter = new Date(concorsoDay.getTime() + 24 * 60 * 60 * 1000);
+      return todayMidnight.getTime() >= dayAfter.getTime();
+    })
+    .map((entry) => entry.id);
+
+  if (!pendingIds.length) {
+    return;
+  }
+
+  for (const id of pendingIds) {
+    const athletes = getAthletes();
+    const entry = athletes.find((item) => item.id === id);
+    if (!entry) {
+      continue;
+    }
+    const label = `${entry.name} ${entry.surname}`.trim() || 'questo atleta';
+    const latest = getLatestAthleteTime(entry);
+    const concorsoStr = latest ? latest.concorsoDate : '--/--/--';
+
+    const choice = await showChoice(`Concorso di ${label} concluso`, {
+      detail: `Il concorso del ${concorsoStr} risulta concluso. Come è andata?`,
+      options: [
+        { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: trophyIcon(16) },
+        { value: 'failed', label: 'Non superato', className: 'app-btn-danger', icon: thumbsDownIcon(16) },
+        { value: 'later', label: 'Non lo so ancora', className: 'app-btn-ghost' },
+      ],
+    });
+
+    const current = getAthletes();
+    const index = current.findIndex((item) => item.id === id);
+    if (index === -1) {
+      continue;
+    }
+
+    if (choice === 'passed' || choice === 'failed') {
+      current[index] = { ...current[index], competitionResult: choice, competitionAskedOn: null };
+    } else {
+      // "Non lo so ancora" oppure popup chiuso senza scegliere: richiedi di nuovo domani.
+      current[index] = { ...current[index], competitionAskedOn: todayKey };
+    }
+    await saveEntries(current);
+  }
+
+  renderEntries();
+}
+
 async function initializeApp() {
   populateInsertionFields();
   await readEntries();
+  await checkExpiredConcorsi();
   renderEntries();
   readVelocisti();
   renderVelocisti();

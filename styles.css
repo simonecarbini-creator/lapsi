@@ -2317,6 +2317,57 @@ button:active {
   background: linear-gradient(180deg, #ff7a5c, #ff5c3a);
 }
 
+/* Badge esito concorso: in alto a dx, sempre sopra la velina così resta
+   cliccabile anche a card disabilitata. */
+.result-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: transform 0.15s ease;
+}
+
+.result-badge:active {
+  transform: scale(0.92);
+}
+
+.result-badge-pending {
+  background: #fde68a;
+  border: 1.5px solid #b45309;
+  color: #92400e;
+}
+
+.result-badge-passed {
+  background: #bbf7d0;
+  border: 1.5px solid #15803d;
+  color: #166534;
+}
+
+.result-badge-failed {
+  background: #fecaca;
+  border: 1.5px solid #b91c1c;
+  color: #991b1b;
+}
+
+/* Velina che rende la card "inattiva" alla vista una volta deciso l'esito:
+   sta sotto il badge (z-index inferiore) così tutto il resto della card
+   diventa non cliccabile ma il badge resta sempre utilizzabile. */
+.card-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(255, 255, 255, 0.6);
+  cursor: not-allowed;
+}
+
 .v2-head {
   display: flex;
   align-items: center;
@@ -3128,8 +3179,18 @@ button:active {
   margin-top: 18px;
 }
 
+/* Variante a colonna: per popup con 3+ scelte (esito concorso, ecc.) invece
+   delle sole 2 affiancate di conferma/annulla. */
+.app-confirm-actions-col {
+  flex-direction: column;
+}
+
 .app-btn {
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border: none;
   border-radius: 14px;
   padding: 13px 16px;
@@ -3152,6 +3213,15 @@ button:active {
   background: var(--danger-dark);
 }
 
+.app-btn-success {
+  background: #16a34a;
+  color: #fff;
+}
+
+.app-btn-success:hover {
+  background: #15803d;
+}
+
 .app-btn-ghost {
   background: #e9ebef;
   color: var(--text);
@@ -3159,6 +3229,18 @@ button:active {
 
 .app-btn-ghost:hover {
   background: #dfe2e7;
+}
+
+.app-btn:disabled {
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--muted);
+  border: 1.5px dashed rgba(15, 23, 42, 0.22);
+  transform: none;
+}
+
+.app-btn:disabled:hover {
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
