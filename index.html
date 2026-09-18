@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-09-18a">
+<html lang="it" data-build="2026-09-18b">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -216,6 +216,14 @@
             <button type="button" class="fchip" data-value="worstjump">Peggior salto</button>
           </div>
         </div>
+        <div class="filter-block">
+          <p class="filter-heading">Esito concorso</p>
+          <div class="chip-row" id="outcome-chips" role="group" aria-label="Esito concorso">
+            <button type="button" class="fchip" data-value="all">Tutti</button>
+            <button type="button" class="fchip" data-value="passed">Superati</button>
+            <button type="button" class="fchip" data-value="failed">Non superati</button>
+          </div>
+        </div>
         <div class="filter-actions">
           <button type="button" id="filters-apply" class="fbtn fbtn-primary">Applica</button>
           <button type="button" id="filters-reset" class="fbtn fbtn-ghost">Reset</button>
@@ -230,7 +238,7 @@
               <circle cx="9" cy="7" r="4" />
               <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
-            Atleti registrati
+            <span id="athlete-list-title-text">Atleti registrati</span>
           </h2>
           <span class="list-count" id="athlete-count">0</span>
         </div>

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-18a';
-console.log('[Lapsi] build', APP_BUILD, '— Badge esito concorso su card militari + popup giorno-dopo + filtro esito');
+const APP_BUILD = '2026-09-18b';
+console.log('[Lapsi] build', APP_BUILD, '— rifiniture badge/filtri/paginazione/picker');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -57,20 +57,25 @@ const importFileInput = document.getElementById('import-json-file');
 const athleteSearchInput = document.getElementById('athlete-search');
 const distanceChips = document.getElementById('distance-chips');
 const sortChips = document.getElementById('sort-chips');
+const outcomeChips = document.getElementById('outcome-chips');
 const filtersApplyButton = document.getElementById('filters-apply');
 const filtersResetButton = document.getElementById('filters-reset');
 const athleteSuggestions = document.getElementById('athlete-suggestions');
 
-const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'az', includeDecided: null };
+const FILTER_DEFAULTS = { distance: 'Tutte', sort: 'az', outcome: 'all', includeDecided: null };
 // activeDistance/activeSort = ciò che la lista mostra ora (anche l'anteprima live
 // mentre il pannello filtri è aperto). filterSnapshot = valori confermati da
 // ripristinare se si chiude senza premere "Applica".
-// activeIncludeDecided: null = non ancora scelto (default: chi ha già un
-// esito Superato/Non superato resta incluso ma va in fondo alla lista);
-// true = scelto "Sì" all'Applica (incluso e mischiato normalmente
-// nell'ordinamento); false = scelto "No" (escluso dai risultati).
+// activeOutcome: 'all' (default) | 'passed' | 'failed' — filtro esplicito per
+// vedere SOLO chi ha un dato esito (chip live, come distanza/ordinamento).
+// activeIncludeDecided: rilevante solo quando activeOutcome è 'all'. null =
+// non ancora scelto (default: chi ha già un esito Superato/Non superato
+// resta incluso ma va in fondo alla lista); true = scelto "Sì" all'Applica
+// (incluso e mischiato normalmente nell'ordinamento); false = scelto "No"
+// (escluso dai risultati).
 let activeDistance = FILTER_DEFAULTS.distance;
 let activeSort = FILTER_DEFAULTS.sort;
+let activeOutcome = FILTER_DEFAULTS.outcome;
 let activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
 let filterSnapshot = null;
 
@@ -595,6 +600,7 @@ function openEditFormFor(athleteId) {
     if (searchClearBtn) searchClearBtn.hidden = true;
     activeDistance = FILTER_DEFAULTS.distance;
     activeSort = FILTER_DEFAULTS.sort;
+    activeOutcome = FILTER_DEFAULTS.outcome;
     activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
     syncFilterChips();
     const targetIdx = getFilteredEntries().findIndex((a) => a.id === athleteId);
@@ -630,10 +636,14 @@ function getFilteredEntries() {
       || name.includes(query)
       || surname.includes(query)
       || `${name} ${surname}`.includes(query);
-    // Scelto "No" all'Applica: chi ha già un esito (Superato/Non superato)
-    // esce del tutto dai risultati, non solo in coda.
-    const decidedMatch = activeIncludeDecided !== false || !athlete.competitionResult;
-    return activityMatch && searchMatch && decidedMatch;
+    // Filtro esplicito "Superati"/"Non superati": mostra SOLO quello stato,
+    // a prescindere dal toggle Sì/No dell'Applica (che ha senso solo con
+    // "Tutti", dove l'inclusione dei decisi è ambigua per definizione).
+    const outcomeMatch = activeOutcome === 'all' || athlete.competitionResult === activeOutcome;
+    // Scelto "No" all'Applica (solo con "Tutti"): chi ha già un esito
+    // (Superato/Non superato) esce del tutto dai risultati, non solo in coda.
+    const decidedMatch = activeOutcome !== 'all' || activeIncludeDecided !== false || !athlete.competitionResult;
+    return activityMatch && searchMatch && outcomeMatch && decidedMatch;
   });
 
   // A parità di tempo/misura/data, si va in ordine alfabetico per nome e cognome.
@@ -676,8 +686,10 @@ function getFilteredEntries() {
   // Finché non si sceglie esplicitamente "Sì" all'Applica, chi ha già un
   // esito (Superato/Non superato) resta incluso ma va sempre in fondo,
   // qualunque sia l'ordinamento attivo (con "No" sono già stati esclusi sopra,
-  // quindi qui "decided" è vuoto e la partizione è un no-op).
-  if (activeIncludeDecided !== true) {
+  // quindi qui "decided" è vuoto e la partizione è un no-op). Con un filtro
+  // esplicito "Superati"/"Non superati" i risultati condividono già lo stesso
+  // esito: la partizione non serve (e comunque non farebbe nulla).
+  if (activeOutcome === 'all' && activeIncludeDecided !== true) {
     const pending = filtered.filter((athlete) => !athlete.competitionResult);
     const decided = filtered.filter((athlete) => athlete.competitionResult);
     return [...pending, ...decided];
@@ -1044,23 +1056,17 @@ function hourglassIcon(size = 14) {
     + '</svg>';
 }
 
-function trophyIcon(size = 14) {
+function thumbsUpIcon(size = 14) {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
-    + '<path d="M7 4h10v4a5 5 0 01-10 0V4z"/>'
-    + '<path d="M7 5H4v1a4 4 0 004 4"/>'
-    + '<path d="M17 5h3v1a4 4 0 01-4 4"/>'
-    + '<line x1="12" y1="13" x2="12" y2="17"/>'
-    + '<path d="M9 20h6"/>'
-    + '<line x1="9" y1="20" x2="9.6" y2="17"/>'
-    + '<line x1="15" y1="20" x2="14.4" y2="17"/>'
+    + '<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>'
+    + '<path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>'
     + '</svg>';
 }
 
 function thumbsDownIcon(size = 14) {
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">`
-    + '<path d="M17 14V4"/>'
-    + '<path d="M17 14l-5.5 6.5a1.5 1.5 0 01-2.7-1l1-4.5H4.8a2 2 0 01-2-2.3l1-6A2 2 0 015.8 5H17"/>'
-    + '<rect x="17" y="3" width="4" height="11" rx="1"/>'
+    + '<path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>'
+    + '<path d="M17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/>'
     + '</svg>';
 }
 
@@ -1622,6 +1628,9 @@ function showChoice(message, { detail = '', options = [] } = {}) {
     `).join('');
     overlay.innerHTML = `
       <div class="app-confirm-box" role="dialog" aria-modal="true">
+        <button type="button" class="app-confirm-close" data-choice-close aria-label="Chiudi">
+          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>
+        </button>
         <div class="app-confirm-text">${escapeHtml(message)}</div>
         ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
         <div class="app-confirm-actions app-confirm-actions-col">
@@ -1650,6 +1659,10 @@ function showChoice(message, { detail = '', options = [] } = {}) {
         close(null);
         return;
       }
+      if (event.target.closest('[data-choice-close]')) {
+        close(null);
+        return;
+      }
       const choiceButton = event.target.closest('[data-choice]');
       if (choiceButton && !choiceButton.disabled) {
         close(choiceButton.dataset.choice);
@@ -1662,7 +1675,37 @@ function showChoice(message, { detail = '', options = [] } = {}) {
   });
 }
 
-// Paginazione adattiva: numeri se poche pagine, "Pagina X / Y" se tante.
+// Paginazione: al massimo 3 quadratini numerati (finestra intorno alla
+// pagina corrente) invece di uno per pagina, con «/» per saltare subito a
+// prima/ultima quando le pagine sono più di 3 — evita di affollare la barra
+// su schermi stretti mantenendo comunque un accesso rapido agli estremi.
+function paginationMarkup(current, totalPages) {
+  const prev = `<button type="button" class="page-btn page-arrow" data-page="${current - 1}" aria-label="Pagina precedente"${current === 1 ? ' disabled' : ''}>‹</button>`;
+  const next = `<button type="button" class="page-btn page-arrow" data-page="${current + 1}" aria-label="Pagina successiva"${current === totalPages ? ' disabled' : ''}>›</button>`;
+
+  if (totalPages <= 3) {
+    let middle = '';
+    for (let page = 1; page <= totalPages; page += 1) {
+      middle += `<button type="button" class="page-btn${page === current ? ' is-current' : ''}" data-page="${page}">${page}</button>`;
+    }
+    return prev + middle + next;
+  }
+
+  const first = `<button type="button" class="page-btn page-arrow" data-page="1" aria-label="Prima pagina"${current === 1 ? ' disabled' : ''}>«</button>`;
+  const last = `<button type="button" class="page-btn page-arrow" data-page="${totalPages}" aria-label="Ultima pagina"${current === totalPages ? ' disabled' : ''}>»</button>`;
+
+  let start = Math.max(1, current - 1);
+  const end = Math.min(totalPages, start + 2);
+  start = Math.max(1, end - 2);
+
+  let middle = '';
+  for (let page = start; page <= end; page += 1) {
+    middle += `<button type="button" class="page-btn${page === current ? ' is-current' : ''}" data-page="${page}">${page}</button>`;
+  }
+
+  return first + prev + middle + next + last;
+}
+
 function renderPagination(total) {
   const nav = document.getElementById('athlete-pagination');
   if (!nav) {
@@ -1675,20 +1718,7 @@ function renderPagination(total) {
     return;
   }
   nav.hidden = false;
-
-  const prev = `<button type="button" class="page-btn page-arrow" data-page="${currentPage - 1}" aria-label="Pagina precedente"${currentPage === 1 ? ' disabled' : ''}>‹</button>`;
-  const next = `<button type="button" class="page-btn page-arrow" data-page="${currentPage + 1}" aria-label="Pagina successiva"${currentPage === totalPages ? ' disabled' : ''}>›</button>`;
-
-  let middle = '';
-  if (totalPages <= 7) {
-    for (let page = 1; page <= totalPages; page += 1) {
-      middle += `<button type="button" class="page-btn${page === currentPage ? ' is-current' : ''}" data-page="${page}">${page}</button>`;
-    }
-  } else {
-    middle = `<span class="page-label">Pagina ${currentPage} / ${totalPages}</span>`;
-  }
-
-  nav.innerHTML = prev + middle + next;
+  nav.innerHTML = paginationMarkup(currentPage, totalPages);
 }
 
 function renderEntries() {
@@ -1699,6 +1729,12 @@ function renderEntries() {
   const countEl = document.getElementById('athlete-count');
   if (countEl) {
     countEl.textContent = String(entries.length);
+  }
+  const titleEl = document.getElementById('athlete-list-title-text');
+  if (titleEl) {
+    titleEl.textContent = activeOutcome === 'passed' ? 'Atleti idonei'
+      : activeOutcome === 'failed' ? 'Atleti non idonei'
+      : 'Atleti registrati';
   }
 
   if (!entries.length) {
@@ -1752,7 +1788,7 @@ function renderEntries() {
     const badgeClass = competitionResult === 'passed' ? 'result-badge-passed'
       : competitionResult === 'failed' ? 'result-badge-failed'
       : 'result-badge-pending';
-    const badgeIcon = competitionResult === 'passed' ? trophyIcon(15)
+    const badgeIcon = competitionResult === 'passed' ? thumbsUpIcon(15)
       : competitionResult === 'failed' ? thumbsDownIcon(15)
       : hourglassIcon(14);
     const badgeLabel = competitionResult === 'passed' ? 'Concorso superato'
@@ -2077,12 +2113,12 @@ async function handleCompetitionBadgeClick(badgeButton) {
   const label = `${entry.name} ${entry.surname}`.trim() || 'questo atleta';
   const isDecided = entry.competitionResult === 'passed' || entry.competitionResult === 'failed';
 
-  const choice = await showChoice(`Esito concorso — ${label}`, {
+  const choice = await showChoice(`Esito concorso\n${label}`, {
     detail: isDecided
       ? 'La card è disabilitata: puoi cambiare l\'esito o riabilitarla.'
       : 'Segna l\'esito quando il concorso è concluso.',
     options: [
-      { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: trophyIcon(16) },
+      { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: thumbsUpIcon(16) },
       { value: 'failed', label: 'Non superato', className: 'app-btn-danger', icon: thumbsDownIcon(16) },
       { value: 'reactivate', label: 'Riabilita', className: 'app-btn-ghost', icon: reloadIcon(14), disabled: !isDecided },
     ],
@@ -2805,6 +2841,15 @@ athletesList.addEventListener('input', (event) => {
   const button = input.closest('.notes-block').querySelector('.notes-btn');
   button.disabled = input.value.trim() === '';
 });
+// Campi di "Modifica risultati precedenti": selezionano tutto il contenuto
+// al focus, così si può sovrascrivere subito la cifra senza dover spostare
+// prima il cursore a destra per cancellarla.
+athletesList.addEventListener('focusin', (event) => {
+  const input = event.target.closest('.mini-input');
+  if (input) {
+    input.select();
+  }
+});
 exportButton.addEventListener('click', () => {
   setMenuOpen(false);
   exportEntriesAsJson();
@@ -2880,6 +2925,9 @@ function getChipGroupSelection(group, fallback) {
 function syncFilterChips() {
   setChipGroupSelection(distanceChips, activeDistance);
   setChipGroupSelection(sortChips, activeSort);
+  if (outcomeChips) {
+    setChipGroupSelection(outcomeChips, activeOutcome);
+  }
 }
 
 function revertFiltersDraft() {
@@ -2888,6 +2936,7 @@ function revertFiltersDraft() {
   }
   activeDistance = filterSnapshot.distance;
   activeSort = filterSnapshot.sort;
+  activeOutcome = filterSnapshot.outcome;
   activeIncludeDecided = filterSnapshot.includeDecided;
   filterSnapshot = null;
   currentPage = 1;
@@ -2895,7 +2944,10 @@ function revertFiltersDraft() {
   renderEntries();
 }
 
-[distanceChips, sortChips].forEach((group) => {
+[distanceChips, sortChips, outcomeChips].forEach((group) => {
+  if (!group) {
+    return;
+  }
   group.addEventListener('click', (event) => {
     const chip = event.target.closest('.fchip');
     if (!chip || !group.contains(chip)) {
@@ -2904,8 +2956,10 @@ function revertFiltersDraft() {
     setChipGroupSelection(group, chip.dataset.value);
     if (group === distanceChips) {
       activeDistance = chip.dataset.value;
-    } else {
+    } else if (group === sortChips) {
       activeSort = chip.dataset.value;
+    } else {
+      activeOutcome = chip.dataset.value;
     }
     currentPage = 1;
     renderEntries();
@@ -2913,9 +2967,9 @@ function revertFiltersDraft() {
 });
 
 filtersApplyButton.addEventListener('click', async () => {
-  // Solo se esiste almeno un atleta con un esito già deciso ha senso chiedere
-  // se includerlo: altrimenti non c'è nulla da includere/escludere.
-  const hasDecided = getAthletes().some((entry) => entry.competitionResult);
+  // Il toggle Sì/No ha senso solo con "Tutti": con un filtro esplicito
+  // Superati/Non superati non c'è ambiguità da chiedere.
+  const hasDecided = activeOutcome === 'all' && getAthletes().some((entry) => entry.competitionResult);
   if (hasDecided) {
     const choice = await showChoice('Includere anche chi ha già un esito?', {
       detail: 'Atleti già segnati come Superato o Non superato.',
@@ -2941,6 +2995,7 @@ filtersApplyButton.addEventListener('click', async () => {
 filtersResetButton.addEventListener('click', () => {
   activeDistance = FILTER_DEFAULTS.distance;
   activeSort = FILTER_DEFAULTS.sort;
+  activeOutcome = FILTER_DEFAULTS.outcome;
   activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
   currentPage = 1;
   syncFilterChips();
@@ -3017,7 +3072,7 @@ toggleFiltersButton.addEventListener('click', () => {
   const open = filtersPanel.hidden;
   closeToolPanels('filters');
   if (open) {
-    filterSnapshot = { distance: activeDistance, sort: activeSort, includeDecided: activeIncludeDecided };
+    filterSnapshot = { distance: activeDistance, sort: activeSort, outcome: activeOutcome, includeDecided: activeIncludeDecided };
     syncFilterChips();
     setCollapsibleOpen(toggleFiltersButton, filtersPanel, true);
     toggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
@@ -3208,20 +3263,7 @@ function renderVelPagination(total) {
     return;
   }
   nav.hidden = false;
-
-  const prev = `<button type="button" class="page-btn page-arrow" data-page="${velCurrentPage - 1}" aria-label="Pagina precedente"${velCurrentPage === 1 ? ' disabled' : ''}>‹</button>`;
-  const next = `<button type="button" class="page-btn page-arrow" data-page="${velCurrentPage + 1}" aria-label="Pagina successiva"${velCurrentPage === totalPages ? ' disabled' : ''}>›</button>`;
-
-  let middle = '';
-  if (totalPages <= 7) {
-    for (let page = 1; page <= totalPages; page += 1) {
-      middle += `<button type="button" class="page-btn${page === velCurrentPage ? ' is-current' : ''}" data-page="${page}">${page}</button>`;
-    }
-  } else {
-    middle = `<span class="page-label">Pagina ${velCurrentPage} / ${totalPages}</span>`;
-  }
-
-  nav.innerHTML = prev + middle + next;
+  nav.innerHTML = paginationMarkup(velCurrentPage, totalPages);
 }
 
 // Una sola card "aperta" per volta, come nella sezione C. Militari.
@@ -4409,7 +4451,7 @@ async function checkExpiredConcorsi() {
     const choice = await showChoice(`Concorso di ${label} concluso`, {
       detail: `Il concorso del ${concorsoStr} risulta concluso. Come è andata?`,
       options: [
-        { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: trophyIcon(16) },
+        { value: 'passed', label: 'Superato', className: 'app-btn-success', icon: thumbsUpIcon(16) },
         { value: 'failed', label: 'Non superato', className: 'app-btn-danger', icon: thumbsDownIcon(16) },
         { value: 'later', label: 'Non lo so ancora', className: 'app-btn-ghost' },
       ],
