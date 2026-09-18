@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-18c';
-console.log('[Lapsi] build', APP_BUILD, '— badge giallo più chiaro, popup senza sovrapposizione alla X');
+const APP_BUILD = '2026-09-18d';
+console.log('[Lapsi] build', APP_BUILD, '— badge ancora più chiaro, fix menu contestuale picker su Chrome desktop');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -2843,11 +2843,16 @@ athletesList.addEventListener('input', (event) => {
 });
 // Campi di "Modifica risultati precedenti": selezionano tutto il contenuto
 // al focus, così si può sovrascrivere subito la cifra senza dover spostare
-// prima il cursore a destra per cancellarla.
+// prima il cursore a destra per cancellarla. Il select() è rimandato al tick
+// successivo (setTimeout 0): chiamandolo subito, mentre il browser sta ancora
+// gestendo il click che ha dato il focus, su Chrome desktop va in conflitto
+// con il posizionamento nativo del cursore e apre per errore il menu
+// contestuale di selezione — rimandandolo di un istante il conflitto sparisce
+// e il comportamento resta identico (selezione visibile, sovrascrivibile).
 athletesList.addEventListener('focusin', (event) => {
   const input = event.target.closest('.mini-input');
   if (input) {
-    input.select();
+    setTimeout(() => input.select(), 0);
   }
 });
 exportButton.addEventListener('click', () => {

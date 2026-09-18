@@ -2333,8 +2333,8 @@ button:active {
 
 .result-badge-pending {
   background: #fde68a;
-  border: 1.5px solid #ca8a04;
-  color: #a16207;
+  border: 1.5px solid #eab308;
+  color: #ca8a04;
 }
 
 .result-badge-passed {
