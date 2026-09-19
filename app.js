@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-18d';
-console.log('[Lapsi] build', APP_BUILD, '— badge ancora più chiaro, fix menu contestuale picker su Chrome desktop');
+const APP_BUILD = '2026-09-19a';
+console.log('[Lapsi] build', APP_BUILD, '— Tempi ripetute: calcolatore dal 1000 massimale (C. Militari)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -100,6 +100,7 @@ const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
 const menuBackdrop = document.getElementById('menu-backdrop');
 const trainingNotesFab = document.getElementById('training-notes-fab');
+const ripetuteFab = document.getElementById('ripetute-fab');
 
 if (splashScreen) {
   setTimeout(() => {
@@ -159,9 +160,13 @@ function switchSection(section) {
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
-  // Il pulsante "Programma allenamento" esiste solo per i militari.
+  // I pulsanti "Programma allenamento" e "Tempi ripetute" esistono solo per
+  // i militari.
   if (trainingNotesFab) {
     trainingNotesFab.hidden = section !== 'militari';
+  }
+  if (ripetuteFab) {
+    ripetuteFab.hidden = section !== 'militari';
   }
   window.scrollTo(0, 0);
 }
@@ -3047,6 +3052,9 @@ document.addEventListener('keydown', (event) => {
   if (trainingNotesOverlay && !trainingNotesOverlay.hidden) {
     closeTrainingNotes();
   }
+  if (ripetuteOverlay && !ripetuteOverlay.hidden) {
+    closeRipetute();
+  }
 });
 
 function closeToolPanels(except) {
@@ -4478,6 +4486,220 @@ async function checkExpiredConcorsi() {
   }
 
   renderEntries();
+}
+
+// ===== Tempi ripetute: calcolatore dal 1000 massimale (solo militari) =====
+// Il modello di calcolo (formule, coefficienti, formattazione) vive in
+// ripetute-calc.js (RipeteCalc), un modulo puro senza dipendenze dal DOM —
+// per ritoccare i coefficienti si modifica solo quel file. Qui c'è solo la
+// UI: overlay, chip di volume/recupero, tabella, persistenza.
+const RIPETUTE_STORAGE_KEY = 'ripetute';
+
+const ripetuteBackdrop = document.getElementById('ripetute-backdrop');
+const ripetuteOverlay = document.getElementById('ripetute-overlay');
+const ripetuteClose = document.getElementById('ripetute-close');
+const ripetuteInput = document.getElementById('ripetute-t1000');
+const ripetuteOutput = document.getElementById('ripetute-output');
+const ripetuteVolChips = document.getElementById('ripetute-vol-chips');
+const ripetuteRecChips = document.getElementById('ripetute-rec-chips');
+const ripetuteStatus = document.getElementById('ripetute-status');
+const ripetuteBodyA = document.getElementById('ripetute-body-a');
+const ripetuteBodyB = document.getElementById('ripetute-body-b');
+
+let ripetuteState = { t: '', vol: RipeteCalc.VOL_DEFAULT, rec: RipeteCalc.REC_DEFAULT };
+
+function readRipetuteState() {
+  try {
+    const raw = localStorage.getItem(RIPETUTE_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === 'object') {
+      if (typeof saved.t === 'string') {
+        ripetuteState.t = saved.t;
+      }
+      if (RipeteCalc.isValidVol(saved.vol)) {
+        ripetuteState.vol = saved.vol;
+      }
+      if (RipeteCalc.isValidRec(saved.rec)) {
+        ripetuteState.rec = saved.rec;
+      }
+    }
+  } catch (error) {
+    console.warn('Impossibile leggere le impostazioni di "Tempi ripetute":', error);
+  }
+}
+
+function saveRipetuteState() {
+  try {
+    localStorage.setItem(RIPETUTE_STORAGE_KEY, JSON.stringify(ripetuteState));
+  } catch (error) {
+    console.warn('Impossibile salvare le impostazioni di "Tempi ripetute":', error);
+  }
+}
+
+function buildRipetuteChips(container, options, key) {
+  if (!container) {
+    return;
+  }
+  container.innerHTML = options.map(([value, label]) => `
+    <button type="button" class="fchip" data-value="${value}">${escapeHtml(label)}</button>
+  `).join('');
+  setChipGroupSelection(container, String(ripetuteState[key]));
+}
+
+function ripetuteRowMarkup(T) {
+  const label = RipeteCalc.formatLabel(T);
+  const cells = RipeteCalc.PCT.map(([dist, pct]) => (
+    `<td>${RipeteCalc.formatSeconds(RipeteCalc.repeatSeconds(T, dist, pct, ripetuteState.vol, ripetuteState.rec))}</td>`
+  )).join('');
+  const isAnchor = T % 30 === 0;
+  return `<tr${isAnchor ? ' class="ripetute-anchor"' : ''} data-label="${escapeHtml(label)}" tabindex="0"><th scope="row">${escapeHtml(label)}</th>${cells}</tr>`;
+}
+
+// Righe da 180 a 360s a passo di 5 (37 righe), spezzate in due blocchi
+// (19 + 18) come nel prototipo di riferimento.
+function renderRipetuteTable() {
+  if (!ripetuteBodyA || !ripetuteBodyB) {
+    return;
+  }
+  const rowsA = [];
+  const rowsB = [];
+  let i = 0;
+  for (let T = 180; T <= 360; T += 5) {
+    (i < 19 ? rowsA : rowsB).push(ripetuteRowMarkup(T));
+    i += 1;
+  }
+  ripetuteBodyA.innerHTML = rowsA.join('');
+  ripetuteBodyB.innerHTML = rowsB.join('');
+}
+
+function ripetuteAllRows() {
+  return ripetuteOverlay ? [...ripetuteOverlay.querySelectorAll('tbody tr')] : [];
+}
+
+function ripetuteMarkRow(label) {
+  ripetuteAllRows().forEach((row) => {
+    row.classList.toggle('is-on', label !== null && row.dataset.label === label);
+  });
+}
+
+function renderRipetute() {
+  renderRipetuteTable();
+
+  const T = RipeteCalc.parseThousand(ripetuteInput.value);
+  const volEntry = RipeteCalc.VOL_OPTIONS.find(([v]) => v === ripetuteState.vol);
+  const recEntry = RipeteCalc.REC_OPTIONS.find(([r]) => r === ripetuteState.rec);
+  const ref = T || 240;
+  const dec = (n) => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',');
+  const r200 = ripetuteState.rec / RipeteCalc.repeatSeconds(ref, 200, 0.93, ripetuteState.vol, ripetuteState.rec);
+  const r600 = ripetuteState.rec / RipeteCalc.repeatSeconds(ref, 600, 1.01, ripetuteState.vol, ripetuteState.rec);
+  if (ripetuteStatus) {
+    ripetuteStatus.innerHTML = `Lavoro da ${escapeHtml(volEntry[1])}, recupero <b>${escapeHtml(recEntry[1])}</b> fisso tra le prove. `
+      + `Su un 1000 da ${escapeHtml(RipeteCalc.formatLabel(ref))} vale ${dec(r200)} volte la durata del 200 e ${dec(r600)} volte quella del 600: `
+      + 'per questo le prove lunghe escono più lente al 100.';
+  }
+
+  if (!T) {
+    if (ripetuteOutput) {
+      ripetuteOutput.hidden = true;
+      ripetuteOutput.innerHTML = '';
+    }
+    ripetuteMarkRow(null);
+  } else {
+    if (ripetuteOutput) {
+      ripetuteOutput.hidden = false;
+      ripetuteOutput.innerHTML = RipeteCalc.repeatTimesFor(T, ripetuteState.vol, ripetuteState.rec)
+        .map(({ dist, seconds }) => `<div class="ripetute-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
+        .join('');
+    }
+    const near = Math.round(T / 5) * 5;
+    ripetuteMarkRow(near >= 180 && near <= 360 ? RipeteCalc.formatLabel(near) : null);
+  }
+
+  ripetuteState.t = ripetuteInput.value;
+  saveRipetuteState();
+}
+
+function openRipetute() {
+  if (!ripetuteOverlay || !ripetuteBackdrop) {
+    return;
+  }
+  readRipetuteState();
+  ripetuteInput.value = ripetuteState.t;
+  buildRipetuteChips(ripetuteVolChips, RipeteCalc.VOL_OPTIONS, 'vol');
+  buildRipetuteChips(ripetuteRecChips, RipeteCalc.REC_OPTIONS, 'rec');
+  renderRipetute();
+  ripetuteBackdrop.hidden = false;
+  ripetuteOverlay.hidden = false;
+  lockBodyScroll();
+}
+
+function closeRipetute() {
+  if (!ripetuteOverlay || !ripetuteBackdrop) {
+    return;
+  }
+  ripetuteOverlay.hidden = true;
+  ripetuteBackdrop.hidden = true;
+  unlockBodyScroll();
+}
+
+if (ripetuteFab) {
+  ripetuteFab.addEventListener('click', openRipetute);
+}
+if (ripetuteClose) {
+  ripetuteClose.addEventListener('click', closeRipetute);
+}
+if (ripetuteBackdrop) {
+  ripetuteBackdrop.addEventListener('click', closeRipetute);
+}
+if (ripetuteInput) {
+  ripetuteInput.addEventListener('input', renderRipetute);
+}
+[ripetuteVolChips, ripetuteRecChips].forEach((group) => {
+  if (!group) {
+    return;
+  }
+  group.addEventListener('click', (event) => {
+    const chip = event.target.closest('.fchip');
+    if (!chip) {
+      return;
+    }
+    setChipGroupSelection(group, chip.dataset.value);
+    if (group === ripetuteVolChips) {
+      ripetuteState.vol = Number(chip.dataset.value);
+    } else {
+      ripetuteState.rec = Number(chip.dataset.value);
+    }
+    renderRipetute();
+  });
+});
+if (ripetuteOverlay) {
+  // Riga cliccabile: resta evidenziata, una sola alla volta (click di nuovo
+  // sulla stessa riga per togliere la selezione manuale).
+  ripetuteOverlay.addEventListener('click', (event) => {
+    const row = event.target.closest('tbody tr');
+    if (!row) {
+      return;
+    }
+    const wasOn = row.classList.contains('is-on');
+    ripetuteAllRows().forEach((r) => r.classList.remove('is-on'));
+    if (!wasOn) {
+      row.classList.add('is-on');
+    }
+  });
+  ripetuteOverlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const row = event.target.closest('tbody tr');
+    if (!row) {
+      return;
+    }
+    event.preventDefault();
+    row.click();
+  });
 }
 
 async function initializeApp() {

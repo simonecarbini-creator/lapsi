@@ -102,7 +102,14 @@ button, input {
   display: none;
 }
 
-.training-notes-backdrop {
+/* Secondo pulsante flottante (Tempi ripetute), accanto a quello delle note:
+   stessa forma/dimensione, ancorato subito a sinistra dell'altro. */
+.ripetute-fab {
+  right: 84px;
+}
+
+.training-notes-backdrop,
+.ripetute-backdrop {
   z-index: 9100;
 }
 
@@ -282,6 +289,236 @@ button, input {
 
 .training-notes-save {
   padding: 9px 22px;
+}
+
+/* ===== Tempi ripetute: contenuto dell'overlay condiviso con Programma
+   allenamento (.training-notes-overlay/.training-notes-head) ===== */
+.ripetute-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ripetute-lede {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.ripetute-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ripetute-input-row label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.ripetute-input {
+  width: 120px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--card-border);
+  background: #fff;
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ripetute-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.ripetute-output {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ripetute-output[hidden] {
+  display: none;
+}
+
+.ripetute-out-tile {
+  /* Base percentuale (non px) così le 5 caselle restano sempre sulla stessa
+     riga invece che far andare la quinta (600m) da sola a capo. */
+  flex: 1 1 18%;
+  min-width: 0;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: var(--bg-strong);
+  text-align: center;
+}
+
+.ripetute-out-tile b {
+  display: block;
+  font-size: clamp(0.78rem, 4vw, 1rem);
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ripetute-out-tile span {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.ripetute-status {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.ripetute-status b {
+  color: var(--text);
+}
+
+/* Due colonne affiancate solo su schermi larghi, impilate sotto — la
+   tabella (37 righe) è spezzata in due blocchi per stare più compatta. */
+.ripetute-sheet {
+  display: grid;
+  gap: 14px;
+}
+
+@media (min-width: 860px) {
+  .ripetute-sheet {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.ripetute-pane {
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.ripetute-pane table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.ripetute-pane thead th {
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 8px 4px;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.ripetute-pane thead th:first-child {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.ripetute-pane tbody th,
+.ripetute-pane tbody td {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 4px;
+  text-align: center;
+  border-top: 1px solid var(--card-border);
+  color: var(--text);
+}
+
+.ripetute-pane tbody th {
+  text-align: left;
+  padding-left: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  position: relative;
+}
+
+.ripetute-pane tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+/* Trattino sul bordo sinistro per i multipli di 30s (stesso arancio della
+   barra d'accento sulle card atleti). */
+.ripetute-pane tbody tr.ripetute-anchor th::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  background: #ff5c3a;
+}
+
+.ripetute-pane tbody tr {
+  cursor: pointer;
+}
+
+.ripetute-pane tbody tr.is-on {
+  background: #ff5c3a;
+}
+
+.ripetute-pane tbody tr.is-on th,
+.ripetute-pane tbody tr.is-on td {
+  color: #fff;
+}
+
+.ripetute-pane tbody tr:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+@media print {
+  body > *:not(.ripetute-overlay) {
+    display: none !important;
+  }
+  .ripetute-overlay {
+    position: static !important;
+    inset: auto !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: #fff !important;
+  }
+  .training-notes-head,
+  .ripetute-lede,
+  .ripetute-input-row,
+  .ripetute-output,
+  .filter-block,
+  .ripetute-status {
+    display: none !important;
+  }
+  .ripetute-sheet {
+    grid-template-columns: 1fr 1fr;
+  }
+  .ripetute-pane {
+    border-color: #999;
+  }
+  .ripetute-pane thead th {
+    background: #000;
+    color: #fff;
+  }
+  .ripetute-pane tbody tr.is-on {
+    background: none;
+  }
+  .ripetute-pane tbody tr.is-on th,
+  .ripetute-pane tbody tr.is-on td {
+    color: #000;
+  }
 }
 
 .app-header-wrap[hidden] {

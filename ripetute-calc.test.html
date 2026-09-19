@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Test — ripetute-calc</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; color: #101828; }
+  h1 { font-size: 1.2rem; }
+  .pass { color: #1d7a5d; }
+  .fail { color: #ba3838; font-weight: 700; }
+  #summary { font-weight: 700; font-size: 1.05rem; margin: 16px 0; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Test — ripetute-calc.js</h1>
+<p>Riesegui questa pagina (apertura diretta nel browser, nessun server richiesto) ogni volta
+che si ritocca un coefficiente in <code>ripetute-calc.js</code>.</p>
+<div id="summary">In corso…</div>
+<ul id="results"></ul>
+
+<script src="ripetute-calc.js"></script>
+<script>
+(function () {
+  const results = [];
+  let pass = 0;
+  let fail = 0;
+
+  function assertEqual(actual, expected, label) {
+    const ok = actual === expected;
+    results.push({ ok, label, actual, expected });
+    if (ok) pass += 1; else fail += 1;
+  }
+
+  // --- Casi di verifica dalla spec (1000 = 4'00", T = 240) ---
+  const T = RipeteCalc.parseThousand('4:00');
+  assertEqual(T, 240, 'parseThousand("4:00") === 240');
+
+  const cases = [
+    { vol: 2, rec: 90, expect: ['44″', '1′08″', '1′33″', '2′00″', '2′28″'] },
+    { vol: 2, rec: 120, expect: ['43″5', '1′07″', '1′33″', '1′59″', '2′27″'] },
+    { vol: 4, rec: 120, expect: ['46″', '1′12″', '1′38″', '2′06″', '2′35″'] },
+    { vol: 5, rec: 120, expect: ['48″', '1′14″', '1′42″', '2′10″', '2′40″'] },
+  ];
+
+  cases.forEach(({ vol, rec, expect }) => {
+    const times = RipeteCalc.repeatTimesFor(T, vol, rec).map((r) => RipeteCalc.formatSeconds(r.seconds));
+    expect.forEach((exp, i) => {
+      const dist = RipeteCalc.PCT[i][0];
+      assertEqual(times[i], exp, `vol=${vol}km rec=${rec}s dist=${dist}m -> ${exp}`);
+    });
+  });
+
+  // --- Formattazione: casi limite attorno a 59,75s ---
+  assertEqual(RipeteCalc.formatSeconds(39.0), '39″', 'formatSeconds(39.0) === "39″"');
+  assertEqual(RipeteCalc.formatSeconds(44.5), '44″5', 'formatSeconds(44.5) === "44″5"');
+  assertEqual(RipeteCalc.formatSeconds(59.7), '59″5', 'formatSeconds(59.7) === "59″5" (sotto soglia, mezzo secondo)');
+  assertEqual(RipeteCalc.formatSeconds(59.8), '1′00″', 'formatSeconds(59.8) === "1′00″" (sopra soglia, secondo intero)');
+  assertEqual(RipeteCalc.formatSeconds(65), '1′05″', 'formatSeconds(65) === "1′05″"');
+
+  // --- formatLabel ---
+  assertEqual(RipeteCalc.formatLabel(240), '4′00″', 'formatLabel(240) === "4′00″"');
+  assertEqual(RipeteCalc.formatLabel(185), '3′05″', 'formatLabel(185) === "3′05″"');
+
+  // --- parseThousand: casi validi e invalidi ---
+  assertEqual(RipeteCalc.parseThousand('347'), 227, 'parseThousand("347") === 227');
+  assertEqual(RipeteCalc.parseThousand("3'47"), 227, 'parseThousand("3\'47") === 227');
+  assertEqual(RipeteCalc.parseThousand('3:47'), 227, 'parseThousand("3:47") === 227');
+  assertEqual(RipeteCalc.parseThousand('0347'), 227, 'parseThousand("0347") === 227 (4 cifre)');
+  assertEqual(RipeteCalc.parseThousand(''), null, 'parseThousand("") === null');
+  assertEqual(RipeteCalc.parseThousand('47'), null, 'parseThousand("47") === null (meno di 3 cifre)');
+  assertEqual(RipeteCalc.parseThousand('34567'), null, 'parseThousand("34567") === null (più di 4 cifre)');
+  assertEqual(RipeteCalc.parseThousand('399'), null, 'parseThousand("399") === null (99s non valido)');
+  assertEqual(RipeteCalc.parseThousand('1347'), null, 'parseThousand("1347") === null (13 min > 12)');
+  assertEqual(RipeteCalc.parseThousand('0047'), null, 'parseThousand("0047") === null (0 min < 1)');
+
+  // --- isValidVol / isValidRec ---
+  assertEqual(RipeteCalc.isValidVol(2), true, 'isValidVol(2) === true');
+  assertEqual(RipeteCalc.isValidVol(2.7), false, 'isValidVol(2.7) === false');
+  assertEqual(RipeteCalc.isValidRec(90), true, 'isValidRec(90) === true');
+  assertEqual(RipeteCalc.isValidRec(100), false, 'isValidRec(100) === false');
+
+  // --- render ---
+  const list = document.getElementById('results');
+  results.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = r.ok ? 'pass' : 'fail';
+    li.textContent = (r.ok ? '✓ ' : `✗ (atteso ${JSON.stringify(r.expected)}, ottenuto ${JSON.stringify(r.actual)}) `) + r.label;
+    list.appendChild(li);
+  });
+  document.getElementById('summary').innerHTML = fail === 0
+    ? `<span class="pass">Tutti i ${pass} test passano.</span>`
+    : `<span class="fail">${fail} test falliti</span> su ${pass + fail} (${pass} passati).`;
+  document.title = (fail === 0 ? 'PASS' : 'FAIL') + ' — Test ripetute-calc';
+})();
+</script>
+</body>
+</html>
