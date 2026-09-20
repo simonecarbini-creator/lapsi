@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-19a';
-console.log('[Lapsi] build', APP_BUILD, '— Tempi ripetute: calcolatore dal 1000 massimale (C. Militari)');
+const APP_BUILD = '2026-09-20a';
+console.log('[Lapsi] build', APP_BUILD, '— Tempi ripetute: campo 1km con formattazione automatica m\'ss"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4508,6 +4508,28 @@ const ripetuteBodyB = document.getElementById('ripetute-body-b');
 
 let ripetuteState = { t: '', vol: RipeteCalc.VOL_DEFAULT, rec: RipeteCalc.REC_DEFAULT };
 
+// Formattazione automatica del campo "1km in" mentre si digita: le ultime
+// due cifre sono sempre i secondi (tra ' e "), quelle prima i minuti — stessa
+// lettura di RipeteCalc.parseThousand, così "345" diventa "3'45"" e un tempo
+// più lento con minuti a due cifre (es. "1035" -> "10'35"") resta corretto.
+// Le cifre "vere" sono tenute in ripetuteDigits: il valore mostrato
+// nell'input è sempre ricalcolato da lì, non letto/riscritto al contrario,
+// per evitare ambiguità quando si cancella un carattere di formattazione.
+let ripetuteDigits = '';
+
+function formatRipetuteMask(digits) {
+  if (digits.length <= 2) {
+    return digits;
+  }
+  return `${digits.slice(0, -2)}'${digits.slice(-2)}"`;
+}
+
+function applyRipetuteMask() {
+  ripetuteInput.value = formatRipetuteMask(ripetuteDigits);
+  const end = ripetuteInput.value.length;
+  ripetuteInput.setSelectionRange(end, end);
+}
+
 function readRipetuteState() {
   try {
     const raw = localStorage.getItem(RIPETUTE_STORAGE_KEY);
@@ -4627,7 +4649,8 @@ function openRipetute() {
     return;
   }
   readRipetuteState();
-  ripetuteInput.value = ripetuteState.t;
+  ripetuteDigits = String(ripetuteState.t || '').replace(/[^0-9]/g, '').slice(0, 4);
+  applyRipetuteMask();
   buildRipetuteChips(ripetuteVolChips, RipeteCalc.VOL_OPTIONS, 'vol');
   buildRipetuteChips(ripetuteRecChips, RipeteCalc.REC_OPTIONS, 'rec');
   renderRipetute();
@@ -4655,7 +4678,29 @@ if (ripetuteBackdrop) {
   ripetuteBackdrop.addEventListener('click', closeRipetute);
 }
 if (ripetuteInput) {
-  ripetuteInput.addEventListener('input', renderRipetute);
+  // Backspace/Delete si intercettano PRIMA che tolgano un carattere dal
+  // valore nativo: se l'ultimo carattere visibile è ' o " (formattazione,
+  // non una cifra vera), lasciare fare al browser cancellerebbe solo quello
+  // e la maschera lo riaggiungerebbe subito dopo — il tasto sembrerebbe non
+  // fare nulla. Gestendo la cancellazione a mano sulle cifre "vere" invece
+  // del testo visibile, un backspace toglie sempre una cifra.
+  ripetuteInput.addEventListener('keydown', (event) => {
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      return;
+    }
+    event.preventDefault();
+    ripetuteDigits = ripetuteDigits.slice(0, -1);
+    applyRipetuteMask();
+    renderRipetute();
+  });
+  // Digitazione, incolla, autocompletamento: qui il valore nativo è già
+  // corretto (il browser gestisce da solo selezione/sostituzione), basta
+  // rileggere le sole cifre e riapplicare la maschera.
+  ripetuteInput.addEventListener('input', () => {
+    ripetuteDigits = ripetuteInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    applyRipetuteMask();
+    renderRipetute();
+  });
 }
 [ripetuteVolChips, ripetuteRecChips].forEach((group) => {
   if (!group) {
