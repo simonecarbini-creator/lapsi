@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-09-20a">
+<html lang="it" data-build="2026-09-20b">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -371,7 +371,7 @@
       </div>
     </div>
 
-    <button type="button" id="ripetute-fab" class="training-notes-fab ripetute-fab" hidden aria-label="Tempi ripetute" aria-haspopup="dialog">
+    <button type="button" id="calc-fab" class="training-notes-fab calc-fab" hidden aria-label="Calcolatori di andature" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="13" r="8" />
         <path d="M12 13V9" />
@@ -381,69 +381,173 @@
       </svg>
     </button>
 
-    <div class="menu-backdrop ripetute-backdrop" id="ripetute-backdrop" hidden></div>
-    <div class="training-notes-overlay ripetute-overlay" id="ripetute-overlay" hidden role="dialog" aria-modal="true" aria-label="Tempi ripetute">
+    <div class="menu-backdrop calc-backdrop" id="calc-backdrop" hidden></div>
+    <div class="training-notes-overlay calc-overlay" id="calc-overlay" hidden role="dialog" aria-modal="true" aria-label="Calcolatori di andature">
       <header class="training-notes-head">
-        <h2>Tempi ripetute</h2>
-        <button type="button" id="ripetute-close" class="register-close" aria-label="Chiudi">
+        <button type="button" id="calc-back" class="register-close calc-back" aria-label="Torna all'elenco" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 5l-7 7 7 7" />
+          </svg>
+        </button>
+        <h2 id="calc-title">Calcolatori</h2>
+        <button type="button" id="calc-close" class="register-close" aria-label="Chiudi">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
             <line x1="6" y1="6" x2="18" y2="18" />
             <line x1="18" y1="6" x2="6" y2="18" />
           </svg>
         </button>
       </header>
-      <div class="ripetute-body" id="ripetute-body">
-        <p class="ripetute-lede">Trova il tempo sul 1000 corso al massimo: la tabella mostra i tempi da tenere sulle ripetute in base al volume totale di lavoro e al recupero.</p>
+      <div class="calc-body" id="calc-body">
 
-        <div class="ripetute-input-row">
-          <label for="ripetute-t1000">1km in</label>
-          <input id="ripetute-t1000" type="text" inputmode="numeric" placeholder="3'47&quot;" autocomplete="off" class="ripetute-input" aria-describedby="ripetute-output" />
+        <!-- Elenco dei tre calcolatori -->
+        <div class="calc-hub" id="calc-hub">
+          <button type="button" class="calc-hub-item" data-module="ripetute">
+            <span class="calc-hub-item-text">
+              <span class="calc-hub-item-title">Ripetute brevi</span>
+              <span class="calc-hub-item-sub">Dal 1000 massimale</span>
+            </span>
+            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button type="button" class="calc-hub-item" data-module="velocisti">
+            <span class="calc-hub-item-text">
+              <span class="calc-hub-item-title">Andature sprint</span>
+              <span class="calc-hub-item-sub">Dal massimale sui 100</span>
+            </span>
+            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button type="button" class="calc-hub-item" data-module="mezzofondo">
+            <span class="calc-hub-item-text">
+              <span class="calc-hub-item-title">Mezzofondo e fondo</span>
+              <span class="calc-hub-item-sub">Dalla VAM</span>
+            </span>
+            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
         </div>
-        <div class="ripetute-output" id="ripetute-output" hidden aria-live="polite"></div>
 
-        <div class="filter-block">
-          <p class="filter-heading">Lavoro totale</p>
-          <div class="chip-row chip-row-wrap" id="ripetute-vol-chips" role="group" aria-label="Lavoro totale"></div>
-        </div>
-        <div class="filter-block">
-          <p class="filter-heading">Recupero</p>
-          <div class="chip-row chip-row-wrap" id="ripetute-rec-chips" role="group" aria-label="Recupero"></div>
-        </div>
+        <!-- Modulo 1: Ripetute brevi dal 1000 massimale -->
+        <div class="calc-module" id="calc-module-ripetute" hidden>
+          <p class="calc-lede">Trova il tempo sul 1000 corso al massimo: la tabella mostra i tempi da tenere sulle ripetute in base al volume totale di lavoro e al recupero.</p>
 
-        <p class="ripetute-status" id="ripetute-status" aria-live="polite"></p>
-
-        <div class="ripetute-sheet">
-          <div class="ripetute-pane">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">1000 max</th>
-                  <th scope="col">200</th>
-                  <th scope="col">300</th>
-                  <th scope="col">400</th>
-                  <th scope="col">500</th>
-                  <th scope="col">600</th>
-                </tr>
-              </thead>
-              <tbody id="ripetute-body-a"></tbody>
-            </table>
+          <div class="calc-input-row">
+            <label for="ripetute-t1000">1km in</label>
+            <input id="ripetute-t1000" type="text" inputmode="numeric" placeholder="3'47&quot;" autocomplete="off" class="calc-input" aria-describedby="ripetute-output" />
           </div>
-          <div class="ripetute-pane">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">1000 max</th>
-                  <th scope="col">200</th>
-                  <th scope="col">300</th>
-                  <th scope="col">400</th>
-                  <th scope="col">500</th>
-                  <th scope="col">600</th>
-                </tr>
-              </thead>
-              <tbody id="ripetute-body-b"></tbody>
-            </table>
+          <div class="calc-output" id="ripetute-output" hidden aria-live="polite"></div>
+
+          <div class="filter-block">
+            <p class="filter-heading">Lavoro totale</p>
+            <div class="chip-row chip-row-wrap" id="ripetute-vol-chips" role="group" aria-label="Lavoro totale"></div>
+          </div>
+          <p class="calc-warning">Sopra i 3,5 km non sono più ripetute brevi: di fatto è una seduta di soglia spezzata, serve gente già allenata e recuperi larghi.</p>
+          <div class="filter-block">
+            <p class="filter-heading">Recupero</p>
+            <div class="chip-row chip-row-wrap" id="ripetute-rec-chips" role="group" aria-label="Recupero"></div>
+          </div>
+
+          <p class="calc-status" id="ripetute-status" aria-live="polite"></p>
+          <p class="calc-warning">Sotto i 300 m la proiezione dal 1000 perde precisione: meglio ritarare su un 400 massimale.</p>
+          <p class="calc-print-settings" id="ripetute-print-settings"></p>
+
+          <div class="calc-sheet">
+            <div class="calc-pane">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">1000 max</th>
+                    <th scope="col">200</th>
+                    <th scope="col">300</th>
+                    <th scope="col">400</th>
+                    <th scope="col">500</th>
+                    <th scope="col">600</th>
+                  </tr>
+                </thead>
+                <tbody id="ripetute-body-a"></tbody>
+              </table>
+            </div>
+            <div class="calc-pane">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">1000 max</th>
+                    <th scope="col">200</th>
+                    <th scope="col">300</th>
+                    <th scope="col">400</th>
+                    <th scope="col">500</th>
+                    <th scope="col">600</th>
+                  </tr>
+                </thead>
+                <tbody id="ripetute-body-b"></tbody>
+              </table>
+            </div>
           </div>
         </div>
+
+        <!-- Modulo 2: Andature sprint dal massimale sui 100 -->
+        <div class="calc-module" id="calc-module-velocisti" hidden>
+          <p class="calc-lede">Dal massimale sui 100 escono i massimali stimati su tutte le distanze, e da quelli le andature di lavoro in percentuale.</p>
+
+          <div class="calc-input-row">
+            <label for="velocisti-t100">100 m in</label>
+            <input id="velocisti-t100" type="text" inputmode="decimal" placeholder="12,00" autocomplete="off" class="calc-input" aria-describedby="velocisti-output" />
+          </div>
+          <div class="calc-output" id="velocisti-output" hidden aria-live="polite"></div>
+          <p class="calc-warning">Sopra il 90% un recupero incompleto non aggiunge stimolo: toglie solo qualità.</p>
+
+          <p class="calc-status" id="velocisti-status" aria-live="polite"></p>
+          <p class="calc-print-settings" id="velocisti-print-settings"></p>
+
+          <div class="calc-sheet">
+            <div class="calc-pane">
+              <table>
+                <thead id="velocisti-head-a"></thead>
+                <tbody id="velocisti-body-a"></tbody>
+              </table>
+            </div>
+            <div class="calc-pane">
+              <table>
+                <thead id="velocisti-head-b"></thead>
+                <tbody id="velocisti-body-b"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modulo 3: Mezzofondo e fondo dalla VAM -->
+        <div class="calc-module" id="calc-module-mezzofondo" hidden>
+          <p class="calc-lede">Trova la riga della velocità aerobica massima e leggi i ritmi al chilometro per ogni tipo di seduta. Se non hai un test VAM, parti dal 1000 massimale e la ricavo io.</p>
+
+          <div class="filter-block">
+            <p class="filter-heading">Parti da</p>
+            <div class="chip-row" id="mezzofondo-src-chips" role="group" aria-label="Parti da"></div>
+          </div>
+
+          <div class="calc-input-row">
+            <label for="mezzofondo-val" id="mezzofondo-val-label">VAM</label>
+            <input id="mezzofondo-val" type="text" inputmode="decimal" placeholder="14" autocomplete="off" class="calc-input" aria-describedby="mezzofondo-output" />
+          </div>
+          <p class="calc-warning" id="mezzofondo-warning-1000" hidden>La stima della VAM dal 1000 vale solo se il 1000 è corso davvero al limite: se l'atleta si gestisce, la VAM esce bassa e le lente diventano passeggiate.</p>
+          <div class="calc-output" id="mezzofondo-output" hidden aria-live="polite"></div>
+          <p class="calc-warning">Sotto i 1000 m usa il modulo "Ripetute brevi", non le percentuali di VAM.</p>
+
+          <p class="calc-status" id="mezzofondo-status" aria-live="polite"></p>
+          <p class="calc-print-settings" id="mezzofondo-print-settings"></p>
+
+          <div class="calc-sheet">
+            <div class="calc-pane">
+              <table>
+                <thead id="mezzofondo-head-a"></thead>
+                <tbody id="mezzofondo-body-a"></tbody>
+              </table>
+            </div>
+            <div class="calc-pane">
+              <table>
+                <thead id="mezzofondo-head-b"></thead>
+                <tbody id="mezzofondo-body-b"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -639,6 +743,8 @@
     </div>
 
     <script>document.write('<scr' + 'ipt src="ripetute-calc.js?_=' + Date.now() + '"></scr' + 'ipt>');</script>
+    <script>document.write('<scr' + 'ipt src="velocisti-calc.js?_=' + Date.now() + '"></scr' + 'ipt>');</script>
+    <script>document.write('<scr' + 'ipt src="mezzofondo-calc.js?_=' + Date.now() + '"></scr' + 'ipt>');</script>
     <script>document.write('<scr' + 'ipt src="app.js?_=' + Date.now() + '"></scr' + 'ipt>');</script>
   </body>
 </html>

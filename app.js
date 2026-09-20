@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-20a';
-console.log('[Lapsi] build', APP_BUILD, '— Tempi ripetute: campo 1km con formattazione automatica m\'ss"');
+const APP_BUILD = '2026-09-20b';
+console.log('[Lapsi] build', APP_BUILD, '— Calcolatori di andature: hub con Ripetute/Andature sprint/Mezzofondo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -100,7 +100,7 @@ const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
 const menuBackdrop = document.getElementById('menu-backdrop');
 const trainingNotesFab = document.getElementById('training-notes-fab');
-const ripetuteFab = document.getElementById('ripetute-fab');
+const calcFab = document.getElementById('calc-fab');
 
 if (splashScreen) {
   setTimeout(() => {
@@ -160,13 +160,13 @@ function switchSection(section) {
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
-  // I pulsanti "Programma allenamento" e "Tempi ripetute" esistono solo per
-  // i militari.
+  // I pulsanti "Programma allenamento" e "Calcolatori di andature" esistono
+  // solo per i militari.
   if (trainingNotesFab) {
     trainingNotesFab.hidden = section !== 'militari';
   }
-  if (ripetuteFab) {
-    ripetuteFab.hidden = section !== 'militari';
+  if (calcFab) {
+    calcFab.hidden = section !== 'militari';
   }
   window.scrollTo(0, 0);
 }
@@ -3052,8 +3052,8 @@ document.addEventListener('keydown', (event) => {
   if (trainingNotesOverlay && !trainingNotesOverlay.hidden) {
     closeTrainingNotes();
   }
-  if (ripetuteOverlay && !ripetuteOverlay.hidden) {
-    closeRipetute();
+  if (calcOverlay && !calcOverlay.hidden) {
+    closeCalc();
   }
 });
 
@@ -4488,44 +4488,176 @@ async function checkExpiredConcorsi() {
   renderEntries();
 }
 
-// ===== Tempi ripetute: calcolatore dal 1000 massimale (solo militari) =====
-// Il modello di calcolo (formule, coefficienti, formattazione) vive in
-// ripetute-calc.js (RipeteCalc), un modulo puro senza dipendenze dal DOM —
-// per ritoccare i coefficienti si modifica solo quel file. Qui c'è solo la
-// UI: overlay, chip di volume/recupero, tabella, persistenza.
-const RIPETUTE_STORAGE_KEY = 'ripetute';
+// ===== Calcolatori di andature: hub + tre moduli (solo militari) =====
+// I modelli di calcolo (formule, coefficienti, formattazione) vivono in tre
+// moduli puri senza dipendenze dal DOM — ripetute-calc.js (RipeteCalc),
+// velocisti-calc.js (VelocistiCalc), mezzofondo-calc.js (MezzofondoCalc) —
+// per ritoccare un coefficiente si modifica solo quel file, mai questa UI.
+// "VelocistiCalc" è il nome interno del modulo (coerente con la spec); in
+// interfaccia la voce si chiama "Andature sprint" per non confondersi con la
+// sezione atleti "Velocisti Ass./Master" già presente in Lapsi — sono due
+// cose diverse, qui non si tocca alcun dato di atleti.
+const calcBackdrop = document.getElementById('calc-backdrop');
+const calcOverlay = document.getElementById('calc-overlay');
+const calcClose = document.getElementById('calc-close');
+const calcBack = document.getElementById('calc-back');
+const calcTitle = document.getElementById('calc-title');
+const calcHub = document.getElementById('calc-hub');
 
-const ripetuteBackdrop = document.getElementById('ripetute-backdrop');
-const ripetuteOverlay = document.getElementById('ripetute-overlay');
-const ripetuteClose = document.getElementById('ripetute-close');
-const ripetuteInput = document.getElementById('ripetute-t1000');
-const ripetuteOutput = document.getElementById('ripetute-output');
-const ripetuteVolChips = document.getElementById('ripetute-vol-chips');
-const ripetuteRecChips = document.getElementById('ripetute-rec-chips');
-const ripetuteStatus = document.getElementById('ripetute-status');
-const ripetuteBodyA = document.getElementById('ripetute-body-a');
-const ripetuteBodyB = document.getElementById('ripetute-body-b');
+const CALC_MODULE_TITLES = {
+  ripetute: 'Ripetute brevi',
+  velocisti: 'Andature sprint',
+  mezzofondo: 'Mezzofondo e fondo',
+};
 
-let ripetuteState = { t: '', vol: RipeteCalc.VOL_DEFAULT, rec: RipeteCalc.REC_DEFAULT };
-
-// Formattazione automatica del campo "1km in" mentre si digita: le ultime
-// due cifre sono sempre i secondi (tra ' e "), quelle prima i minuti — stessa
+// Formattazione automatica di un campo tempo mentre si digita: le ultime due
+// cifre sono sempre i secondi (tra ' e "), quelle prima i minuti — stessa
 // lettura di RipeteCalc.parseThousand, così "345" diventa "3'45"" e un tempo
 // più lento con minuti a due cifre (es. "1035" -> "10'35"") resta corretto.
-// Le cifre "vere" sono tenute in ripetuteDigits: il valore mostrato
-// nell'input è sempre ricalcolato da lì, non letto/riscritto al contrario,
-// per evitare ambiguità quando si cancella un carattere di formattazione.
-let ripetuteDigits = '';
-
-function formatRipetuteMask(digits) {
+// Condivisa dal modulo 1 (sempre) e dal modulo 3 (solo quando si parte dal
+// 1000 massimale) invece di duplicarla.
+function formatTimeMask(digits) {
   if (digits.length <= 2) {
     return digits;
   }
   return `${digits.slice(0, -2)}'${digits.slice(-2)}"`;
 }
 
+// Riga cliccabile condivisa dai tre moduli: resta evidenziata, una sola alla
+// volta, in qualunque modulo sia attivo (solo una tabella è visibile per
+// volta, quindi non serve distinguere per modulo).
+function calcAllRows() {
+  return calcOverlay ? [...calcOverlay.querySelectorAll('tbody tr')] : [];
+}
+
+function calcMarkRow(label) {
+  calcAllRows().forEach((row) => {
+    row.classList.toggle('is-on', label !== null && row.dataset.label === label);
+  });
+}
+
+function showCalcHub() {
+  if (calcHub) {
+    calcHub.hidden = false;
+  }
+  document.querySelectorAll('.calc-module').forEach((el) => {
+    el.hidden = true;
+  });
+  if (calcBack) {
+    calcBack.hidden = true;
+  }
+  if (calcTitle) {
+    calcTitle.textContent = 'Calcolatori';
+  }
+}
+
+function openCalcModule(name) {
+  if (calcHub) {
+    calcHub.hidden = true;
+  }
+  document.querySelectorAll('.calc-module').forEach((el) => {
+    el.hidden = el.id !== `calc-module-${name}`;
+  });
+  if (calcBack) {
+    calcBack.hidden = false;
+  }
+  if (calcTitle) {
+    calcTitle.textContent = CALC_MODULE_TITLES[name] || 'Calcolatori';
+  }
+  if (name === 'ripetute') {
+    initRipetuteModule();
+  } else if (name === 'velocisti') {
+    initCalcSprintModule();
+  } else if (name === 'mezzofondo') {
+    initCalcMezzofondoModule();
+  }
+}
+
+function openCalc() {
+  if (!calcOverlay || !calcBackdrop) {
+    return;
+  }
+  showCalcHub();
+  calcBackdrop.hidden = false;
+  calcOverlay.hidden = false;
+  lockBodyScroll();
+}
+
+function closeCalc() {
+  if (!calcOverlay || !calcBackdrop) {
+    return;
+  }
+  calcOverlay.hidden = true;
+  calcBackdrop.hidden = true;
+  unlockBodyScroll();
+}
+
+if (calcFab) {
+  calcFab.addEventListener('click', openCalc);
+}
+if (calcClose) {
+  calcClose.addEventListener('click', closeCalc);
+}
+if (calcBackdrop) {
+  calcBackdrop.addEventListener('click', closeCalc);
+}
+if (calcBack) {
+  calcBack.addEventListener('click', showCalcHub);
+}
+if (calcHub) {
+  calcHub.addEventListener('click', (event) => {
+    const item = event.target.closest('.calc-hub-item');
+    if (!item) {
+      return;
+    }
+    openCalcModule(item.dataset.module);
+  });
+}
+if (calcOverlay) {
+  calcOverlay.addEventListener('click', (event) => {
+    const row = event.target.closest('tbody tr');
+    if (!row) {
+      return;
+    }
+    const wasOn = row.classList.contains('is-on');
+    calcAllRows().forEach((r) => r.classList.remove('is-on'));
+    if (!wasOn) {
+      row.classList.add('is-on');
+    }
+  });
+  calcOverlay.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const row = event.target.closest('tbody tr');
+    if (!row) {
+      return;
+    }
+    event.preventDefault();
+    row.click();
+  });
+}
+
+// --- Modulo 1: Ripetute brevi dal 1000 massimale --------------------------
+const RIPETUTE_STORAGE_KEY = 'lapsi-calc-ripetute';
+
+const ripetuteInput = document.getElementById('ripetute-t1000');
+const ripetuteOutput = document.getElementById('ripetute-output');
+const ripetuteVolChips = document.getElementById('ripetute-vol-chips');
+const ripetuteRecChips = document.getElementById('ripetute-rec-chips');
+const ripetuteStatus = document.getElementById('ripetute-status');
+const ripetutePrintSettings = document.getElementById('ripetute-print-settings');
+const ripetuteBodyA = document.getElementById('ripetute-body-a');
+const ripetuteBodyB = document.getElementById('ripetute-body-b');
+
+let ripetuteState = { t: '', vol: RipeteCalc.VOL_DEFAULT, rec: RipeteCalc.REC_DEFAULT };
+// Le cifre "vere" del campo 1km, tenute a parte: il valore mostrato
+// nell'input è sempre ricalcolato da qui, non letto/riscritto al contrario,
+// per evitare ambiguità quando si cancella un carattere di formattazione.
+let ripetuteDigits = '';
+
 function applyRipetuteMask() {
-  ripetuteInput.value = formatRipetuteMask(ripetuteDigits);
+  ripetuteInput.value = formatTimeMask(ripetuteDigits);
   const end = ripetuteInput.value.length;
   ripetuteInput.setSelectionRange(end, end);
 }
@@ -4549,7 +4681,7 @@ function readRipetuteState() {
       }
     }
   } catch (error) {
-    console.warn('Impossibile leggere le impostazioni di "Tempi ripetute":', error);
+    console.warn('Impossibile leggere le impostazioni di "Ripetute brevi":', error);
   }
 }
 
@@ -4557,7 +4689,7 @@ function saveRipetuteState() {
   try {
     localStorage.setItem(RIPETUTE_STORAGE_KEY, JSON.stringify(ripetuteState));
   } catch (error) {
-    console.warn('Impossibile salvare le impostazioni di "Tempi ripetute":', error);
+    console.warn('Impossibile salvare le impostazioni di "Ripetute brevi":', error);
   }
 }
 
@@ -4577,7 +4709,7 @@ function ripetuteRowMarkup(T) {
     `<td>${RipeteCalc.formatSeconds(RipeteCalc.repeatSeconds(T, dist, pct, ripetuteState.vol, ripetuteState.rec))}</td>`
   )).join('');
   const isAnchor = T % 30 === 0;
-  return `<tr${isAnchor ? ' class="ripetute-anchor"' : ''} data-label="${escapeHtml(label)}" tabindex="0"><th scope="row">${escapeHtml(label)}</th>${cells}</tr>`;
+  return `<tr${isAnchor ? ' class="calc-anchor"' : ''} data-label="${escapeHtml(label)}" tabindex="0"><th scope="row">${escapeHtml(label)}</th>${cells}</tr>`;
 }
 
 // Righe da 180 a 360s a passo di 5 (37 righe), spezzate in due blocchi
@@ -4597,16 +4729,6 @@ function renderRipetuteTable() {
   ripetuteBodyB.innerHTML = rowsB.join('');
 }
 
-function ripetuteAllRows() {
-  return ripetuteOverlay ? [...ripetuteOverlay.querySelectorAll('tbody tr')] : [];
-}
-
-function ripetuteMarkRow(label) {
-  ripetuteAllRows().forEach((row) => {
-    row.classList.toggle('is-on', label !== null && row.dataset.label === label);
-  });
-}
-
 function renderRipetute() {
   renderRipetuteTable();
 
@@ -4622,61 +4744,40 @@ function renderRipetute() {
       + `Su un 1000 da ${escapeHtml(RipeteCalc.formatLabel(ref))} vale ${dec(r200)} volte la durata del 200 e ${dec(r600)} volte quella del 600: `
       + 'per questo le prove lunghe escono più lente al 100.';
   }
+  if (ripetutePrintSettings) {
+    ripetutePrintSettings.textContent = `Impostazione: lavoro da ${volEntry[1]}, recupero ${recEntry[1]} tra le prove.`;
+  }
 
   if (!T) {
     if (ripetuteOutput) {
       ripetuteOutput.hidden = true;
       ripetuteOutput.innerHTML = '';
     }
-    ripetuteMarkRow(null);
+    calcMarkRow(null);
   } else {
     if (ripetuteOutput) {
       ripetuteOutput.hidden = false;
       ripetuteOutput.innerHTML = RipeteCalc.repeatTimesFor(T, ripetuteState.vol, ripetuteState.rec)
-        .map(({ dist, seconds }) => `<div class="ripetute-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
+        .map(({ dist, seconds }) => `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
         .join('');
     }
     const near = Math.round(T / 5) * 5;
-    ripetuteMarkRow(near >= 180 && near <= 360 ? RipeteCalc.formatLabel(near) : null);
+    calcMarkRow(near >= 180 && near <= 360 ? RipeteCalc.formatLabel(near) : null);
   }
 
   ripetuteState.t = ripetuteInput.value;
   saveRipetuteState();
 }
 
-function openRipetute() {
-  if (!ripetuteOverlay || !ripetuteBackdrop) {
-    return;
-  }
+function initRipetuteModule() {
   readRipetuteState();
   ripetuteDigits = String(ripetuteState.t || '').replace(/[^0-9]/g, '').slice(0, 4);
   applyRipetuteMask();
   buildRipetuteChips(ripetuteVolChips, RipeteCalc.VOL_OPTIONS, 'vol');
   buildRipetuteChips(ripetuteRecChips, RipeteCalc.REC_OPTIONS, 'rec');
   renderRipetute();
-  ripetuteBackdrop.hidden = false;
-  ripetuteOverlay.hidden = false;
-  lockBodyScroll();
 }
 
-function closeRipetute() {
-  if (!ripetuteOverlay || !ripetuteBackdrop) {
-    return;
-  }
-  ripetuteOverlay.hidden = true;
-  ripetuteBackdrop.hidden = true;
-  unlockBodyScroll();
-}
-
-if (ripetuteFab) {
-  ripetuteFab.addEventListener('click', openRipetute);
-}
-if (ripetuteClose) {
-  ripetuteClose.addEventListener('click', closeRipetute);
-}
-if (ripetuteBackdrop) {
-  ripetuteBackdrop.addEventListener('click', closeRipetute);
-}
 if (ripetuteInput) {
   // Backspace/Delete si intercettano PRIMA che tolgano un carattere dal
   // valore nativo: se l'ultimo carattere visibile è ' o " (formattazione,
@@ -4720,30 +4821,343 @@ if (ripetuteInput) {
     renderRipetute();
   });
 });
-if (ripetuteOverlay) {
-  // Riga cliccabile: resta evidenziata, una sola alla volta (click di nuovo
-  // sulla stessa riga per togliere la selezione manuale).
-  ripetuteOverlay.addEventListener('click', (event) => {
-    const row = event.target.closest('tbody tr');
-    if (!row) {
+
+// --- Modulo 2: Andature sprint dal massimale sui 100 -----------------------
+const CALC_SPRINT_STORAGE_KEY = 'lapsi-calc-velocisti';
+const CALC_SPRINT_DEFAULT = '12.00';
+
+const calcSprintInput = document.getElementById('velocisti-t100');
+const calcSprintOutput = document.getElementById('velocisti-output');
+const calcSprintStatus = document.getElementById('velocisti-status');
+const calcSprintPrintSettings = document.getElementById('velocisti-print-settings');
+const calcSprintHeadA = document.getElementById('velocisti-head-a');
+const calcSprintHeadB = document.getElementById('velocisti-head-b');
+const calcSprintBodyA = document.getElementById('velocisti-body-a');
+const calcSprintBodyB = document.getElementById('velocisti-body-b');
+
+let calcSprintValue = CALC_SPRINT_DEFAULT;
+
+function readCalcSprintState() {
+  try {
+    const raw = localStorage.getItem(CALC_SPRINT_STORAGE_KEY);
+    if (!raw) {
       return;
     }
-    const wasOn = row.classList.contains('is-on');
-    ripetuteAllRows().forEach((r) => r.classList.remove('is-on'));
-    if (!wasOn) {
-      row.classList.add('is-on');
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved.t100 === 'string') {
+      calcSprintValue = saved.t100;
     }
+  } catch (error) {
+    console.warn('Impossibile leggere le impostazioni di "Andature sprint":', error);
+  }
+}
+
+function saveCalcSprintState() {
+  try {
+    localStorage.setItem(CALC_SPRINT_STORAGE_KEY, JSON.stringify({ t100: calcSprintValue }));
+  } catch (error) {
+    console.warn('Impossibile salvare le impostazioni di "Andature sprint":', error);
+  }
+}
+
+function calcSprintHeadMarkup() {
+  return `<tr><th scope="col">dist.</th>${VelocistiCalc.PCTS.map((p) => `<th scope="col">${p}%</th>`).join('')}</tr>`;
+}
+
+function calcSprintRowMarkup(max100, dist, coef) {
+  const label = `${dist} m`;
+  const cells = VelocistiCalc.PCTS.map((pct) => `<td>${VelocistiCalc.formatSeconds(VelocistiCalc.timeAt(max100, coef, pct))}</td>`).join('');
+  return `<tr${dist === 100 ? ' class="calc-anchor"' : ''} data-label="${escapeHtml(label)}" tabindex="0"><th scope="row">${escapeHtml(label)}</th>${cells}</tr>`;
+}
+
+// 12 righe (20-400m), spezzate in due blocchi da 6 come nel prototipo.
+function renderCalcSprintTable(max100) {
+  if (!calcSprintBodyA || !calcSprintBodyB) {
+    return;
+  }
+  const rowsA = [];
+  const rowsB = [];
+  VelocistiCalc.COEF.forEach(([dist, coef], i) => {
+    (i < 6 ? rowsA : rowsB).push(calcSprintRowMarkup(max100, dist, coef));
   });
-  ripetuteOverlay.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
+  calcSprintBodyA.innerHTML = rowsA.join('');
+  calcSprintBodyB.innerHTML = rowsB.join('');
+}
+
+function renderCalcSprint() {
+  if (calcSprintHeadA) {
+    calcSprintHeadA.innerHTML = calcSprintHeadMarkup();
+  }
+  if (calcSprintHeadB) {
+    calcSprintHeadB.innerHTML = calcSprintHeadMarkup();
+  }
+
+  const max100 = VelocistiCalc.parseMax100(calcSprintInput.value);
+  if (!max100) {
+    if (calcSprintStatus) {
+      calcSprintStatus.textContent = 'Inserisci il tempo sui 100 m, per esempio 12,00 oppure 11,85.';
+    }
+    if (calcSprintOutput) {
+      calcSprintOutput.hidden = true;
+      calcSprintOutput.innerHTML = '';
+    }
+    if (calcSprintBodyA) calcSprintBodyA.innerHTML = '';
+    if (calcSprintBodyB) calcSprintBodyB.innerHTML = '';
+    if (calcSprintPrintSettings) calcSprintPrintSettings.textContent = '';
+    calcSprintValue = calcSprintInput.value;
+    saveCalcSprintState();
+    return;
+  }
+
+  renderCalcSprintTable(max100);
+  // Il 100m è la distanza di riferimento diretta dell'input (coefficiente 1):
+  // non serve "arrotondare alla riga più vicina" come negli altri moduli, è
+  // sempre quella riga.
+  calcMarkRow('100 m');
+
+  const showDists = [60, 200, 300, 400];
+  if (calcSprintOutput) {
+    calcSprintOutput.hidden = false;
+    calcSprintOutput.innerHTML = showDists.map((d) => {
+      const coef = VelocistiCalc.COEF.find(([dd]) => dd === d)[1];
+      return `<div class="calc-out-tile"><b>${escapeHtml(VelocistiCalc.formatSeconds(max100 * coef))}</b><span>${d} m</span></div>`;
+    }).join('');
+  }
+
+  const kmh = (100 / max100 * 3.6).toFixed(1).replace('.', ',');
+  if (calcSprintStatus) {
+    calcSprintStatus.innerHTML = `Massimali stimati da un 100 in <b>${escapeHtml(VelocistiCalc.formatSeconds(max100))}</b> — velocità media sui 100: ${kmh} km/h.`;
+  }
+  if (calcSprintPrintSettings) {
+    calcSprintPrintSettings.textContent = `Atleta con 100 m in ${VelocistiCalc.formatSeconds(max100)}. Tempi in percentuale del massimale sulla distanza.`;
+  }
+
+  calcSprintValue = calcSprintInput.value;
+  saveCalcSprintState();
+}
+
+function initCalcSprintModule() {
+  readCalcSprintState();
+  calcSprintInput.value = calcSprintValue || CALC_SPRINT_DEFAULT;
+  renderCalcSprint();
+}
+
+if (calcSprintInput) {
+  calcSprintInput.addEventListener('input', renderCalcSprint);
+}
+
+// --- Modulo 3: Mezzofondo e fondo dalla VAM --------------------------------
+const CALC_FONDO_STORAGE_KEY = 'lapsi-calc-mezzofondo';
+const CALC_FONDO_SRC_OPTIONS = [['vam', 'VAM in km/h'], ['k', '1000 massimale']];
+
+const calcFondoSrcChips = document.getElementById('mezzofondo-src-chips');
+const calcFondoInput = document.getElementById('mezzofondo-val');
+const calcFondoInputLabel = document.getElementById('mezzofondo-val-label');
+const calcFondoWarning1000 = document.getElementById('mezzofondo-warning-1000');
+const calcFondoOutput = document.getElementById('mezzofondo-output');
+const calcFondoStatus = document.getElementById('mezzofondo-status');
+const calcFondoPrintSettings = document.getElementById('mezzofondo-print-settings');
+const calcFondoHeadA = document.getElementById('mezzofondo-head-a');
+const calcFondoHeadB = document.getElementById('mezzofondo-head-b');
+const calcFondoBodyA = document.getElementById('mezzofondo-body-a');
+const calcFondoBodyB = document.getElementById('mezzofondo-body-b');
+
+let calcFondoState = { src: 'vam', v: '14' };
+// Cifre "vere" del campo quando la sorgente è "1000 massimale" — stessa
+// tecnica di formatTimeMask del modulo 1 (vedi lì per il perché).
+let calcFondoDigits = '';
+
+function readCalcFondoState() {
+  try {
+    const raw = localStorage.getItem(CALC_FONDO_STORAGE_KEY);
+    if (!raw) {
       return;
     }
-    const row = event.target.closest('tbody tr');
-    if (!row) {
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === 'object') {
+      if (saved.src === 'vam' || saved.src === 'k') {
+        calcFondoState.src = saved.src;
+      }
+      if (typeof saved.v === 'string') {
+        calcFondoState.v = saved.v;
+      }
+    }
+  } catch (error) {
+    console.warn('Impossibile leggere le impostazioni di "Mezzofondo e fondo":', error);
+  }
+}
+
+function saveCalcFondoState() {
+  try {
+    localStorage.setItem(CALC_FONDO_STORAGE_KEY, JSON.stringify(calcFondoState));
+  } catch (error) {
+    console.warn('Impossibile salvare le impostazioni di "Mezzofondo e fondo":', error);
+  }
+}
+
+function buildCalcFondoSrcChips() {
+  if (!calcFondoSrcChips) {
+    return;
+  }
+  calcFondoSrcChips.innerHTML = CALC_FONDO_SRC_OPTIONS.map(([value, label]) => `
+    <button type="button" class="fchip" data-value="${value}">${escapeHtml(label)}</button>
+  `).join('');
+  setChipGroupSelection(calcFondoSrcChips, calcFondoState.src);
+}
+
+function applyCalcFondoMask() {
+  calcFondoInput.value = formatTimeMask(calcFondoDigits);
+  const end = calcFondoInput.value.length;
+  calcFondoInput.setSelectionRange(end, end);
+}
+
+function calcFondoCurrentVam() {
+  return calcFondoState.src === 'vam'
+    ? MezzofondoCalc.parseVam(calcFondoInput.value)
+    : MezzofondoCalc.parseThousandToVam(calcFondoInput.value);
+}
+
+function calcFondoHeadMarkup() {
+  return `<tr><th scope="col">VAM</th>${MezzofondoCalc.ZONES.map(([label]) => `<th scope="col">${escapeHtml(label)}</th>`).join('')}</tr>`;
+}
+
+function calcFondoRowMarkup(vam) {
+  const label = vam.toFixed(1).replace('.', ',');
+  const cells = MezzofondoCalc.ZONES.map(([, pct]) => `<td>${MezzofondoCalc.formatPace(MezzofondoCalc.paceMinPerKm(vam, pct))}</td>`).join('');
+  const isAnchor = Math.abs(vam - Math.round(vam)) < 0.01;
+  return `<tr${isAnchor ? ' class="calc-anchor"' : ''} data-label="${escapeHtml(label)}" tabindex="0"><th scope="row">${escapeHtml(label)}</th>${cells}</tr>`;
+}
+
+// VAM da 10,0 a 20,0 a passo 0,5 (21 righe), spezzate 11 + 10 come nel prototipo.
+function renderCalcFondoTable() {
+  if (!calcFondoBodyA || !calcFondoBodyB) {
+    return;
+  }
+  const rowsA = [];
+  const rowsB = [];
+  let i = 0;
+  for (let n = 100; n <= 200; n += 5) {
+    const vam = n / 10;
+    (i < 11 ? rowsA : rowsB).push(calcFondoRowMarkup(vam));
+    i += 1;
+  }
+  calcFondoBodyA.innerHTML = rowsA.join('');
+  calcFondoBodyB.innerHTML = rowsB.join('');
+}
+
+function renderCalcFondo() {
+  if (calcFondoHeadA) calcFondoHeadA.innerHTML = calcFondoHeadMarkup();
+  if (calcFondoHeadB) calcFondoHeadB.innerHTML = calcFondoHeadMarkup();
+  renderCalcFondoTable();
+
+  const isFromThousand = calcFondoState.src === 'k';
+  if (calcFondoWarning1000) {
+    calcFondoWarning1000.hidden = !isFromThousand;
+  }
+
+  const vam = calcFondoCurrentVam();
+  const dec1 = (n) => n.toFixed(1).replace('.', ',');
+
+  if (!vam) {
+    if (calcFondoStatus) {
+      calcFondoStatus.textContent = isFromThousand
+        ? 'Inserisci il tempo sul 1000 corso al massimo, per esempio 4\'00".'
+        : 'Inserisci la VAM in km/h, per esempio 14 oppure 13,5.';
+    }
+    if (calcFondoOutput) {
+      calcFondoOutput.hidden = true;
+      calcFondoOutput.innerHTML = '';
+    }
+    calcMarkRow(null);
+    if (calcFondoPrintSettings) {
+      calcFondoPrintSettings.textContent = '';
+    }
+    calcFondoState.v = calcFondoInput.value;
+    saveCalcFondoState();
+    return;
+  }
+
+  if (calcFondoOutput) {
+    calcFondoOutput.hidden = false;
+    calcFondoOutput.innerHTML = MezzofondoCalc.pacesForVam(vam)
+      .map(({ label, minutes }) => `<div class="calc-out-tile"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+      .join('');
+  }
+
+  const extra = isFromThousand
+    ? `Dal 1000 in ${escapeHtml(calcFondoInput.value)} esce una VAM di <b>${dec1(vam)} km/h</b>. `
+    : `VAM <b>${dec1(vam)} km/h</b>. `;
+  if (calcFondoStatus) {
+    calcFondoStatus.innerHTML = `${extra}Ritmi al chilometro; le ultime due colonne sono anche il tempo della ripetuta.`;
+  }
+  if (calcFondoPrintSettings) {
+    calcFondoPrintSettings.textContent = `VAM di riferimento: ${dec1(vam)} km/h. Ritmi al chilometro.`;
+  }
+
+  const near = Math.round(vam * 2) / 2;
+  calcMarkRow(near >= 10 && near <= 20 ? dec1(near) : null);
+
+  calcFondoState.v = calcFondoInput.value;
+  saveCalcFondoState();
+}
+
+function initCalcMezzofondoModule() {
+  readCalcFondoState();
+  buildCalcFondoSrcChips();
+  if (calcFondoInputLabel) {
+    calcFondoInputLabel.textContent = calcFondoState.src === 'vam' ? 'VAM' : '1000 in';
+  }
+  calcFondoInput.placeholder = calcFondoState.src === 'vam' ? '14' : '3\'47"';
+  if (calcFondoState.src === 'k') {
+    calcFondoDigits = String(calcFondoState.v || '').replace(/[^0-9]/g, '').slice(0, 4);
+    applyCalcFondoMask();
+  } else {
+    calcFondoInput.value = calcFondoState.v || '14';
+  }
+  renderCalcFondo();
+}
+
+if (calcFondoSrcChips) {
+  calcFondoSrcChips.addEventListener('click', (event) => {
+    const chip = event.target.closest('.fchip');
+    if (!chip || chip.dataset.value === calcFondoState.src) {
+      return;
+    }
+    calcFondoState.src = chip.dataset.value;
+    setChipGroupSelection(calcFondoSrcChips, calcFondoState.src);
+    if (calcFondoInputLabel) {
+      calcFondoInputLabel.textContent = calcFondoState.src === 'vam' ? 'VAM' : '1000 in';
+    }
+    if (calcFondoState.src === 'vam') {
+      calcFondoInput.placeholder = '14';
+      calcFondoInput.value = '14';
+    } else {
+      calcFondoInput.placeholder = '3\'47"';
+      calcFondoDigits = '400';
+      applyCalcFondoMask();
+    }
+    renderCalcFondo();
+  });
+}
+if (calcFondoInput) {
+  calcFondoInput.addEventListener('keydown', (event) => {
+    if (calcFondoState.src !== 'k') {
+      return;
+    }
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
       return;
     }
     event.preventDefault();
-    row.click();
+    calcFondoDigits = calcFondoDigits.slice(0, -1);
+    applyCalcFondoMask();
+    renderCalcFondo();
+  });
+  calcFondoInput.addEventListener('input', () => {
+    if (calcFondoState.src === 'k') {
+      calcFondoDigits = calcFondoInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      applyCalcFondoMask();
+    }
+    renderCalcFondo();
   });
 }
 

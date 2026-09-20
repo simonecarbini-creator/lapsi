@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Test — velocisti-calc</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; color: #101828; }
+  h1 { font-size: 1.2rem; }
+  .pass { color: #1d7a5d; }
+  .fail { color: #ba3838; font-weight: 700; }
+  #summary { font-weight: 700; font-size: 1.05rem; margin: 16px 0; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Test — velocisti-calc.js</h1>
+<p>Riesegui questa pagina (apertura diretta nel browser, nessun server richiesto) ogni volta
+che si ritocca un coefficiente in <code>velocisti-calc.js</code>.</p>
+<div id="summary">In corso…</div>
+<ul id="results"></ul>
+
+<script src="velocisti-calc.js"></script>
+<script>
+(function () {
+  const results = [];
+  let pass = 0;
+  let fail = 0;
+
+  function assertEqual(actual, expected, label) {
+    const ok = actual === expected;
+    results.push({ ok, label, actual, expected });
+    if (ok) pass += 1; else fail += 1;
+  }
+
+  // --- Casi di verifica dalla spec (max100 = 12,00) ---
+  const max100 = VelocistiCalc.parseMax100('12,00');
+  assertEqual(max100, 12, 'parseMax100("12,00") === 12');
+
+  function timeFor(dist, pct) {
+    const coefEntry = VelocistiCalc.COEF.find(([d]) => d === dist);
+    return VelocistiCalc.formatSeconds(VelocistiCalc.timeAt(max100, coefEntry[1], pct));
+  }
+
+  assertEqual(timeFor(60, 100), '7,68', '60m al 100% === "7,68"');
+  assertEqual(timeFor(200, 90), '27,2', '200m al 90% === "27,2"');
+  assertEqual(timeFor(300, 85), '45,9', '300m all\'85% === "45,9"');
+  assertEqual(timeFor(400, 100), '54,6', '400m al 100% === "54,6"');
+
+  // --- Formattazione: casi limite (sotto 20s, 20-60s, sopra il minuto) ---
+  assertEqual(VelocistiCalc.formatSeconds(12.004), '12,00', 'formatSeconds(12.004) === "12,00" (sotto 20s, 2 decimali)');
+  assertEqual(VelocistiCalc.formatSeconds(19.99), '19,99', 'formatSeconds(19.99) === "19,99"');
+  assertEqual(VelocistiCalc.formatSeconds(24.5), '24,5', 'formatSeconds(24.5) === "24,5" (20-60s, 1 decimale)');
+  assertEqual(VelocistiCalc.formatSeconds(65.3), '1′05,3″', 'formatSeconds(65.3) === "1′05,3″" (sopra il minuto)');
+
+  // --- parseMax100 ---
+  assertEqual(VelocistiCalc.parseMax100('11.85'), 11.85, 'parseMax100("11.85") === 11.85 (punto)');
+  assertEqual(VelocistiCalc.parseMax100('11,85'), 11.85, 'parseMax100("11,85") === 11.85 (virgola)');
+  assertEqual(VelocistiCalc.parseMax100('9.4'), null, 'parseMax100("9.4") === null (sotto 9,5)');
+  assertEqual(VelocistiCalc.parseMax100('22.1'), null, 'parseMax100("22.1") === null (sopra 22)');
+  assertEqual(VelocistiCalc.parseMax100(''), null, 'parseMax100("") === null');
+  assertEqual(VelocistiCalc.parseMax100('abc'), null, 'parseMax100("abc") === null');
+
+  // --- isValidMax100 ---
+  assertEqual(VelocistiCalc.isValidMax100(12), true, 'isValidMax100(12) === true');
+  assertEqual(VelocistiCalc.isValidMax100(9), false, 'isValidMax100(9) === false');
+
+  // --- coefficienti presenti e nell'ordine della spec ---
+  assertEqual(VelocistiCalc.COEF.map((c) => c[0]).join(','), '20,30,40,60,80,100,120,150,200,250,300,400', 'ordine distanze COEF');
+  assertEqual(VelocistiCalc.PCTS.join(','), '100,95,90,85,80,75', 'ordine percentuali PCTS');
+
+  // --- render ---
+  const list = document.getElementById('results');
+  results.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = r.ok ? 'pass' : 'fail';
+    li.textContent = (r.ok ? '✓ ' : `✗ (atteso ${JSON.stringify(r.expected)}, ottenuto ${JSON.stringify(r.actual)}) `) + r.label;
+    list.appendChild(li);
+  });
+  document.getElementById('summary').innerHTML = fail === 0
+    ? `<span class="pass">Tutti i ${pass} test passano.</span>`
+    : `<span class="fail">${fail} test falliti</span> su ${pass + fail} (${pass} passati).`;
+  document.title = (fail === 0 ? 'PASS' : 'FAIL') + ' — Test velocisti-calc';
+})();
+</script>
+</body>
+</html>

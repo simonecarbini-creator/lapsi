@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<title>Test — mezzofondo-calc</title>
+<style>
+  body { font-family: -apple-system, system-ui, sans-serif; max-width: 720px; margin: 32px auto; padding: 0 16px; color: #101828; }
+  h1 { font-size: 1.2rem; }
+  .pass { color: #1d7a5d; }
+  .fail { color: #ba3838; font-weight: 700; }
+  #summary { font-weight: 700; font-size: 1.05rem; margin: 16px 0; }
+  ul { padding-left: 20px; }
+  li { margin: 4px 0; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<h1>Test — mezzofondo-calc.js</h1>
+<p>Riesegui questa pagina (apertura diretta nel browser, nessun server richiesto) ogni volta
+che si ritocca una percentuale in <code>mezzofondo-calc.js</code>. Dipende anche da
+<code>ripetute-calc.js</code> (riusato per il parsing del 1000 massimale).</p>
+<div id="summary">In corso…</div>
+<ul id="results"></ul>
+
+<script src="ripetute-calc.js"></script>
+<script src="mezzofondo-calc.js"></script>
+<script>
+(function () {
+  const results = [];
+  let pass = 0;
+  let fail = 0;
+
+  function assertEqual(actual, expected, label) {
+    const ok = actual === expected;
+    results.push({ ok, label, actual, expected });
+    if (ok) pass += 1; else fail += 1;
+  }
+
+  // --- Casi di verifica dalla spec (VAM 14,0) ---
+  const vam = MezzofondoCalc.parseVam('14,0');
+  assertEqual(vam, 14, 'parseVam("14,0") === 14');
+
+  function paceFor(label) {
+    const zone = MezzofondoCalc.ZONES.find(([l]) => l === label);
+    return MezzofondoCalc.formatPace(MezzofondoCalc.paceMinPerKm(vam, zone[1]));
+  }
+
+  assertEqual(paceFor('Lenta'), '5′57″', 'lenta @ VAM 14,0 === "5′57″"');
+  assertEqual(paceFor('Lungo'), '5′38″', 'lungo @ VAM 14,0 === "5′38″"');
+  assertEqual(paceFor('Medio'), '5′06″', 'medio @ VAM 14,0 === "5′06″"');
+  assertEqual(paceFor('Soglia'), '4′52″', 'soglia @ VAM 14,0 === "4′52″"');
+  assertEqual(paceFor('1000'), '4′28″', 'ripetute 1000 @ VAM 14,0 === "4′28″"');
+
+  // --- Stima VAM dal 1000 massimale (4'00" = 240s) ---
+  const T = RipeteCalc.parseThousand('4:00');
+  assertEqual(T, 240, 'parseThousand("4:00") === 240');
+  const vamFrom1000 = MezzofondoCalc.vamFromThousand(T);
+  assertEqual(Math.round(vamFrom1000 * 100) / 100, 13.35, 'vamFromThousand(240) === 13,35');
+  assertEqual(MezzofondoCalc.parseThousandToVam('4:00'), vamFrom1000, 'parseThousandToVam("4:00") === vamFromThousand(240)');
+  assertEqual(MezzofondoCalc.parseThousandToVam('47'), null, 'parseThousandToVam("47") === null (tempo non valido)');
+
+  // --- parseVam: casi validi e invalidi ---
+  assertEqual(MezzofondoCalc.parseVam('13.5'), 13.5, 'parseVam("13.5") === 13.5 (punto)');
+  assertEqual(MezzofondoCalc.parseVam('7.9'), null, 'parseVam("7.9") === null (sotto 8)');
+  assertEqual(MezzofondoCalc.parseVam('24.1'), null, 'parseVam("24.1") === null (sopra 24)');
+  assertEqual(MezzofondoCalc.parseVam(''), null, 'parseVam("") === null');
+
+  // --- isValidVam ---
+  assertEqual(MezzofondoCalc.isValidVam(14), true, 'isValidVam(14) === true');
+  assertEqual(MezzofondoCalc.isValidVam(25), false, 'isValidVam(25) === false');
+
+  // --- zone nell'ordine della spec ---
+  assertEqual(MezzofondoCalc.ZONES.map((z) => z[0]).join(','), 'Rigen.,Lenta,Lungo,Medio,Soglia,2000,1000', 'ordine zone ZONES');
+
+  // --- render ---
+  const list = document.getElementById('results');
+  results.forEach((r) => {
+    const li = document.createElement('li');
+    li.className = r.ok ? 'pass' : 'fail';
+    li.textContent = (r.ok ? '✓ ' : `✗ (atteso ${JSON.stringify(r.expected)}, ottenuto ${JSON.stringify(r.actual)}) `) + r.label;
+    list.appendChild(li);
+  });
+  document.getElementById('summary').innerHTML = fail === 0
+    ? `<span class="pass">Tutti i ${pass} test passano.</span>`
+    : `<span class="fail">${fail} test falliti</span> su ${pass + fail} (${pass} passati).`;
+  document.title = (fail === 0 ? 'PASS' : 'FAIL') + ' — Test mezzofondo-calc';
+})();
+</script>
+</body>
+</html>
