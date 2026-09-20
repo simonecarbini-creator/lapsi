@@ -305,7 +305,26 @@ button, input {
   padding: 16px;
   display: flex;
   flex-direction: column;
+}
+
+/* Il gap sopra spazia solo i tre .calc-module tra loro (uno alla volta è
+   visibile, quindi in pratica non si vede mai): serve lo stesso gap qui,
+   sul modulo che si vede davvero, altrimenti il suo contenuto (lede, input,
+   output, chip, avvertenze, stato, tabella) resta tutto attaccato senza
+   respiro verticale. */
+.calc-module {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+}
+
+/* Necessario perché la regola sopra dà già un "display" proprio: senza
+   questa, l'attributo hidden (stessa specificità nello UA stylesheet)
+   verrebbe scavalcato dalla regola d'autore e i tre moduli finirebbero
+   visibili tutti insieme invece di uno alla volta (stesso problema già
+   risolto per .calc-hub in un build precedente). */
+.calc-module[hidden] {
+  display: none;
 }
 
 .calc-lede {

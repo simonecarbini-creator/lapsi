@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-20c';
-console.log('[Lapsi] build', APP_BUILD, '— calcolatori spostati nelle rispettive sezioni (Militari/Velocisti/Master)');
+const APP_BUILD = '2026-09-20d';
+console.log('[Lapsi] build', APP_BUILD, '— fix spaziatura verticale nei calcolatori');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
