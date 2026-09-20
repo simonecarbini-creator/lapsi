@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-20d';
-console.log('[Lapsi] build', APP_BUILD, '— fix spaziatura verticale nei calcolatori');
+const APP_BUILD = '2026-09-20e';
+console.log('[Lapsi] build', APP_BUILD, '— Ripetute brevi anche in Master, a fianco di Mezzofondo e fondo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -166,14 +166,15 @@ function switchSection(section) {
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
-  // Ogni calcolatore vive nella sua sezione: "Programma allenamento" e
-  // "Ripetute brevi" solo nei militari, "Andature sprint" solo tra i
-  // velocisti, "Mezzofondo e fondo" solo in Master.
+  // Ogni calcolatore vive nella sua sezione: "Programma allenamento" solo nei
+  // militari, "Andature sprint" solo tra i velocisti, "Mezzofondo e fondo"
+  // solo in Master. "Ripetute brevi" compare sia nei militari (a fianco
+  // delle Note) sia in Master (a fianco di Mezzofondo e fondo).
   if (trainingNotesFab) {
     trainingNotesFab.hidden = section !== 'militari';
   }
   if (ripetuteFab) {
-    ripetuteFab.hidden = section !== 'militari';
+    ripetuteFab.hidden = section !== 'militari' && section !== 'master';
   }
   if (sprintFab) {
     sprintFab.hidden = section !== 'velocisti';

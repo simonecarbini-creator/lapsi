@@ -102,10 +102,10 @@ button, input {
   display: none;
 }
 
-/* Pulsante "Ripetute brevi" nei militari: stessa forma/dimensione del FAB
-   note, ancorato subito alla sua sinistra visto che convivono nella stessa
-   sezione. Gli altri due calcolatori (Andature sprint, Mezzofondo e fondo)
-   sono soli nelle rispettive sezioni e restano alla posizione base. */
+/* Pulsante "Ripetute brevi": stessa forma/dimensione degli altri FAB,
+   ancorato subito a sinistra del pulsante con cui convive — le Note nei
+   militari, Mezzofondo e fondo in Master. "Andature sprint" è da sola nella
+   sezione velocisti e resta alla posizione base. */
 .calc-fab {
   right: 84px;
 }
