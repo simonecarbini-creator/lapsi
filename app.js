@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-20b';
-console.log('[Lapsi] build', APP_BUILD, '— Calcolatori di andature: hub con Ripetute/Andature sprint/Mezzofondo');
+const APP_BUILD = '2026-09-20c';
+console.log('[Lapsi] build', APP_BUILD, '— calcolatori spostati nelle rispettive sezioni (Militari/Velocisti/Master)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -94,13 +94,17 @@ const homeScreen = document.getElementById('home-screen');
 const appHeaderWrap = document.getElementById('app-header-wrap');
 const militariShell = document.getElementById('militari-shell');
 const velocistiShell = document.getElementById('velocisti-shell');
+const masterShell = document.getElementById('master-shell');
 const enterMilitariButton = document.getElementById('enter-militari');
 const enterVelocistiButton = document.getElementById('enter-velocisti');
+const enterMasterButton = document.getElementById('enter-master');
 const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
 const menuBackdrop = document.getElementById('menu-backdrop');
 const trainingNotesFab = document.getElementById('training-notes-fab');
-const calcFab = document.getElementById('calc-fab');
+const ripetuteFab = document.getElementById('ripetute-fab');
+const sprintFab = document.getElementById('sprint-fab');
+const fondoFab = document.getElementById('fondo-fab');
 
 if (splashScreen) {
   setTimeout(() => {
@@ -143,9 +147,11 @@ function setMenuOpen(open) {
   }
 }
 
-// Sezione attiva: 'militari' o 'velocisti'. Il burger menu e i pulsanti della
-// home permettono di passare dall'una all'altra senza tornare alla home.
-const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell };
+// Sezione attiva: 'militari', 'velocisti' o 'master'. Il burger menu e i
+// pulsanti della home permettono di passare da una all'altra senza tornare
+// alla home. "master" non ha ancora una gestione atleti propria: ospita solo
+// il calcolatore "Mezzofondo e fondo".
+const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell, master: masterShell };
 
 function switchSection(section) {
   if (!SECTION_SHELLS[section]) {
@@ -160,13 +166,20 @@ function switchSection(section) {
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
   });
-  // I pulsanti "Programma allenamento" e "Calcolatori di andature" esistono
-  // solo per i militari.
+  // Ogni calcolatore vive nella sua sezione: "Programma allenamento" e
+  // "Ripetute brevi" solo nei militari, "Andature sprint" solo tra i
+  // velocisti, "Mezzofondo e fondo" solo in Master.
   if (trainingNotesFab) {
     trainingNotesFab.hidden = section !== 'militari';
   }
-  if (calcFab) {
-    calcFab.hidden = section !== 'militari';
+  if (ripetuteFab) {
+    ripetuteFab.hidden = section !== 'militari';
+  }
+  if (sprintFab) {
+    sprintFab.hidden = section !== 'velocisti';
+  }
+  if (fondoFab) {
+    fondoFab.hidden = section !== 'master';
   }
   window.scrollTo(0, 0);
 }
@@ -176,6 +189,9 @@ if (enterMilitariButton) {
 }
 if (enterVelocistiButton) {
   enterVelocistiButton.addEventListener('click', () => switchSection('velocisti'));
+}
+if (enterMasterButton) {
+  enterMasterButton.addEventListener('click', () => switchSection('master'));
 }
 document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -4500,9 +4516,7 @@ async function checkExpiredConcorsi() {
 const calcBackdrop = document.getElementById('calc-backdrop');
 const calcOverlay = document.getElementById('calc-overlay');
 const calcClose = document.getElementById('calc-close');
-const calcBack = document.getElementById('calc-back');
 const calcTitle = document.getElementById('calc-title');
-const calcHub = document.getElementById('calc-hub');
 
 const CALC_MODULE_TITLES = {
   ripetute: 'Ripetute brevi',
@@ -4536,33 +4550,18 @@ function calcMarkRow(label) {
   });
 }
 
-function showCalcHub() {
-  if (calcHub) {
-    calcHub.hidden = false;
-  }
-  document.querySelectorAll('.calc-module').forEach((el) => {
-    el.hidden = true;
-  });
-  if (calcBack) {
-    calcBack.hidden = true;
-  }
-  if (calcTitle) {
-    calcTitle.textContent = 'Calcolatori';
-  }
-}
-
-function openCalcModule(name) {
-  if (calcHub) {
-    calcHub.hidden = true;
+// Ogni calcolatore vive nella sua sezione (militari/velocisti/master) con un
+// pulsante flottante dedicato, ma condividono lo stesso overlay: qui si
+// sceglie solo quale dei tre corpi mostrare e si inizializza quel modulo.
+function openCalcOverlay(name) {
+  if (!calcOverlay || !calcBackdrop) {
+    return;
   }
   document.querySelectorAll('.calc-module').forEach((el) => {
     el.hidden = el.id !== `calc-module-${name}`;
   });
-  if (calcBack) {
-    calcBack.hidden = false;
-  }
   if (calcTitle) {
-    calcTitle.textContent = CALC_MODULE_TITLES[name] || 'Calcolatori';
+    calcTitle.textContent = CALC_MODULE_TITLES[name] || '';
   }
   if (name === 'ripetute') {
     initRipetuteModule();
@@ -4571,13 +4570,6 @@ function openCalcModule(name) {
   } else if (name === 'mezzofondo') {
     initCalcMezzofondoModule();
   }
-}
-
-function openCalc() {
-  if (!calcOverlay || !calcBackdrop) {
-    return;
-  }
-  showCalcHub();
   calcBackdrop.hidden = false;
   calcOverlay.hidden = false;
   lockBodyScroll();
@@ -4592,26 +4584,20 @@ function closeCalc() {
   unlockBodyScroll();
 }
 
-if (calcFab) {
-  calcFab.addEventListener('click', openCalc);
+if (ripetuteFab) {
+  ripetuteFab.addEventListener('click', () => openCalcOverlay('ripetute'));
+}
+if (sprintFab) {
+  sprintFab.addEventListener('click', () => openCalcOverlay('velocisti'));
+}
+if (fondoFab) {
+  fondoFab.addEventListener('click', () => openCalcOverlay('mezzofondo'));
 }
 if (calcClose) {
   calcClose.addEventListener('click', closeCalc);
 }
 if (calcBackdrop) {
   calcBackdrop.addEventListener('click', closeCalc);
-}
-if (calcBack) {
-  calcBack.addEventListener('click', showCalcHub);
-}
-if (calcHub) {
-  calcHub.addEventListener('click', (event) => {
-    const item = event.target.closest('.calc-hub-item');
-    if (!item) {
-      return;
-    }
-    openCalcModule(item.dataset.module);
-  });
 }
 if (calcOverlay) {
   calcOverlay.addEventListener('click', (event) => {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-09-20b">
+<html lang="it" data-build="2026-09-20c">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -88,12 +88,14 @@
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
             </span>
           </button>
-          <button type="button" class="home-btn" disabled>
+          <button type="button" class="home-btn" id="enter-master">
             <span class="home-btn-ic" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             </span>
             <span class="home-btn-title">Master</span>
-            <span class="home-btn-tag">Presto</span>
+            <span class="home-btn-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+            </span>
           </button>
           <button type="button" class="home-btn" id="enter-militari">
             <span class="home-btn-ic" aria-hidden="true">
@@ -126,7 +128,7 @@
         <button type="button" class="menu-item" disabled>Promesse<span class="menu-item-tag">Presto</span></button>
         <button type="button" class="menu-item" disabled>Assoluti<span class="menu-item-tag">Presto</span></button>
         <button type="button" class="menu-item" data-section="velocisti">Velocisti Ass./Master</button>
-        <button type="button" class="menu-item" disabled>Master<span class="menu-item-tag">Presto</span></button>
+        <button type="button" class="menu-item" data-section="master">Master</button>
         <button type="button" class="menu-item" data-section="militari">C. Militari</button>
         <div class="menu-divider" role="separator"></div>
         <button type="button" class="menu-item menu-item-ghost" id="export-json">Esporta dati</button>
@@ -345,6 +347,29 @@
       </footer>
     </main>
 
+    <!-- Sezione Master: ancora senza gestione atleti, ospita solo il
+         calcolatore "Mezzofondo e fondo". -->
+    <main class="app-shell" id="master-shell" hidden>
+      <section class="list-section">
+        <div class="list-head">
+          <h2 class="list-title">
+            <svg class="list-head-ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Master
+          </h2>
+        </div>
+        <div class="empty-state">Sezione in arrivo. Per ora qui trovi il calcolatore "Mezzofondo e fondo".</div>
+      </section>
+
+      <footer class="app-footer">
+        <img src="brand/lapsi-logo-dark.svg" alt="Lapsi" class="app-footer-logo" />
+        <span class="app-footer-tag">Track · Time · Analyze</span>
+      </footer>
+    </main>
+
     <button type="button" id="training-notes-fab" class="training-notes-fab" hidden aria-label="Programma allenamento" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M5 4h14v12l-1.4 2-1.4-2-1.4 2-1.4-2-1.4 2-1.4-2-1.4 2-1.4-2-1.4 2L5 16V4z" />
@@ -371,7 +396,8 @@
       </div>
     </div>
 
-    <button type="button" id="calc-fab" class="training-notes-fab calc-fab" hidden aria-label="Calcolatori di andature" aria-haspopup="dialog">
+    <!-- Ripetute brevi: solo nella sezione C. Militari, a fianco delle Note. -->
+    <button type="button" id="ripetute-fab" class="training-notes-fab calc-fab" hidden aria-label="Ripetute brevi" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="13" r="8" />
         <path d="M12 13V9" />
@@ -381,14 +407,23 @@
       </svg>
     </button>
 
+    <!-- Andature sprint: solo nella sezione Velocisti Ass./Master. -->
+    <button type="button" id="sprint-fab" class="training-notes-fab" hidden aria-label="Andature sprint" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="currentColor">
+        <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" />
+      </svg>
+    </button>
+
+    <!-- Mezzofondo e fondo: solo nella sezione Master. -->
+    <button type="button" id="fondo-fab" class="training-notes-fab" hidden aria-label="Mezzofondo e fondo" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12h4l2-6 4 12 2-6h6" />
+      </svg>
+    </button>
+
     <div class="menu-backdrop calc-backdrop" id="calc-backdrop" hidden></div>
     <div class="training-notes-overlay calc-overlay" id="calc-overlay" hidden role="dialog" aria-modal="true" aria-label="Calcolatori di andature">
       <header class="training-notes-head">
-        <button type="button" id="calc-back" class="register-close calc-back" aria-label="Torna all'elenco" hidden>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 5l-7 7 7 7" />
-          </svg>
-        </button>
         <h2 id="calc-title">Calcolatori</h2>
         <button type="button" id="calc-close" class="register-close" aria-label="Chiudi">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
@@ -398,31 +433,6 @@
         </button>
       </header>
       <div class="calc-body" id="calc-body">
-
-        <!-- Elenco dei tre calcolatori -->
-        <div class="calc-hub" id="calc-hub">
-          <button type="button" class="calc-hub-item" data-module="ripetute">
-            <span class="calc-hub-item-text">
-              <span class="calc-hub-item-title">Ripetute brevi</span>
-              <span class="calc-hub-item-sub">Dal 1000 massimale</span>
-            </span>
-            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
-          </button>
-          <button type="button" class="calc-hub-item" data-module="velocisti">
-            <span class="calc-hub-item-text">
-              <span class="calc-hub-item-title">Andature sprint</span>
-              <span class="calc-hub-item-sub">Dal massimale sui 100</span>
-            </span>
-            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
-          </button>
-          <button type="button" class="calc-hub-item" data-module="mezzofondo">
-            <span class="calc-hub-item-text">
-              <span class="calc-hub-item-title">Mezzofondo e fondo</span>
-              <span class="calc-hub-item-sub">Dalla VAM</span>
-            </span>
-            <svg class="calc-hub-item-arrow" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </div>
 
         <!-- Modulo 1: Ripetute brevi dal 1000 massimale -->
         <div class="calc-module" id="calc-module-ripetute" hidden>
@@ -527,7 +537,7 @@
           </div>
           <p class="calc-warning" id="mezzofondo-warning-1000" hidden>La stima della VAM dal 1000 vale solo se il 1000 è corso davvero al limite: se l'atleta si gestisce, la VAM esce bassa e le lente diventano passeggiate.</p>
           <div class="calc-output" id="mezzofondo-output" hidden aria-live="polite"></div>
-          <p class="calc-warning">Sotto i 1000 m usa il modulo "Ripetute brevi", non le percentuali di VAM.</p>
+          <p class="calc-warning">Sotto i 1000 m usa il calcolatore "Ripetute brevi" (sezione C. Militari), non le percentuali di VAM.</p>
 
           <p class="calc-status" id="mezzofondo-status" aria-live="polite"></p>
           <p class="calc-print-settings" id="mezzofondo-print-settings"></p>

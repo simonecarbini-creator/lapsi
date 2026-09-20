@@ -102,8 +102,10 @@ button, input {
   display: none;
 }
 
-/* Secondo pulsante flottante (Calcolatori di andature), accanto a quello
-   delle note: stessa forma/dimensione, ancorato subito a sinistra dell'altro. */
+/* Pulsante "Ripetute brevi" nei militari: stessa forma/dimensione del FAB
+   note, ancorato subito alla sua sinistra visto che convivono nella stessa
+   sezione. Gli altri due calcolatori (Andature sprint, Mezzofondo e fondo)
+   sono soli nelle rispettive sezioni e restano alla posizione base. */
 .calc-fab {
   right: 84px;
 }
@@ -483,62 +485,6 @@ button, input {
   outline-offset: -2px;
 }
 
-/* Elenco dei tre calcolatori (schermata iniziale dell'overlay). */
-.calc-hub {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-/* Necessario perché la regola sopra dà già un "display" proprio: senza
-   questa, l'attributo hidden (che nello UA stylesheet è display:none con la
-   stessa specificità) verrebbe scavalcato dalla regola d'autore e l'elenco
-   resterebbe visibile anche mentre è aperto un modulo. */
-.calc-hub[hidden] {
-  display: none;
-}
-
-.calc-hub-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 14px;
-  border: 1px solid var(--card-border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.7);
-  text-align: left;
-}
-
-.calc-hub-item-text {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.calc-hub-item-title {
-  font-size: 0.98rem;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.calc-hub-item-sub {
-  font-size: 0.78rem;
-  color: var(--muted);
-}
-
-.calc-hub-item-arrow {
-  flex-shrink: 0;
-  color: var(--muted);
-}
-
-/* Freccia "indietro" in testata: stesso stile della X, ma a sx e nascosta
-   quando si è sull'elenco (mostrata solo dentro un modulo). */
-.calc-back[hidden] {
-  display: none;
-}
-
 /* Avvertenze della spec, vicino al controllo a cui si riferiscono. */
 .calc-warning {
   margin: 0;
@@ -572,7 +518,6 @@ button, input {
     background: #fff !important;
   }
   .training-notes-head,
-  .calc-hub,
   .calc-lede,
   .calc-input-row,
   .calc-output,
