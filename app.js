@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-21c';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: test ripetute/mezzofondo incorporati con proiezioni');
+const APP_BUILD = '2026-09-21d';
+console.log('[Lapsi] build', APP_BUILD, '— card Master come Velocisti, storico test invece di sovrascrittura');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4220,10 +4220,11 @@ function getMaster() {
   return [...cachedMaster];
 }
 
-// Un test incorporato nella card ("1000 massimale" per le ripetute brevi,
-// VAM o "1000 massimale" per il mezzofondo): un solo valore corrente, non uno
-// storico — "modifica" e "ripeti test" sovrascrivono entrambi value/data.
-function normalizeMasterTest(record) {
+// Una prova di un test incorporato nella card ("Tempo sul 1000" per le
+// ripetute brevi, VAM o "Tempo sul 1000" per il mezzofondo). Storico
+// append-only: "ripeti test" aggiunge una prova nuova, la matita corregge
+// solo l'ultima (per un errore di battitura, non per riscrivere la storia).
+function normalizeMasterTestEntry(record) {
   if (!record || typeof record !== 'object') {
     return null;
   }
@@ -4232,6 +4233,7 @@ function normalizeMasterTest(record) {
     return null;
   }
   return {
+    id: record.id || `mt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     src: record.src === 'k' ? 'k' : 'vam',
     value,
     date: String(record.date || ''),
@@ -4249,8 +4251,8 @@ function normalizeMasterAthlete(entry) {
     surname: entry.surname || '',
     avatar: entry.avatar || null,
     createdAt: entry.createdAt || new Date(0).toISOString(),
-    ripetuteTest: normalizeMasterTest(entry.ripetuteTest),
-    mezzofondoTest: normalizeMasterTest(entry.mezzofondoTest),
+    ripetuteTests: Array.isArray(entry.ripetuteTests) ? entry.ripetuteTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    mezzofondoTests: Array.isArray(entry.mezzofondoTests) ? entry.mezzofondoTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
   };
 }
 
@@ -4323,22 +4325,34 @@ function renderMasterPagination(total) {
 }
 
 // ----- Test incorporati nella card (ripetute brevi + mezzofondo) -----
-// Ogni card ospita due test indipendenti, entrambi con lo stesso
-// comportamento: vuoto -> richiesta di inserimento; salvato -> nome del
-// test/risultato/data con matita per modificarlo, proiezioni sui lavori
-// sotto, "Ripeti test" staccato in fondo. Nessuno storico: value/date del
-// test vengono sovrascritti sia dalla matita sia da "Ripeti test".
+// Ogni card ospita due test indipendenti dentro il pannello "→", entrambi
+// con lo stesso comportamento: vuoto -> richiesta di inserimento; salvato ->
+// storico append-only (ogni "Ripeti test" aggiunge una prova, non sovrascrive
+// le precedenti — solo la matita corregge l'ultima, per un errore di
+// battitura). Solo l'ultima prova mostra le proiezioni sui lavori.
 const MASTER_TEST_TITLES = { ripetute: 'Ripetute brevi', mezzofondo: 'Mezzofondo e fondo' };
 
-// Chiave "athleteId:testKey" per i test attualmente in modifica/inserimento:
-// stato solo di UI, non persistito, azzerato ad ogni salvataggio.
-let masterTestEditing = new Set();
+// Chiave "athleteId:testKey" -> 'edit' (corregge l'ultima prova) | 'repeat'
+// (ne aggiunge una nuova): stato solo di UI, non persistito.
+let masterTestEditing = new Map();
+
+// Id degli atleti con il pannello "→" aperto: azioni dentro il pannello
+// (salvare un test, modificarlo) rifanno il render dell'intera lista, quindi
+// senza questo l'espansione si perderebbe a ogni salvataggio.
+let masterExpandedPanels = new Set();
 
 function masterTestNameLabel(testKey, src) {
   if (testKey === 'ripetute') {
-    return '1000 massimale';
+    return 'Tempo sul 1000';
   }
-  return src === 'k' ? '1000 massimale' : 'VAM';
+  return src === 'k' ? 'Tempo sul 1000' : 'VAM';
+}
+
+function masterTestDisplayValue(testKey, test) {
+  if (testKey === 'mezzofondo' && test.src === 'vam') {
+    return `${test.value} km/h`;
+  }
+  return test.value;
 }
 
 function masterTestProjectionsMarkup(testKey, test) {
@@ -4362,20 +4376,21 @@ function masterTestProjectionsMarkup(testKey, test) {
   return `<div class="calc-output mtest-projections">${tiles}</div>`;
 }
 
-function masterTestFilledMarkup(testKey, test) {
+function masterTestEntryMarkup(testKey, test, isLatest) {
   const nameLabel = masterTestNameLabel(testKey, test.src);
+  const displayValue = masterTestDisplayValue(testKey, test);
+  const editBtn = isLatest ? `<button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>` : '';
   return `
-    <div class="mtest-block" data-test="${testKey}">
+    <div class="mtest-entry${isLatest ? ' mtest-entry-latest' : ''}">
       <div class="mtest-head">
         <span class="mtest-name">${escapeHtml(nameLabel)}</span>
         <span class="mtest-value-wrap">
-          <span class="mtest-value">${escapeHtml(test.value)}</span>
-          <button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>
+          <span class="mtest-value">${escapeHtml(displayValue)}</span>
+          ${editBtn}
         </span>
         <span class="mtest-date">${escapeHtml(test.date)}</span>
       </div>
-      ${masterTestProjectionsMarkup(testKey, test)}
-      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
+      ${isLatest ? masterTestProjectionsMarkup(testKey, test) : ''}
     </div>
   `;
 }
@@ -4388,7 +4403,7 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
   const srcChipsMarkup = testKey === 'mezzofondo' ? `
     <div class="chip-row mtest-src-chips" data-test="mezzofondo" role="group" aria-label="Tipo di dato">
       <button type="button" class="fchip" data-value="vam">VAM in km/h</button>
-      <button type="button" class="fchip" data-value="k">1000 massimale</button>
+      <button type="button" class="fchip" data-value="k">Tempo sul 1000</button>
     </div>` : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
@@ -4404,12 +4419,38 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
 }
 
 function masterTestBlockMarkup(entry, testKey) {
-  const test = entry[`${testKey}Test`];
-  const editing = masterTestEditing.has(`${entry.id}:${testKey}`);
-  if (test && !editing) {
-    return masterTestFilledMarkup(testKey, test);
+  const tests = entry[`${testKey}Tests`] || [];
+  const editKey = `${entry.id}:${testKey}`;
+  const mode = masterTestEditing.get(editKey);
+  if (mode) {
+    const prefill = tests.length ? tests[tests.length - 1] : null;
+    return masterTestFormMarkup(testKey, prefill, tests.length > 0);
   }
-  return masterTestFormMarkup(testKey, editing ? test : null, !!test);
+  if (!tests.length) {
+    return masterTestFormMarkup(testKey, null, false);
+  }
+  const historyMarkup = tests.map((t, i) => masterTestEntryMarkup(testKey, t, i === tests.length - 1)).join('');
+  return `
+    <div class="mtest-block" data-test="${testKey}">
+      ${historyMarkup}
+      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
+    </div>
+  `;
+}
+
+function masterSummaryTileMarkup(testKey, tests) {
+  if (!tests.length) {
+    return '';
+  }
+  const latest = tests[tests.length - 1];
+  const nameLabel = masterTestNameLabel(testKey, latest.src);
+  const displayValue = masterTestDisplayValue(testKey, latest);
+  return `
+    <div class="v2-tile">
+      <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>${escapeHtml(MASTER_TEST_TITLES[testKey])}</div>
+      <div class="v2-tile-val">${escapeHtml(displayValue)}</div>
+      <div class="v2-tile-sub">${escapeHtml(nameLabel)} · ${escapeHtml(latest.date)}</div>
+    </div>`;
 }
 
 function mtestApplyMask(input) {
@@ -4443,15 +4484,162 @@ async function handleMasterTestSave(saveBtn) {
   }
 
   const now = getNowParts();
-  const testEntry = { value: rawValue, date: shortYearDate(now.date), createdAt: now.iso };
+  const newEntry = {
+    id: `mt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    value: rawValue,
+    date: shortYearDate(now.date),
+    createdAt: now.iso,
+  };
   if (src) {
-    testEntry.src = src;
+    newEntry.src = src;
   }
-  entries[index] = { ...entries[index], [`${testKey}Test`]: testEntry };
+
+  const fieldKey = `${testKey}Tests`;
+  const editKey = `${athleteId}:${testKey}`;
+  const mode = masterTestEditing.get(editKey);
+  const currentList = Array.isArray(entries[index][fieldKey]) ? entries[index][fieldKey] : [];
+  // "edit" corregge l'ultima prova (stessa occasione, valore sbagliato);
+  // "repeat" e il primo inserimento aggiungono sempre una prova nuova.
+  const nextList = (mode === 'edit' && currentList.length)
+    ? [...currentList.slice(0, -1), newEntry]
+    : [...currentList, newEntry];
+
+  entries[index] = { ...entries[index], [fieldKey]: nextList };
   await saveMaster(entries);
-  masterTestEditing.delete(`${athleteId}:${testKey}`);
+  masterTestEditing.delete(editKey);
   renderMaster();
   showToast('Salvato!');
+}
+
+function masterCollapseOtherCards(exceptItem) {
+  masterListEl.querySelectorAll('.athlete-item').forEach((item) => {
+    if (item === exceptItem) {
+      return;
+    }
+    const panel = item.querySelector('.projection-panel');
+    if (panel && !panel.hidden) {
+      panel.hidden = true;
+      masterExpandedPanels.delete(item.dataset.id);
+      const toggle = item.querySelector('.projection-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.style.transform = 'rotate(0deg)';
+      }
+    }
+    const editForm = item.querySelector('.edit-form');
+    if (editForm && !editForm.hidden) {
+      editForm.hidden = true;
+    }
+  });
+}
+
+function createMasterEditForm(entry) {
+  const editForm = document.createElement('form');
+  editForm.className = 'edit-form';
+  editForm.hidden = true;
+  editForm.dataset.id = entry.id;
+
+  editForm.innerHTML = `
+    <div class="field-row">
+      <div class="field-group">
+        <label>Nome</label>
+        <input name="edit-master-name" type="text" value="${escapeHtml(entry.name)}" />
+      </div>
+      <div class="field-group">
+        <label>Cognome</label>
+        <input name="edit-master-surname" type="text" value="${escapeHtml(entry.surname)}" />
+      </div>
+    </div>
+    <div class="field-row-avatar">
+      <div class="field-group avatar-field">
+        <label>Foto profilo</label>
+        <div class="avatar-edit-wrapper">
+          <input class="edit-avatar-input" type="file" accept="image/*" />
+          <div class="avatar-circle avatar-edit-circle">
+            ${entry.avatar ? '' : `<span class="avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`}
+            <span class="avatar-cam" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 8h3l1.6-2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                <circle cx="12" cy="13" r="3.2" />
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="edit-actions">
+      <button type="submit" class="primary-btn save-edit-btn">Salva</button>
+      <button type="button" class="secondary-btn cancel-edit-btn">Annulla</button>
+    </div>
+  `;
+
+  const avatarCircle = editForm.querySelector('.avatar-edit-circle');
+  if (entry.avatar) {
+    avatarCircle.style.backgroundImage = `url('${entry.avatar}')`;
+    avatarCircle.querySelector('.avatar-initials')?.remove();
+  }
+
+  const avatarInputEl = editForm.querySelector('.edit-avatar-input');
+  let editAvatarData = entry.avatar || null;
+
+  avatarInputEl.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        editAvatarData = await fileToBase64(file);
+        editForm.dataset.editAvatarData = editAvatarData;
+        avatarCircle.style.backgroundImage = `url('${editAvatarData}')`;
+        avatarCircle.querySelector('.avatar-initials')?.remove();
+      } catch (error) {
+        console.error('Errore nel caricamento dell\'avatar:', error);
+        alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
+        avatarInputEl.value = '';
+      }
+    }
+  });
+
+  avatarCircle.addEventListener('click', () => {
+    avatarInputEl.click();
+  });
+
+  editForm.dataset.editAvatarData = editAvatarData || '';
+
+  return editForm;
+}
+
+async function handleMasterEditSubmit(event) {
+  const editForm = event.target.closest('.edit-form');
+  if (!editForm) {
+    return;
+  }
+  event.preventDefault();
+
+  const entryId = editForm.dataset.id;
+  const entries = getMaster();
+  const targetIndex = entries.findIndex((entry) => entry.id === entryId);
+  if (targetIndex === -1) {
+    return;
+  }
+
+  const updatedName = editForm.querySelector('[name="edit-master-name"]').value.trim();
+  const updatedSurname = editForm.querySelector('[name="edit-master-surname"]').value.trim();
+  if (!updatedName || !updatedSurname) {
+    alert('Nome e cognome non possono essere vuoti.');
+    return;
+  }
+
+  const updatedEntry = { ...entries[targetIndex] };
+  updatedEntry.name = updatedName;
+  updatedEntry.surname = updatedSurname;
+
+  const editAvatarData = editForm.dataset.editAvatarData || '';
+  if (editAvatarData) {
+    updatedEntry.avatar = editAvatarData;
+  }
+
+  entries[targetIndex] = updatedEntry;
+  await saveMaster(entries);
+  renderMaster();
 }
 
 function renderMaster() {
@@ -4484,6 +4672,13 @@ function renderMaster() {
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
 
+    const ripetuteTile = masterSummaryTileMarkup('ripetute', entry.ripetuteTests);
+    const mezzofondoTile = masterSummaryTileMarkup('mezzofondo', entry.mezzofondoTests);
+    const tilesInner = ripetuteTile + mezzofondoTile;
+    const tilesMarkup = tilesInner
+      ? `<div class="v2-tiles">${tilesInner}</div>`
+      : '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato registrato</div></div>';
+
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
       <div class="v2-head">
@@ -4492,26 +4687,55 @@ function renderMaster() {
           <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
         </div>
       </div>
-      <div class="mtest-list">
-        ${masterTestBlockMarkup(entry, 'ripetute')}
-        ${masterTestBlockMarkup(entry, 'mezzofondo')}
-      </div>
+      ${tilesMarkup}
       <div class="v2-actions"></div>
     `;
 
-    item.querySelectorAll('.mtest-src-chips').forEach((group) => {
-      const input = group.closest('.mtest-block').querySelector('.mtest-input');
-      setChipGroupSelection(group, input.dataset.src);
-    });
-
     const actionsWrap = item.querySelector('.v2-actions');
+
     const deleteButton = document.createElement('button');
     deleteButton.type = 'button';
     deleteButton.className = 'delete-btn';
     deleteButton.dataset.id = entry.id;
     deleteButton.setAttribute('aria-label', 'Elimina atleta master');
     deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    const editButton = document.createElement('button');
+    editButton.type = 'button';
+    editButton.className = 'edit-btn';
+    editButton.dataset.id = entry.id;
+    editButton.textContent = '✎';
+    editButton.setAttribute('aria-label', 'Modifica atleta master');
+
+    const isExpanded = masterExpandedPanels.has(entry.id);
+    const projectionToggle = document.createElement('button');
+    projectionToggle.type = 'button';
+    projectionToggle.className = 'projection-toggle';
+    projectionToggle.dataset.id = entry.id;
+    projectionToggle.textContent = '→';
+    projectionToggle.setAttribute('aria-label', 'Mostra dettagli');
+    projectionToggle.setAttribute('aria-expanded', String(isExpanded));
+    if (isExpanded) {
+      projectionToggle.style.transform = 'rotate(90deg)';
+    }
+
     actionsWrap.appendChild(deleteButton);
+    actionsWrap.appendChild(editButton);
+    actionsWrap.appendChild(projectionToggle);
+
+    const panel = document.createElement('div');
+    panel.className = 'projection-panel';
+    panel.hidden = !isExpanded;
+    panel.innerHTML = `
+      ${masterTestBlockMarkup(entry, 'ripetute')}
+      ${masterTestBlockMarkup(entry, 'mezzofondo')}
+    `;
+    item.appendChild(panel);
+
+    panel.querySelectorAll('.mtest-src-chips').forEach((group) => {
+      const input = group.closest('.mtest-block').querySelector('.mtest-input');
+      setChipGroupSelection(group, input.dataset.src);
+    });
 
     masterListEl.appendChild(item);
   });
@@ -4529,7 +4753,8 @@ async function handleMasterListClick(event) {
   const editOrRepeatBtn = event.target.closest('.mtest-edit-btn, .mtest-repeat-btn');
   if (editOrRepeatBtn) {
     const card = editOrRepeatBtn.closest('.athlete-item');
-    masterTestEditing.add(`${card.dataset.id}:${editOrRepeatBtn.dataset.test}`);
+    const isRepeat = editOrRepeatBtn.classList.contains('mtest-repeat-btn');
+    masterTestEditing.set(`${card.dataset.id}:${editOrRepeatBtn.dataset.test}`, isRepeat ? 'repeat' : 'edit');
     renderMaster();
     return;
   }
@@ -4555,6 +4780,72 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const editButton = event.target.closest('.edit-btn');
+  if (editButton) {
+    const item = editButton.closest('.athlete-item');
+    const projectionPanel = item.querySelector('.projection-panel');
+    const projectionButtonEl = item.querySelector('.projection-toggle');
+    if (projectionPanel && !projectionPanel.hidden) {
+      projectionPanel.hidden = true;
+      masterExpandedPanels.delete(item.dataset.id);
+      if (projectionButtonEl) {
+        projectionButtonEl.setAttribute('aria-expanded', 'false');
+        projectionButtonEl.style.transform = 'rotate(0deg)';
+      }
+    }
+
+    let editForm = item.querySelector('.edit-form');
+    if (!editForm) {
+      const entryData = getMaster().find((e) => e.id === editButton.dataset.id);
+      if (!entryData) {
+        return;
+      }
+      masterCollapseOtherCards(item);
+      editForm = createMasterEditForm(entryData);
+      item.appendChild(editForm);
+      editForm.hidden = false;
+      scrollCardIntoView(item);
+      return;
+    }
+
+    const willOpen = editForm.hidden;
+    if (willOpen) {
+      masterCollapseOtherCards(item);
+    }
+    editForm.hidden = !editForm.hidden;
+    if (willOpen) {
+      scrollCardIntoView(item);
+    }
+    return;
+  }
+
+  const projectionButton = event.target.closest('.projection-toggle');
+  if (projectionButton) {
+    const item = projectionButton.closest('.athlete-item');
+    const panel = item.querySelector('.projection-panel');
+    const isExpanded = projectionButton.getAttribute('aria-expanded') === 'true';
+    const nextExpanded = !isExpanded;
+
+    if (nextExpanded) {
+      const editForm = item.querySelector('.edit-form');
+      if (editForm && !editForm.hidden) {
+        editForm.hidden = true;
+      }
+      masterCollapseOtherCards(item);
+    }
+
+    projectionButton.setAttribute('aria-expanded', String(nextExpanded));
+    panel.hidden = !nextExpanded;
+    projectionButton.style.transform = nextExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+    if (nextExpanded) {
+      masterExpandedPanels.add(item.dataset.id);
+      scrollCardIntoView(item);
+    } else {
+      masterExpandedPanels.delete(item.dataset.id);
+    }
+    return;
+  }
+
   const deleteButton = event.target.closest('.delete-btn');
   if (!deleteButton) {
     return;
@@ -4574,11 +4865,15 @@ async function handleMasterListClick(event) {
 
   const remaining = entries.filter((entry) => entry.id !== entryId);
   await saveMaster(remaining);
+  masterExpandedPanels.delete(entryId);
+  masterTestEditing.delete(`${entryId}:ripetute`);
+  masterTestEditing.delete(`${entryId}:mezzofondo`);
   renderMaster();
   showToast('Eliminato!');
 }
 
 masterListEl.addEventListener('click', handleMasterListClick);
+masterListEl.addEventListener('submit', handleMasterEditSubmit);
 
 // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
 // generalizzato per più input contemporaneamente sulla stessa pagina).

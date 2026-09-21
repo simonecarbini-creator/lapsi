@@ -2829,18 +2829,19 @@ button:active {
   margin-left: auto;
 }
 
-/* Test incorporati nella card Master (ripetute brevi + mezzofondo): ogni
-   blocco è vuoto->richiesta di input, oppure nome/risultato/data con
-   proiezioni e "ripeti test" una volta salvato. */
-.mtest-list {
-  display: flex;
-  flex-direction: column;
+/* Test incorporati nella card Master (ripetute brevi + mezzofondo), dentro
+   il pannello "→": ogni blocco è vuoto->richiesta di input, oppure uno
+   storico di prove (append-only) con proiezioni + "ripeti test" sull'ultima. */
+.mtest-block + .mtest-block {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--card-border);
 }
 
-.mtest-block {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--card-border);
+.mtest-entry + .mtest-entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dotted var(--card-border);
 }
 
 .mtest-head {
