@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-20e';
-console.log('[Lapsi] build', APP_BUILD, '— Ripetute brevi anche in Master, a fianco di Mezzofondo e fondo');
+const APP_BUILD = '2026-09-21a';
+console.log('[Lapsi] build', APP_BUILD, '— campo VAM con formattazione automatica, verifica evidenziazione riga più vicina');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4538,6 +4538,17 @@ function formatTimeMask(digits) {
   return `${digits.slice(0, -2)}'${digits.slice(-2)}"`;
 }
 
+// Stessa idea di formatTimeMask ma per un valore con un solo decimale (VAM):
+// la virgola compare dopo la seconda cifra digitata, con l'ultima cifra come
+// decimale — "140" diventa "14,0". Usata dal modulo 3 quando si inserisce la
+// VAM direttamente (non dal 1000 massimale, che usa invece formatTimeMask).
+function formatVamMask(digits) {
+  if (digits.length <= 1) {
+    return digits;
+  }
+  return `${digits.slice(0, -1)},${digits.slice(-1)}`;
+}
+
 // Riga cliccabile condivisa dai tre moduli: resta evidenziata, una sola alla
 // volta, in qualunque modulo sia attivo (solo una tabella è visibile per
 // volta, quindi non serve distinguere per modulo).
@@ -4949,9 +4960,11 @@ const calcFondoHeadB = document.getElementById('mezzofondo-head-b');
 const calcFondoBodyA = document.getElementById('mezzofondo-body-a');
 const calcFondoBodyB = document.getElementById('mezzofondo-body-b');
 
-let calcFondoState = { src: 'vam', v: '14' };
-// Cifre "vere" del campo quando la sorgente è "1000 massimale" — stessa
-// tecnica di formatTimeMask del modulo 1 (vedi lì per il perché).
+let calcFondoState = { src: 'vam', v: '14,0' };
+// Cifre "vere" del campo, qualunque sia la sorgente — la maschera applicata
+// cambia (formatVamMask per la VAM diretta, formatTimeMask per il 1000
+// massimale) ma il meccanismo di cancellazione/backspace è lo stesso, vedi
+// applyCalcFondoMask.
 let calcFondoDigits = '';
 
 function readCalcFondoState() {
@@ -4993,7 +5006,7 @@ function buildCalcFondoSrcChips() {
 }
 
 function applyCalcFondoMask() {
-  calcFondoInput.value = formatTimeMask(calcFondoDigits);
+  calcFondoInput.value = calcFondoState.src === 'k' ? formatTimeMask(calcFondoDigits) : formatVamMask(calcFondoDigits);
   const end = calcFondoInput.value.length;
   calcFondoInput.setSelectionRange(end, end);
 }
@@ -5094,13 +5107,9 @@ function initCalcMezzofondoModule() {
   if (calcFondoInputLabel) {
     calcFondoInputLabel.textContent = calcFondoState.src === 'vam' ? 'VAM' : '1000 in';
   }
-  calcFondoInput.placeholder = calcFondoState.src === 'vam' ? '14' : '3\'47"';
-  if (calcFondoState.src === 'k') {
-    calcFondoDigits = String(calcFondoState.v || '').replace(/[^0-9]/g, '').slice(0, 4);
-    applyCalcFondoMask();
-  } else {
-    calcFondoInput.value = calcFondoState.v || '14';
-  }
+  calcFondoInput.placeholder = calcFondoState.src === 'vam' ? '14,0' : '3\'47"';
+  calcFondoDigits = String(calcFondoState.v || '').replace(/[^0-9]/g, '').slice(0, 4);
+  applyCalcFondoMask();
   renderCalcFondo();
 }
 
@@ -5116,21 +5125,18 @@ if (calcFondoSrcChips) {
       calcFondoInputLabel.textContent = calcFondoState.src === 'vam' ? 'VAM' : '1000 in';
     }
     if (calcFondoState.src === 'vam') {
-      calcFondoInput.placeholder = '14';
-      calcFondoInput.value = '14';
+      calcFondoInput.placeholder = '14,0';
+      calcFondoDigits = '140';
     } else {
       calcFondoInput.placeholder = '3\'47"';
       calcFondoDigits = '400';
-      applyCalcFondoMask();
     }
+    applyCalcFondoMask();
     renderCalcFondo();
   });
 }
 if (calcFondoInput) {
   calcFondoInput.addEventListener('keydown', (event) => {
-    if (calcFondoState.src !== 'k') {
-      return;
-    }
     if (event.key !== 'Backspace' && event.key !== 'Delete') {
       return;
     }
@@ -5140,10 +5146,8 @@ if (calcFondoInput) {
     renderCalcFondo();
   });
   calcFondoInput.addEventListener('input', () => {
-    if (calcFondoState.src === 'k') {
-      calcFondoDigits = calcFondoInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-      applyCalcFondoMask();
-    }
+    calcFondoDigits = calcFondoInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    applyCalcFondoMask();
     renderCalcFondo();
   });
 }
