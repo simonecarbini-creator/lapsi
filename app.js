@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-21d';
-console.log('[Lapsi] build', APP_BUILD, '— card Master come Velocisti, storico test invece di sovrascrittura');
+const APP_BUILD = '2026-09-21e';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: diario allenamenti tra i test e grafico andamento');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4253,6 +4253,8 @@ function normalizeMasterAthlete(entry) {
     createdAt: entry.createdAt || new Date(0).toISOString(),
     ripetuteTests: Array.isArray(entry.ripetuteTests) ? entry.ripetuteTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     mezzofondoTests: Array.isArray(entry.mezzofondoTests) ? entry.mezzofondoTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    ripetuteNotes: normalizeNotes(entry.ripetuteNotes),
+    mezzofondoNotes: normalizeNotes(entry.mezzofondoNotes),
   };
 }
 
@@ -4418,6 +4420,230 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
   `;
 }
 
+// Grafico dell'andamento di un singolo test nel tempo (stesso stile di
+// buildResultsChart, ma un'unica serie): tempo sul 1000 -> secondi (più
+// basso è meglio, in alto nel grafico), VAM -> km/h (più alto è meglio). Per
+// il mezzofondo inserito come "Tempo sul 1000" si converte comunque in VAM,
+// così lo storico resta un'unica serie coerente anche cambiando sorgente.
+function buildMasterTestChart(tests, testKey) {
+  const toPoint = (record) => {
+    const t = parseItDate(record.date);
+    const v = testKey === 'ripetute'
+      ? RipeteCalc.parseThousand(record.value)
+      : (record.src === 'k' ? MezzofondoCalc.parseThousandToVam(record.value) : MezzofondoCalc.parseVam(record.value));
+    return { t, v, date: record.date };
+  };
+  const points = tests
+    .map(toPoint)
+    .filter((point) => point.t !== null && Number.isFinite(point.v) && point.v > 0)
+    .sort((a, b) => a.t - b.t);
+
+  if (points.length < 2) {
+    return '';
+  }
+
+  const uid = Math.random().toString(36).slice(2, 8);
+  const color = testKey === 'ripetute' ? CHART_RUN_COLOR : CHART_JUMP_COLOR;
+  const invert = testKey === 'ripetute'; // tempo più basso = meglio -> in alto
+  const formatValue = testKey === 'ripetute' ? formatChartClock : (v) => v.toFixed(1).replace('.', ',');
+
+  const W = 340;
+  const H = 146;
+  const mL = 40;
+  const mR = 12;
+  const mT = 10;
+  const mB = 26;
+  const plotX = mL;
+  const plotY = mT;
+  const plotW = W - mL - mR;
+  const plotH = H - mT - mB;
+
+  const times = points.map((p) => p.t);
+  const minT = Math.min(...times);
+  const maxT = Math.max(...times);
+  const spanT = maxT - minT;
+  const xFor = (t, index, count) => (spanT === 0
+    ? plotX + (count > 1 ? index / (count - 1) : 0.5) * plotW
+    : plotX + ((t - minT) / spanT) * plotW);
+
+  const values = points.map((p) => p.v);
+  let lo = Math.min(...values);
+  let hi = Math.max(...values);
+  const pad = (hi - lo) * 0.14 || hi * 0.06 || 1;
+  lo -= pad;
+  hi += pad;
+  const span = hi - lo || 1;
+  const yFor = (value) => {
+    const norm = (value - lo) / span;
+    const fraction = invert ? norm : 1 - norm;
+    return plotY + fraction * plotH;
+  };
+  const valueAtFraction = (fraction) => (invert ? lo + span * fraction : hi - span * fraction);
+
+  const count = points.length;
+  const xs = points.map((p, i) => xFor(p.t, i, count));
+  const minGap = Math.min(16, plotW / Math.max(1, count - 1));
+  for (let i = 1; i < xs.length; i += 1) {
+    if (xs[i] - xs[i - 1] < minGap) {
+      xs[i] = xs[i - 1] + minGap;
+    }
+  }
+  if (xs[xs.length - 1] > plotX + plotW || xs[xs.length - 1] - xs[0] < minGap * 0.75) {
+    const first = xs[0];
+    const range = xs[xs.length - 1] - first || 1;
+    for (let i = 0; i < xs.length; i += 1) {
+      xs[i] = plotX + ((xs[i] - first) / range) * plotW;
+    }
+  }
+
+  const coords = points.map((p, i) => ({ x: xs[i], y: yFor(p.v) }));
+  const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+  const dots = coords.map((c) => `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3" fill="${color}"/>`).join('');
+  const ticks = [0, 0.5, 1].map((fraction) => {
+    const value = valueAtFraction(fraction);
+    const y = plotY + plotH * fraction + 3;
+    return `<text x="${mL - 5}" y="${y.toFixed(1)}" text-anchor="end" fill="${color}">${escapeHtml(formatValue(value))}</text>`;
+  }).join('');
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  const dateLabel = (point, anchor, x) => `<text x="${x}" y="${H - 15}" text-anchor="${anchor}" class="chart-axis-label">${escapeHtml(shortYearDate(point.date))}</text>`;
+  const xLabels = first.date === last.date
+    ? dateLabel(first, 'middle', plotX + plotW / 2)
+    : dateLabel(first, 'start', plotX) + dateLabel(last, 'end', plotX + plotW);
+
+  return `
+    <div class="results-chart">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Andamento del test nel tempo">
+        <defs>
+          <pattern id="grid-min-${uid}" width="8" height="8" patternUnits="userSpaceOnUse">
+            <path d="M8 0H0V8" fill="none" stroke="#e9edf3" stroke-width="1" />
+          </pattern>
+          <pattern id="grid-maj-${uid}" width="32" height="32" patternUnits="userSpaceOnUse">
+            <rect width="32" height="32" fill="url(#grid-min-${uid})" />
+            <path d="M32 0H0V32" fill="none" stroke="#dbe1ea" stroke-width="1" />
+          </pattern>
+        </defs>
+        <rect x="${plotX}" y="${plotY}" width="${plotW}" height="${plotH}" fill="url(#grid-maj-${uid})" stroke="#d3dae4" stroke-width="1" />
+        <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        ${dots}
+        ${ticks}
+        ${xLabels}
+      </svg>
+    </div>
+  `;
+}
+
+// Diario tra un test e la sua ripetizione: stesso componente delle note
+// atleta/velocista, ma uno per test (ripetuteNotes/mezzofondoNotes) invece
+// che uno solo per atleta.
+function buildMasterTestNotesBlock(entry, testKey) {
+  const notes = Array.isArray(entry[`${testKey}Notes`]) ? entry[`${testKey}Notes`] : [];
+  const logMarkup = notes.length
+    ? notes.map((note) => `
+        <div class="notes-entry">
+          <div class="notes-entry-text">${escapeHtml(note.text)}</div>
+          <div class="notes-entry-date">${escapeHtml(note.savedAt)}</div>
+        </div>
+      `).join('')
+    : '<div class="notes-empty">Nessun allenamento annotato</div>';
+  return `
+    <div class="notes-block mtest-notes" data-athlete-id="${escapeHtml(entry.id)}" data-test="${testKey}">
+      <div class="notes-label">Allenamenti nel frattempo</div>
+      <div class="notes-log">${logMarkup}</div>
+      <div class="notes-new">
+        <textarea class="notes-input" rows="2" placeholder="Es. 5x400 in 1'35&quot;, buone sensazioni…"></textarea>
+        <div class="notes-foot">
+          <button type="button" class="notes-clear" aria-label="Cancella tutti gli allenamenti annotati" title="Cancella tutti gli allenamenti annotati" ${notes.length ? '' : 'hidden'}>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" />
+            </svg>
+          </button>
+          <button type="button" class="notes-btn" disabled>Salva</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function handleMasterTestNotesAdd(button) {
+  const block = button.closest('.mtest-notes');
+  if (!block) {
+    return;
+  }
+  const input = block.querySelector('.notes-input');
+  const text = input.value.trim();
+  if (!text) {
+    return;
+  }
+
+  const athleteId = block.dataset.athleteId;
+  const fieldKey = `${block.dataset.test}Notes`;
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+
+  const now = getNowParts();
+  const stamp = `${shortYearDate(now.date)} ${now.time.slice(0, 5)}`;
+  const newNote = { id: `note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, text, savedAt: stamp };
+  const current = Array.isArray(entries[index][fieldKey]) ? entries[index][fieldKey] : [];
+  entries[index] = { ...entries[index], [fieldKey]: [...current, newNote] };
+  await saveMaster(entries);
+
+  const log = block.querySelector('.notes-log');
+  const empty = log.querySelector('.notes-empty');
+  if (empty) {
+    empty.remove();
+  }
+  const entryEl = document.createElement('div');
+  entryEl.className = 'notes-entry';
+  entryEl.innerHTML = `<div class="notes-entry-text">${escapeHtml(text)}</div><div class="notes-entry-date">${escapeHtml(stamp)}</div>`;
+  log.appendChild(entryEl);
+  log.scrollTop = log.scrollHeight;
+
+  input.value = '';
+  button.disabled = true;
+  const clearButton = block.querySelector('.notes-clear');
+  if (clearButton) {
+    clearButton.hidden = false;
+  }
+  showToast('Annotazione aggiunta!');
+}
+
+async function handleMasterTestNotesClear(button) {
+  const block = button.closest('.mtest-notes');
+  if (!block) {
+    return;
+  }
+  const athleteId = block.dataset.athleteId;
+  const fieldKey = `${block.dataset.test}Notes`;
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  if (!(Array.isArray(entries[index][fieldKey]) && entries[index][fieldKey].length)) {
+    return;
+  }
+
+  const confirmed = await showConfirm('Cancellare tutti gli allenamenti annotati?', {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Cancella',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  entries[index] = { ...entries[index], [fieldKey]: [] };
+  await saveMaster(entries);
+
+  block.querySelector('.notes-log').innerHTML = '<div class="notes-empty">Nessun allenamento annotato</div>';
+  button.hidden = true;
+  showToast('Annotazioni cancellate!');
+}
+
 function masterTestBlockMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
   const editKey = `${entry.id}:${testKey}`;
@@ -4433,6 +4659,8 @@ function masterTestBlockMarkup(entry, testKey) {
   return `
     <div class="mtest-block" data-test="${testKey}">
       ${historyMarkup}
+      ${buildMasterTestChart(tests, testKey)}
+      ${buildMasterTestNotesBlock(entry, testKey)}
       <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
     </div>
   `;
@@ -4744,6 +4972,18 @@ function renderMaster() {
 }
 
 async function handleMasterListClick(event) {
+  const notesClearButton = event.target.closest('.mtest-notes .notes-clear');
+  if (notesClearButton) {
+    await handleMasterTestNotesClear(notesClearButton);
+    return;
+  }
+
+  const notesButton = event.target.closest('.mtest-notes .notes-btn');
+  if (notesButton) {
+    await handleMasterTestNotesAdd(notesButton);
+    return;
+  }
+
   const saveBtn = event.target.closest('.mtest-save-btn');
   if (saveBtn) {
     await handleMasterTestSave(saveBtn);
@@ -4888,6 +5128,12 @@ masterListEl.addEventListener('keydown', (event) => {
 });
 
 masterListEl.addEventListener('input', (event) => {
+  const notesInput = event.target.closest('.mtest-notes .notes-input');
+  if (notesInput) {
+    const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
+    button.disabled = notesInput.value.trim() === '';
+    return;
+  }
   const input = event.target.closest('.mtest-input');
   if (!input) {
     return;

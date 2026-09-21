@@ -2904,6 +2904,14 @@ button:active {
   margin-top: 10px;
 }
 
+.mtest-block .results-chart {
+  margin-top: 14px;
+}
+
+.mtest-block .notes-block {
+  margin-top: 14px;
+}
+
 .mtest-repeat-btn {
   display: block;
   width: 100%;
