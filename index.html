@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-09-21a">
+<html lang="it" data-build="2026-09-21b">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -347,9 +347,66 @@
       </footer>
     </main>
 
-    <!-- Sezione Master: ancora senza gestione atleti, ospita solo il
-         calcolatore "Mezzofondo e fondo". -->
     <main class="app-shell" id="master-shell" hidden>
+      <div class="app-toolbar">
+        <button type="button" id="master-open-register" class="toolbar-btn toolbar-btn-primary" aria-label="Registra nuovo atleta master">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </button>
+        <button type="button" id="master-toggle-search" class="toolbar-btn toolbar-toggle" aria-label="Cerca atleta" aria-expanded="false" aria-controls="master-search-panel">
+          <span class="ic ic-main" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <span class="ic ic-close" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </span>
+        </button>
+        <button type="button" id="master-toggle-filters" class="toolbar-btn toolbar-toggle" aria-label="Mostra filtri" aria-expanded="false" aria-controls="master-filters">
+          <span class="ic ic-main" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false">
+              <path d="M3 5h18l-7 8v6l-4 2v-8L3 5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="ic ic-close" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </span>
+        </button>
+      </div>
+
+      <div class="tool-panel" id="master-search-panel" hidden>
+        <div class="search-input-wrap">
+          <input id="master-search" type="search" placeholder="Cerca nome o cognome" aria-label="Cerca atleta master" />
+          <button type="button" class="search-clear" id="master-search-clear" aria-label="Cancella ricerca" hidden>&times;</button>
+        </div>
+      </div>
+
+      <div class="tool-panel" id="master-filters" hidden>
+        <div class="filter-block">
+          <p class="filter-heading">Ordinamento</p>
+          <div class="chip-row chip-row-wrap" id="master-sort-chips" role="group" aria-label="Ordinamento">
+            <button type="button" class="fchip" data-value="az">A-Z</button>
+            <button type="button" class="fchip" data-value="za">Z-A</button>
+            <button type="button" class="fchip" data-value="recent">Più recenti</button>
+            <button type="button" class="fchip" data-value="oldest">Meno recenti</button>
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button type="button" id="master-filters-apply" class="fbtn fbtn-primary">Applica</button>
+          <button type="button" id="master-filters-reset" class="fbtn fbtn-ghost">Reset</button>
+        </div>
+      </div>
+
       <section class="list-section">
         <div class="list-head">
           <h2 class="list-title">
@@ -360,8 +417,11 @@
             </svg>
             Master
           </h2>
+          <span class="list-count" id="master-count">0</span>
         </div>
-        <div class="empty-state">Sezione in arrivo. Per ora qui trovi i calcolatori "Ripetute brevi" e "Mezzofondo e fondo".</div>
+        <div id="master-empty-state" class="empty-state">Nessun atleta master ancora registrato.</div>
+        <ul id="master-list" class="athletes-list" aria-live="polite"></ul>
+        <nav id="master-pagination" class="pagination" hidden aria-label="Paginazione master"></nav>
       </section>
 
       <footer class="app-footer">
@@ -607,6 +667,46 @@
 
           <div class="actions">
             <button type="submit" class="primary-btn">Salva velocista</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="register-screen" id="master-register-screen" hidden>
+      <header class="register-screen-head">
+        <h2>Registra nuovo atleta master</h2>
+        <button type="button" id="master-close-register" class="register-close" aria-label="Chiudi">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+            <line x1="6" y1="6" x2="18" y2="18" />
+            <line x1="18" y1="6" x2="6" y2="18" />
+          </svg>
+        </button>
+      </header>
+      <div class="register-screen-body">
+        <form id="master-form" novalidate autocomplete="off">
+          <div class="field-row">
+            <div class="field-group">
+              <label for="master-name">Nome</label>
+              <input id="master-name" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Mario" required />
+            </div>
+            <div class="field-group">
+              <label for="master-surname">Cognome</label>
+              <input id="master-surname" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Rossi" required />
+            </div>
+          </div>
+
+          <div class="field-group avatar-field">
+            <label for="master-avatar">Foto profilo</label>
+            <div class="avatar-input-wrapper">
+              <input id="master-avatar" name="avatar" type="file" accept="image/*" />
+              <div id="master-avatar-preview" class="avatar-circle avatar-empty">
+                <span class="avatar-placeholder">+</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="primary-btn">Salva atleta</button>
           </div>
         </form>
       </div>

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-21a';
-console.log('[Lapsi] build', APP_BUILD, '— campo VAM con formattazione automatica, verifica evidenziazione riga più vicina');
+const APP_BUILD = '2026-09-21b';
+console.log('[Lapsi] build', APP_BUILD, '— sezione Master: pulsanti aggiungi/cerca/filtra e card minima');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4180,6 +4180,409 @@ velForm.addEventListener('submit', async (event) => {
   showToast('Salvato!');
 });
 
+// ===================== Sezione "Master" =====================
+// Anagrafica minima (nome, cognome, foto profilo), storage a parte da
+// atleti/velocisti. Solo scaffolding: aggiunta/ricerca/ordinamento/
+// eliminazione — il resto del modello (risultati, note, ecc.) arriva in un
+// secondo momento.
+const STORAGE_KEY_MASTER = 'lapsi-master';
+const MASTER_PAGE_SIZE = 5;
+const MASTER_FILTER_DEFAULTS = { sort: 'az' };
+
+const masterOpenRegisterButton = document.getElementById('master-open-register');
+const masterCloseRegisterButton = document.getElementById('master-close-register');
+const masterRegisterScreen = document.getElementById('master-register-screen');
+const masterForm = document.getElementById('master-form');
+const masterNameInput = document.getElementById('master-name');
+const masterSurnameInput = document.getElementById('master-surname');
+const masterAvatarInput = document.getElementById('master-avatar');
+const masterAvatarPreview = document.getElementById('master-avatar-preview');
+const masterListEl = document.getElementById('master-list');
+const masterEmptyState = document.getElementById('master-empty-state');
+const masterCountEl = document.getElementById('master-count');
+const masterSearchInput = document.getElementById('master-search');
+const masterToggleSearchButton = document.getElementById('master-toggle-search');
+const masterSearchPanel = document.getElementById('master-search-panel');
+const masterToggleFiltersButton = document.getElementById('master-toggle-filters');
+const masterFiltersPanel = document.getElementById('master-filters');
+const masterSortChips = document.getElementById('master-sort-chips');
+const masterFiltersApplyButton = document.getElementById('master-filters-apply');
+const masterFiltersResetButton = document.getElementById('master-filters-reset');
+const masterPaginationNav = document.getElementById('master-pagination');
+
+let cachedMaster = [];
+let masterActiveSort = MASTER_FILTER_DEFAULTS.sort;
+let masterFilterSnapshot = null;
+let masterCurrentPage = 1;
+let currentMasterAvatarData = null;
+
+function getMaster() {
+  return [...cachedMaster];
+}
+
+function normalizeMasterAthlete(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  return {
+    id: entry.id || `mas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name: entry.name || '',
+    surname: entry.surname || '',
+    avatar: entry.avatar || null,
+    createdAt: entry.createdAt || new Date(0).toISOString(),
+  };
+}
+
+function persistMaster(entries) {
+  try {
+    localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(entries));
+  } catch (error) {
+    console.error('Impossibile salvare gli atleti master in localStorage:', error);
+  }
+}
+
+function readMaster() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MASTER);
+    const parsed = raw !== null ? JSON.parse(raw) : [];
+    const normalized = Array.isArray(parsed) ? parsed.map(normalizeMasterAthlete).filter(Boolean) : [];
+    cachedMaster = normalized;
+    return normalized;
+  } catch (error) {
+    console.warn('Errore lettura master da localStorage:', error);
+    cachedMaster = [];
+    return [];
+  }
+}
+
+async function saveMaster(entries) {
+  const normalized = entries.map(normalizeMasterAthlete).filter(Boolean);
+  cachedMaster = normalized;
+  persistMaster(normalized);
+}
+
+function getFilteredMaster() {
+  const query = masterSearchInput.value.trim().toLowerCase();
+  const sortValue = masterActiveSort;
+
+  const filtered = cachedMaster.filter((entry) => {
+    const name = (entry.name || '').toLowerCase();
+    const surname = (entry.surname || '').toLowerCase();
+    return !query || name.includes(query) || surname.includes(query) || `${name} ${surname}`.includes(query);
+  });
+
+  filtered.sort((a, b) => {
+    if (sortValue === 'az' || sortValue === 'za') {
+      const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+      const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+      const cmp = aName.localeCompare(bName, 'it');
+      return sortValue === 'az' ? cmp : -cmp;
+    }
+    const aDate = new Date(a.createdAt || 0).getTime();
+    const bDate = new Date(b.createdAt || 0).getTime();
+    return sortValue === 'recent' ? bDate - aDate : aDate - bDate;
+  });
+
+  return filtered;
+}
+
+function renderMasterPagination(total) {
+  const nav = masterPaginationNav;
+  if (!nav) {
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(total / MASTER_PAGE_SIZE));
+  if (totalPages <= 1) {
+    nav.hidden = true;
+    nav.innerHTML = '';
+    return;
+  }
+  nav.hidden = false;
+  nav.innerHTML = paginationMarkup(masterCurrentPage, totalPages);
+}
+
+function renderMaster() {
+  const entries = getFilteredMaster();
+  const searchQuery = masterSearchInput.value.trim().toLowerCase();
+  masterListEl.innerHTML = '';
+
+  if (masterCountEl) {
+    masterCountEl.textContent = String(entries.length);
+  }
+
+  if (!entries.length) {
+    masterEmptyState.style.display = 'flex';
+    renderMasterPagination(0);
+    return;
+  }
+
+  masterEmptyState.style.display = 'none';
+
+  const totalPages = Math.max(1, Math.ceil(entries.length / MASTER_PAGE_SIZE));
+  masterCurrentPage = Math.min(Math.max(1, masterCurrentPage), totalPages);
+  const pageEntries = entries.slice((masterCurrentPage - 1) * MASTER_PAGE_SIZE, masterCurrentPage * MASTER_PAGE_SIZE);
+
+  pageEntries.forEach((entry) => {
+    const item = document.createElement('li');
+    item.className = 'athlete-item card-v2';
+
+    const avatarMarkup = entry.avatar
+      ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
+      : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
+
+    item.innerHTML = `
+      <span class="v2-accent" aria-hidden="true"></span>
+      <div class="v2-head">
+        ${avatarMarkup}
+        <div class="v2-id">
+          <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
+        </div>
+      </div>
+      <div class="v2-actions"></div>
+    `;
+
+    const actionsWrap = item.querySelector('.v2-actions');
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'delete-btn';
+    deleteButton.dataset.id = entry.id;
+    deleteButton.setAttribute('aria-label', 'Elimina atleta master');
+    deleteButton.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    actionsWrap.appendChild(deleteButton);
+
+    masterListEl.appendChild(item);
+  });
+
+  renderMasterPagination(entries.length);
+}
+
+async function handleMasterListClick(event) {
+  const deleteButton = event.target.closest('.delete-btn');
+  if (!deleteButton) {
+    return;
+  }
+  const entryId = deleteButton.dataset.id;
+  const entries = getMaster();
+  const target = entries.find((entry) => entry.id === entryId);
+  const label = target ? `${target.name} ${target.surname}`.trim() : 'questo atleta';
+
+  const confirmed = await showConfirm(`Eliminare ${label}?`, {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Elimina',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const remaining = entries.filter((entry) => entry.id !== entryId);
+  await saveMaster(remaining);
+  renderMaster();
+  showToast('Eliminato!');
+}
+
+masterListEl.addEventListener('click', handleMasterListClick);
+
+function masterSyncFilterChips() {
+  setChipGroupSelection(masterSortChips, masterActiveSort);
+}
+
+function masterRevertFiltersDraft() {
+  if (!masterFilterSnapshot) {
+    return;
+  }
+  masterActiveSort = masterFilterSnapshot.sort;
+  masterFilterSnapshot = null;
+  masterCurrentPage = 1;
+  masterSyncFilterChips();
+  renderMaster();
+}
+
+function masterCloseToolPanels(except) {
+  if (except !== 'search') {
+    setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, false);
+    masterToggleSearchButton.setAttribute('aria-label', 'Cerca atleta');
+  }
+  if (except !== 'filters') {
+    if (!masterFiltersPanel.hidden) {
+      masterRevertFiltersDraft();
+    }
+    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+    masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  }
+}
+
+masterToggleSearchButton.addEventListener('click', () => {
+  const open = masterSearchPanel.hidden;
+  masterCloseToolPanels('search');
+  setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, open);
+  masterToggleSearchButton.setAttribute('aria-label', open ? 'Nascondi ricerca' : 'Cerca atleta');
+  if (open) {
+    masterSearchInput.focus();
+  }
+});
+
+masterToggleFiltersButton.addEventListener('click', () => {
+  const open = masterFiltersPanel.hidden;
+  masterCloseToolPanels('filters');
+  if (open) {
+    masterFilterSnapshot = { sort: masterActiveSort };
+    masterSyncFilterChips();
+    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, true);
+    masterToggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
+  } else {
+    masterRevertFiltersDraft();
+    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+    masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  }
+});
+
+masterSortChips.addEventListener('click', (event) => {
+  const chip = event.target.closest('.fchip');
+  if (!chip || !masterSortChips.contains(chip)) {
+    return;
+  }
+  setChipGroupSelection(masterSortChips, chip.dataset.value);
+  masterActiveSort = chip.dataset.value;
+  masterCurrentPage = 1;
+  renderMaster();
+});
+
+masterFiltersApplyButton.addEventListener('click', () => {
+  masterFilterSnapshot = null;
+  setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+  masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+});
+
+masterFiltersResetButton.addEventListener('click', () => {
+  masterActiveSort = MASTER_FILTER_DEFAULTS.sort;
+  masterCurrentPage = 1;
+  masterSyncFilterChips();
+  renderMaster();
+});
+
+masterSyncFilterChips();
+
+masterSearchInput.addEventListener('input', () => {
+  masterCurrentPage = 1;
+  renderMaster();
+});
+wireSearchClear(masterSearchInput, document.getElementById('master-search-clear'));
+
+if (masterPaginationNav) {
+  masterPaginationNav.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-page]');
+    if (!button || button.disabled) {
+      return;
+    }
+    const page = Number(button.dataset.page);
+    if (!Number.isFinite(page) || page === masterCurrentPage) {
+      return;
+    }
+    masterCurrentPage = page;
+    renderMaster();
+    const head = masterListEl.closest('.list-section')?.querySelector('.list-head');
+    if (head) {
+      head.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  });
+}
+
+// ----- Form di registrazione atleta master -----
+function updateMasterAvatarPreview() {
+  if (currentMasterAvatarData) {
+    masterAvatarPreview.style.backgroundImage = `url('${currentMasterAvatarData}')`;
+    masterAvatarPreview.classList.remove('avatar-empty');
+    masterAvatarPreview.innerHTML = '';
+  } else {
+    const name = masterNameInput.value.trim();
+    const surname = masterSurnameInput.value.trim();
+    if (name || surname) {
+      masterAvatarPreview.classList.remove('avatar-empty');
+      masterAvatarPreview.innerHTML = `<span class="avatar-initials">${getInitials(name, surname)}</span>`;
+      masterAvatarPreview.style.backgroundImage = '';
+    } else {
+      masterAvatarPreview.classList.add('avatar-empty');
+      masterAvatarPreview.innerHTML = '<span class="avatar-placeholder">+</span>';
+      masterAvatarPreview.style.backgroundImage = '';
+    }
+  }
+}
+
+masterAvatarInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (file) {
+    try {
+      currentMasterAvatarData = await fileToBase64(file);
+      updateMasterAvatarPreview();
+    } catch (error) {
+      console.error('Errore nel caricamento dell\'avatar:', error);
+      alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
+      masterAvatarInput.value = '';
+      currentMasterAvatarData = null;
+      updateMasterAvatarPreview();
+    }
+  } else {
+    currentMasterAvatarData = null;
+    updateMasterAvatarPreview();
+  }
+});
+
+masterAvatarPreview.addEventListener('click', () => {
+  masterAvatarInput.click();
+});
+
+masterNameInput.addEventListener('input', updateMasterAvatarPreview);
+masterSurnameInput.addEventListener('input', updateMasterAvatarPreview);
+
+function openMasterRegisterScreen() {
+  masterRegisterScreen.hidden = false;
+  lockBodyScroll();
+  masterRegisterScreen.scrollTop = 0;
+  masterNameInput.focus();
+}
+
+function closeMasterRegisterScreen() {
+  masterRegisterScreen.hidden = true;
+  unlockBodyScroll();
+}
+
+if (masterOpenRegisterButton) {
+  masterOpenRegisterButton.addEventListener('click', openMasterRegisterScreen);
+}
+if (masterCloseRegisterButton) {
+  masterCloseRegisterButton.addEventListener('click', closeMasterRegisterScreen);
+}
+
+masterForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const name = masterNameInput.value.trim();
+  const surname = masterSurnameInput.value.trim();
+  if (!name || !surname) {
+    alert('Inserisci nome e cognome.');
+    return;
+  }
+
+  const entries = getMaster();
+  entries.push({
+    id: `mas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    surname,
+    avatar: currentMasterAvatarData,
+    createdAt: new Date().toISOString(),
+  });
+
+  await saveMaster(entries);
+  masterCurrentPage = 1;
+  renderMaster();
+
+  masterForm.reset();
+  currentMasterAvatarData = null;
+  masterAvatarInput.value = '';
+  updateMasterAvatarPreview();
+  closeMasterRegisterScreen();
+  showToast('Salvato!');
+});
+
 // ===================== "Programma allenamento" (solo C. Militari) =====================
 // Elenco di voci a fisarmonica (titolo + testo), condiviso per tutta la
 // sezione atleti militari — non legato a un singolo atleta. Ogni voce ha un
@@ -5159,6 +5562,8 @@ async function initializeApp() {
   renderEntries();
   readVelocisti();
   renderVelocisti();
+  readMaster();
+  renderMaster();
 }
 
 initializeApp();
