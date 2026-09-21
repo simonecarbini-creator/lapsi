@@ -2829,6 +2829,117 @@ button:active {
   margin-left: auto;
 }
 
+/* Test incorporati nella card Master (ripetute brevi + mezzofondo): ogni
+   blocco è vuoto->richiesta di input, oppure nome/risultato/data con
+   proiezioni e "ripeti test" una volta salvato. */
+.mtest-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.mtest-block {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--card-border);
+}
+
+.mtest-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.mtest-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mtest-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mtest-value {
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mtest-edit-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mtest-edit-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
+}
+
+.mtest-date {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.mtest-projections {
+  margin-top: 10px;
+}
+
+.mtest-repeat-btn {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mtest-repeat-btn:hover {
+  background: var(--bg-strong);
+}
+
+.mtest-empty-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mtest-empty-block .mtest-src-chips {
+  margin-bottom: 8px;
+}
+
+.mtest-empty-block .calc-input-row {
+  flex-wrap: wrap;
+}
+
+.mtest-empty-block .calc-input {
+  width: 100px;
+}
+
 /* Riga del tempo reale su cui si basano le proiezioni */
 .projection-row-base {
   margin: 0 -6px;

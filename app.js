@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-21b';
-console.log('[Lapsi] build', APP_BUILD, '— sezione Master: pulsanti aggiungi/cerca/filtra e card minima');
+const APP_BUILD = '2026-09-21c';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: test ripetute/mezzofondo incorporati con proiezioni');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4220,6 +4220,25 @@ function getMaster() {
   return [...cachedMaster];
 }
 
+// Un test incorporato nella card ("1000 massimale" per le ripetute brevi,
+// VAM o "1000 massimale" per il mezzofondo): un solo valore corrente, non uno
+// storico — "modifica" e "ripeti test" sovrascrivono entrambi value/data.
+function normalizeMasterTest(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const value = String(record.value || '').trim();
+  if (!value) {
+    return null;
+  }
+  return {
+    src: record.src === 'k' ? 'k' : 'vam',
+    value,
+    date: String(record.date || ''),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
 function normalizeMasterAthlete(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -4230,6 +4249,8 @@ function normalizeMasterAthlete(entry) {
     surname: entry.surname || '',
     avatar: entry.avatar || null,
     createdAt: entry.createdAt || new Date(0).toISOString(),
+    ripetuteTest: normalizeMasterTest(entry.ripetuteTest),
+    mezzofondoTest: normalizeMasterTest(entry.mezzofondoTest),
   };
 }
 
@@ -4301,6 +4322,138 @@ function renderMasterPagination(total) {
   nav.innerHTML = paginationMarkup(masterCurrentPage, totalPages);
 }
 
+// ----- Test incorporati nella card (ripetute brevi + mezzofondo) -----
+// Ogni card ospita due test indipendenti, entrambi con lo stesso
+// comportamento: vuoto -> richiesta di inserimento; salvato -> nome del
+// test/risultato/data con matita per modificarlo, proiezioni sui lavori
+// sotto, "Ripeti test" staccato in fondo. Nessuno storico: value/date del
+// test vengono sovrascritti sia dalla matita sia da "Ripeti test".
+const MASTER_TEST_TITLES = { ripetute: 'Ripetute brevi', mezzofondo: 'Mezzofondo e fondo' };
+
+// Chiave "athleteId:testKey" per i test attualmente in modifica/inserimento:
+// stato solo di UI, non persistito, azzerato ad ogni salvataggio.
+let masterTestEditing = new Set();
+
+function masterTestNameLabel(testKey, src) {
+  if (testKey === 'ripetute') {
+    return '1000 massimale';
+  }
+  return src === 'k' ? '1000 massimale' : 'VAM';
+}
+
+function masterTestProjectionsMarkup(testKey, test) {
+  if (testKey === 'ripetute') {
+    const T = RipeteCalc.parseThousand(test.value);
+    if (!T) {
+      return '';
+    }
+    const tiles = RipeteCalc.repeatTimesFor(T, RipeteCalc.VOL_DEFAULT, RipeteCalc.REC_DEFAULT)
+      .map(({ dist, seconds }) => `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
+      .join('');
+    return `<div class="calc-output mtest-projections">${tiles}</div>`;
+  }
+  const vam = test.src === 'k' ? MezzofondoCalc.parseThousandToVam(test.value) : MezzofondoCalc.parseVam(test.value);
+  if (!vam) {
+    return '';
+  }
+  const tiles = MezzofondoCalc.pacesForVam(vam)
+    .map(({ label, minutes }) => `<div class="calc-out-tile"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+    .join('');
+  return `<div class="calc-output mtest-projections">${tiles}</div>`;
+}
+
+function masterTestFilledMarkup(testKey, test) {
+  const nameLabel = masterTestNameLabel(testKey, test.src);
+  return `
+    <div class="mtest-block" data-test="${testKey}">
+      <div class="mtest-head">
+        <span class="mtest-name">${escapeHtml(nameLabel)}</span>
+        <span class="mtest-value-wrap">
+          <span class="mtest-value">${escapeHtml(test.value)}</span>
+          <button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>
+        </span>
+        <span class="mtest-date">${escapeHtml(test.date)}</span>
+      </div>
+      ${masterTestProjectionsMarkup(testKey, test)}
+      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
+    </div>
+  `;
+}
+
+function masterTestFormMarkup(testKey, prefill, showCancel) {
+  const src = testKey === 'mezzofondo' ? (prefill && prefill.src) || 'vam' : '';
+  const value = prefill ? prefill.value : '';
+  const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
+  const placeholder = testKey === 'ripetute' ? '4\'00"' : (src === 'k' ? '3\'47"' : '14,0');
+  const srcChipsMarkup = testKey === 'mezzofondo' ? `
+    <div class="chip-row mtest-src-chips" data-test="mezzofondo" role="group" aria-label="Tipo di dato">
+      <button type="button" class="fchip" data-value="vam">VAM in km/h</button>
+      <button type="button" class="fchip" data-value="k">1000 massimale</button>
+    </div>` : '';
+  return `
+    <div class="mtest-block mtest-empty-block" data-test="${testKey}">
+      <span class="mtest-empty-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
+      ${srcChipsMarkup}
+      <div class="calc-input-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-src="${src}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="${placeholder}" />
+        <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="${testKey}">Salva</button>
+        ${showCancel ? `<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="${testKey}">Annulla</button>` : ''}
+      </div>
+    </div>
+  `;
+}
+
+function masterTestBlockMarkup(entry, testKey) {
+  const test = entry[`${testKey}Test`];
+  const editing = masterTestEditing.has(`${entry.id}:${testKey}`);
+  if (test && !editing) {
+    return masterTestFilledMarkup(testKey, test);
+  }
+  return masterTestFormMarkup(testKey, editing ? test : null, !!test);
+}
+
+function mtestApplyMask(input) {
+  const isTime = input.dataset.test === 'ripetute' || input.dataset.src === 'k';
+  input.value = isTime ? formatTimeMask(input.dataset.digits || '') : formatVamMask(input.dataset.digits || '');
+  const end = input.value.length;
+  input.setSelectionRange(end, end);
+}
+
+async function handleMasterTestSave(saveBtn) {
+  const testKey = saveBtn.dataset.test;
+  const card = saveBtn.closest('.athlete-item');
+  const athleteId = card.dataset.id;
+  const input = saveBtn.closest('.mtest-block').querySelector('.mtest-input');
+  const rawValue = input.value.trim();
+
+  const src = testKey === 'mezzofondo' ? (input.dataset.src === 'k' ? 'k' : 'vam') : undefined;
+  const parsedOk = testKey === 'ripetute'
+    ? !!RipeteCalc.parseThousand(rawValue)
+    : !!(src === 'k' ? MezzofondoCalc.parseThousandToVam(rawValue) : MezzofondoCalc.parseVam(rawValue));
+
+  if (!rawValue || !parsedOk) {
+    alert('Inserisci un valore valido.');
+    return;
+  }
+
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+
+  const now = getNowParts();
+  const testEntry = { value: rawValue, date: shortYearDate(now.date), createdAt: now.iso };
+  if (src) {
+    testEntry.src = src;
+  }
+  entries[index] = { ...entries[index], [`${testKey}Test`]: testEntry };
+  await saveMaster(entries);
+  masterTestEditing.delete(`${athleteId}:${testKey}`);
+  renderMaster();
+  showToast('Salvato!');
+}
+
 function renderMaster() {
   const entries = getFilteredMaster();
   const searchQuery = masterSearchInput.value.trim().toLowerCase();
@@ -4325,6 +4478,7 @@ function renderMaster() {
   pageEntries.forEach((entry) => {
     const item = document.createElement('li');
     item.className = 'athlete-item card-v2';
+    item.dataset.id = entry.id;
 
     const avatarMarkup = entry.avatar
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
@@ -4338,8 +4492,17 @@ function renderMaster() {
           <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
         </div>
       </div>
+      <div class="mtest-list">
+        ${masterTestBlockMarkup(entry, 'ripetute')}
+        ${masterTestBlockMarkup(entry, 'mezzofondo')}
+      </div>
       <div class="v2-actions"></div>
     `;
+
+    item.querySelectorAll('.mtest-src-chips').forEach((group) => {
+      const input = group.closest('.mtest-block').querySelector('.mtest-input');
+      setChipGroupSelection(group, input.dataset.src);
+    });
 
     const actionsWrap = item.querySelector('.v2-actions');
     const deleteButton = document.createElement('button');
@@ -4357,6 +4520,41 @@ function renderMaster() {
 }
 
 async function handleMasterListClick(event) {
+  const saveBtn = event.target.closest('.mtest-save-btn');
+  if (saveBtn) {
+    await handleMasterTestSave(saveBtn);
+    return;
+  }
+
+  const editOrRepeatBtn = event.target.closest('.mtest-edit-btn, .mtest-repeat-btn');
+  if (editOrRepeatBtn) {
+    const card = editOrRepeatBtn.closest('.athlete-item');
+    masterTestEditing.add(`${card.dataset.id}:${editOrRepeatBtn.dataset.test}`);
+    renderMaster();
+    return;
+  }
+
+  const cancelBtn = event.target.closest('.mtest-cancel-btn');
+  if (cancelBtn) {
+    const card = cancelBtn.closest('.athlete-item');
+    masterTestEditing.delete(`${card.dataset.id}:${cancelBtn.dataset.test}`);
+    renderMaster();
+    return;
+  }
+
+  const srcChip = event.target.closest('.mtest-src-chips .fchip');
+  if (srcChip) {
+    const group = srcChip.closest('.mtest-src-chips');
+    const newSrc = srcChip.dataset.value;
+    setChipGroupSelection(group, newSrc);
+    const input = group.closest('.mtest-block').querySelector('.mtest-input');
+    input.dataset.src = newSrc;
+    input.dataset.digits = newSrc === 'k' ? '400' : '140';
+    input.placeholder = newSrc === 'k' ? '3\'47"' : '14,0';
+    mtestApplyMask(input);
+    return;
+  }
+
   const deleteButton = event.target.closest('.delete-btn');
   if (!deleteButton) {
     return;
@@ -4381,6 +4579,27 @@ async function handleMasterListClick(event) {
 }
 
 masterListEl.addEventListener('click', handleMasterListClick);
+
+// Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
+// generalizzato per più input contemporaneamente sulla stessa pagina).
+masterListEl.addEventListener('keydown', (event) => {
+  const input = event.target.closest('.mtest-input');
+  if (!input || (event.key !== 'Backspace' && event.key !== 'Delete')) {
+    return;
+  }
+  event.preventDefault();
+  input.dataset.digits = (input.dataset.digits || '').slice(0, -1);
+  mtestApplyMask(input);
+});
+
+masterListEl.addEventListener('input', (event) => {
+  const input = event.target.closest('.mtest-input');
+  if (!input) {
+    return;
+  }
+  input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, 4);
+  mtestApplyMask(input);
+});
 
 function masterSyncFilterChips() {
   setChipGroupSelection(masterSortChips, masterActiveSort);
