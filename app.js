@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22l';
-console.log('[Lapsi] build', APP_BUILD, '— campo distanze simulatore: tastiera con "/"');
+const APP_BUILD = '2026-09-22m';
+console.log('[Lapsi] build', APP_BUILD, '— recupero tra le serie nel simulatore ripetute');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4376,6 +4376,11 @@ function masterSeriesDefaultBlock() {
     reps: '3',
     dist: '400',
     recDigits: '130',
+    // Recupero PRIMA di questo blocco (ignorato per il primo, index 0):
+    // diverso dal recupero interno alle ripetute del blocco, come i "rest
+    // step" tra le serie in Garmin Connect. skip=true = si passa dritti al
+    // blocco successivo senza pausa.
+    gapBefore: { skip: false, recDigits: '200' },
   };
 }
 
@@ -4455,6 +4460,36 @@ function masterSeriesBlockRowMarkup(block, index) {
   `;
 }
 
+// Separatore tra un blocco e il successivo: checkbox "salta l'ultimo
+// recupero" + input del recupero tra le serie, sullo stesso modello dei
+// "rest step" di Garmin Connect tra un passo e l'altro dell'allenamento.
+// I dati vivono su block.gapBefore (il blocco che segue la pausa).
+function masterSeriesGapMarkup(block) {
+  const gap = block.gapBefore;
+  return `
+    <div class="mseries-gap" data-block-id="${block.id}">
+      <div class="mseries-gap-plus">+</div>
+      <label class="mseries-gap-skip">
+        <input type="checkbox" class="mseries-gap-skip-input" data-block-id="${block.id}"${gap.skip ? ' checked' : ''} />
+        Salta l'ultimo recupero
+      </label>
+      <div class="mseries-gap-rec-row"${gap.skip ? ' hidden' : ''}>
+        <span class="mseries-gap-rec-label">recupero tra le serie</span>
+        <input type="text" autocomplete="off" class="mseries-gap-rec-input" data-block-id="${block.id}" data-digits="${gap.recDigits}" value="${escapeHtml(seriesFormatRecMask(gap.recDigits))}" placeholder="3′00″" aria-label="Recupero tra le serie" />
+      </div>
+    </div>
+  `;
+}
+
+// Didascalia tra due blocchi di risultati: ricorda il recupero impostato
+// (o che è stato saltato) tra le due serie, senza entrare nel calcolo del
+// tempo target dei singoli blocchi (che resta indipendente).
+function masterSeriesResultGapMarkup(block) {
+  const gap = block.gapBefore;
+  const label = gap.skip ? "ultimo recupero saltato" : `recupero tra le serie ${seriesFormatRecMask(gap.recDigits) || '—'}`;
+  return `<div class="mseries-result-gap">${escapeHtml(label)}</div>`;
+}
+
 function masterSeriesResultBlockMarkup(block, T, totalKm) {
   const reps = Math.max(1, parseInt(block.reps, 10) || 1);
   const distances = masterSeriesParseDistances(block.dist);
@@ -4496,14 +4531,14 @@ function masterSeriesBuilderMarkup(entry) {
   const totalKm = totalMeters / 1000;
 
   const blocksMarkup = state.blocks
-    .map((block, index) => `${index > 0 ? '<div class="mseries-block-plus">+</div>' : ''}${masterSeriesBlockRowMarkup(block, index)}`)
+    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
     .join('');
 
   const resultsMarkup = state.showResults
     ? `
       <div class="mseries-results">
         <div class="mseries-total">Volume totale: <b>${(totalMeters / 1000).toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)</div>
-        ${state.blocks.map((block) => masterSeriesResultBlockMarkup(block, T, totalKm)).join('')}
+        ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
       </div>
     `
     : '';
@@ -5433,6 +5468,13 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const gapSkipInput = event.target.closest('.mseries-gap-skip-input');
+  if (gapSkipInput) {
+    masterSeriesFindBlock(gapSkipInput).gapBefore.skip = gapSkipInput.checked;
+    renderMaster();
+    return;
+  }
+
   const editOrRepeatBtn = event.target.closest('.mtest-edit-btn, .mtest-repeat-btn');
   if (editOrRepeatBtn) {
     const card = editOrRepeatBtn.closest('.athlete-item');
@@ -5549,6 +5591,19 @@ masterListEl.addEventListener('submit', handleMasterEditSubmit);
 // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
 // generalizzato per più input contemporaneamente sulla stessa pagina).
 masterListEl.addEventListener('keydown', (event) => {
+  const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+  if (gapRecInput) {
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      return;
+    }
+    event.preventDefault();
+    gapRecInput.dataset.digits = (gapRecInput.dataset.digits || '').slice(0, -1);
+    gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+    const end = gapRecInput.value.length;
+    gapRecInput.setSelectionRange(end, end);
+    masterSeriesFindBlock(gapRecInput).gapBefore.recDigits = gapRecInput.dataset.digits;
+    return;
+  }
   const recInput = event.target.closest('.mseries-rec-input');
   if (recInput) {
     if (event.key !== 'Backspace' && event.key !== 'Delete') {
@@ -5593,6 +5648,15 @@ masterListEl.addEventListener('input', (event) => {
   if (distInput) {
     distInput.value = distInput.value.replace(/[^0-9/]/g, '');
     masterSeriesFindBlock(distInput).dist = distInput.value;
+    return;
+  }
+  const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+  if (gapRecInput) {
+    gapRecInput.dataset.digits = gapRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+    const end = gapRecInput.value.length;
+    gapRecInput.setSelectionRange(end, end);
+    masterSeriesFindBlock(gapRecInput).gapBefore.recDigits = gapRecInput.dataset.digits;
     return;
   }
   const recInput = event.target.closest('.mseries-rec-input');

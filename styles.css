@@ -3236,10 +3236,69 @@ button:active {
   background: var(--bg-strong);
 }
 
-.mseries-block-plus {
-  margin: 6px 0;
+/* Separatore tra un blocco e il successivo: "+", checkbox "salta l'ultimo
+   recupero" e, se non saltato, l'input del recupero tra le serie — sul
+   modello dei "rest step" di Garmin Connect tra un passo e l'altro. */
+.mseries-gap {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.mseries-gap-plus {
+  margin-bottom: 6px;
   text-align: center;
   font-weight: 700;
+  color: var(--muted);
+}
+
+.mseries-gap-skip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.mseries-gap-skip input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.mseries-gap-rec-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mseries-gap-rec-row[hidden] {
+  display: none;
+}
+
+.mseries-gap-rec-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.mseries-gap-rec-input {
+  width: 74px;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mseries-result-gap {
+  margin: 10px 0;
+  text-align: center;
+  font-size: 0.72rem;
+  font-style: italic;
   color: var(--muted);
 }
 
