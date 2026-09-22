@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22m';
-console.log('[Lapsi] build', APP_BUILD, '— recupero tra le serie nel simulatore ripetute');
+const APP_BUILD = '2026-09-22n';
+console.log('[Lapsi] build', APP_BUILD, '— checkbox custom, recupero tra serie nel volume, tasto "/" per le piramidi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4401,6 +4401,16 @@ function masterSeriesFindBlock(inputEl) {
   return state.blocks.find((b) => b.id === inputEl.dataset.blockId);
 }
 
+// Aggiorna a mano la nota sotto "recupero tra le serie" mentre si digita
+// (stesso motivo di masterSeriesFindBlock: un renderMaster() qui perderebbe
+// il focus dell'input a ogni cifra).
+function masterSeriesUpdateGapNote(gapRecInput, gap) {
+  const noteEl = gapRecInput.closest('.mseries-gap').querySelector('.mseries-gap-note');
+  const note = masterSeriesGapNote(gap);
+  noteEl.textContent = note;
+  noteEl.hidden = !note;
+}
+
 // Maschera del recupero mentre si digita: come formatTimeMask ma con le
 // virgolette tipografiche (′ ″) usate da RipeteCalc.formatSeconds, e senza
 // il vincolo dei minuti (formatTimeMask va bene per "4'00"" del 1000, qui
@@ -4449,7 +4459,10 @@ function masterSeriesBlockRowMarkup(block, index) {
       <div class="mseries-block-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-reps-input" data-block-id="${block.id}" value="${escapeHtml(block.reps)}" placeholder="N" aria-label="Numero ripetute" />
         <span class="mseries-x">×</span>
-        <input type="text" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400 o 200/300/400" aria-label="Distanze" />
+        <div class="mseries-dist-wrap">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400" aria-label="Distanze" />
+          <button type="button" class="mseries-dist-slash-btn" data-block-id="${block.id}" aria-label="Inserisci /">/</button>
+        </div>
         <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${index === 0 ? ' disabled' : ''}>${MTEST_DEL_ICON}</button>
       </div>
       <div class="mseries-block-rec-row">
@@ -4460,34 +4473,67 @@ function masterSeriesBlockRowMarkup(block, index) {
   `;
 }
 
+// Soglie del recupero tra le serie che riducono il volume usato nel calcolo
+// del passo (vedi masterSeriesBuilderMarkup): sotto i 4' la pausa è normale
+// e non tocca il volume; da 4' a meno di 8' vale una pausa "lunga" (-0,5 km);
+// da 8' in su una pausa "molto lunga" (-1 km) — non cumulativo, il valore più
+// alto sostituisce quello più basso.
+function masterSeriesGapDeductionKm(gap) {
+  const rec = seriesParseRecSeconds(gap.recDigits);
+  if (!rec || rec < 240) return 0;
+  if (rec < 480) return 0.5;
+  return 1;
+}
+
+// Frase sotto l'input "recupero tra le serie" che spiega quale delle tre
+// soglie sopra si applica, così non serve ricordarle a memoria.
+function masterSeriesGapNote(gap) {
+  const rec = seriesParseRecSeconds(gap.recDigits);
+  if (!rec) return '';
+  const label = seriesFormatRecMask(gap.recDigits);
+  const deduction = masterSeriesGapDeductionKm(gap);
+  if (deduction === 0) return `rec ${label} tra le serie: conta per intero nel volume totale.`;
+  const kmLabel = deduction === 1 ? '1 km' : '0,5 km';
+  return `rec ${label} tra le serie: abbastanza per far togliere ${kmLabel} dal volume totale.`;
+}
+
 // Separatore tra un blocco e il successivo: checkbox "salta l'ultimo
-// recupero" + input del recupero tra le serie, sullo stesso modello dei
-// "rest step" di Garmin Connect tra un passo e l'altro dell'allenamento.
+// recupero" (puramente descrittiva, per ricordare che non c'è pausa dopo
+// l'ultima ripetuta del blocco precedente — non tocca il calcolo) + input
+// del recupero tra le serie, sempre visibile (il recupero tra le serie ha
+// un ruolo indipendente dal recupero interno del blocco, anche quando
+// l'ultimo recupero è saltato) con la nota della soglia applicata. Stesso
+// modello dei "rest step" di Garmin Connect tra un passo e l'altro.
 // I dati vivono su block.gapBefore (il blocco che segue la pausa).
 function masterSeriesGapMarkup(block) {
   const gap = block.gapBefore;
+  const note = masterSeriesGapNote(gap);
   return `
     <div class="mseries-gap" data-block-id="${block.id}">
       <div class="mseries-gap-plus">+</div>
       <label class="mseries-gap-skip">
         <input type="checkbox" class="mseries-gap-skip-input" data-block-id="${block.id}"${gap.skip ? ' checked' : ''} />
-        Salta l'ultimo recupero
+        <span>Salta l'ultimo recupero</span>
       </label>
-      <div class="mseries-gap-rec-row"${gap.skip ? ' hidden' : ''}>
+      <div class="mseries-gap-rec-row">
         <span class="mseries-gap-rec-label">recupero tra le serie</span>
         <input type="text" autocomplete="off" class="mseries-gap-rec-input" data-block-id="${block.id}" data-digits="${gap.recDigits}" value="${escapeHtml(seriesFormatRecMask(gap.recDigits))}" placeholder="3′00″" aria-label="Recupero tra le serie" />
       </div>
+      <div class="mseries-gap-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
     </div>
   `;
 }
 
 // Didascalia tra due blocchi di risultati: ricorda il recupero impostato
-// (o che è stato saltato) tra le due serie, senza entrare nel calcolo del
-// tempo target dei singoli blocchi (che resta indipendente).
+// tra le due serie (o che l'ultimo recupero interno è stato saltato) e
+// l'eventuale riduzione di volume applicata, così il legame con la nota
+// nel builder è visibile anche nei risultati.
 function masterSeriesResultGapMarkup(block) {
   const gap = block.gapBefore;
-  const label = gap.skip ? "ultimo recupero saltato" : `recupero tra le serie ${seriesFormatRecMask(gap.recDigits) || '—'}`;
-  return `<div class="mseries-result-gap">${escapeHtml(label)}</div>`;
+  const parts = [];
+  if (gap.skip) parts.push("ultimo recupero saltato");
+  parts.push(masterSeriesGapNote(gap) || 'recupero tra le serie da impostare');
+  return `<div class="mseries-result-gap">${escapeHtml(parts.join(' · '))}</div>`;
 }
 
 function masterSeriesResultBlockMarkup(block, T, totalKm) {
@@ -4528,16 +4574,27 @@ function masterSeriesBuilderMarkup(entry) {
   const state = masterSeriesGetState(entry.id);
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
-  const totalKm = totalMeters / 1000;
+  // Le pause lunghe tra le serie riducono il volume usato nel calcolo del
+  // passo (non quello mostrato come volume "reale" della seduta) — vedi
+  // masterSeriesGapDeductionKm. Sottratto solo dal secondo blocco in poi:
+  // il primo non ha un "prima" a cui applicare una pausa.
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const rawKm = totalMeters / 1000;
+  const totalKm = Math.max(0, rawKm - gapDeductionKm);
 
   const blocksMarkup = state.blocks
     .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
     .join('');
 
+  const usedVolumeLine = gapDeductionKm > 0
+    ? `<div class="mseries-total mseries-total-used">Volume usato per il calcolo: <b>${totalKm.toFixed(2).replace('.', ',')} km</b> (pause lunghe tra le serie)</div>`
+    : '';
+
   const resultsMarkup = state.showResults
     ? `
       <div class="mseries-results">
-        <div class="mseries-total">Volume totale: <b>${(totalMeters / 1000).toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)</div>
+        <div class="mseries-total">Volume totale: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)</div>
+        ${usedVolumeLine}
         ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
       </div>
     `
@@ -5460,6 +5517,21 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const distSlashBtn = event.target.closest('.mseries-dist-slash-btn');
+  if (distSlashBtn) {
+    // Inserisce "/" nel punto del cursore invece che in coda, per poter
+    // correggere una piramide già scritta senza dover riscriverla da capo.
+    const distInput = distSlashBtn.closest('.mseries-dist-wrap').querySelector('.mseries-dist-input');
+    const start = distInput.selectionStart != null ? distInput.selectionStart : distInput.value.length;
+    const end = distInput.selectionEnd != null ? distInput.selectionEnd : distInput.value.length;
+    const value = distInput.value;
+    distInput.value = `${value.slice(0, start)}/${value.slice(end)}`;
+    masterSeriesFindBlock(distInput).dist = distInput.value;
+    distInput.focus();
+    distInput.setSelectionRange(start + 1, start + 1);
+    return;
+  }
+
   const seriesCalcBtn = event.target.closest('.mseries-calc-btn');
   if (seriesCalcBtn) {
     const state = masterSeriesGetState(seriesCalcBtn.dataset.id);
@@ -5601,7 +5673,9 @@ masterListEl.addEventListener('keydown', (event) => {
     gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
     const end = gapRecInput.value.length;
     gapRecInput.setSelectionRange(end, end);
-    masterSeriesFindBlock(gapRecInput).gapBefore.recDigits = gapRecInput.dataset.digits;
+    const gapBlock = masterSeriesFindBlock(gapRecInput);
+    gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+    masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
     return;
   }
   const recInput = event.target.closest('.mseries-rec-input');
@@ -5656,7 +5730,9 @@ masterListEl.addEventListener('input', (event) => {
     gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
     const end = gapRecInput.value.length;
     gapRecInput.setSelectionRange(end, end);
-    masterSeriesFindBlock(gapRecInput).gapBefore.recDigits = gapRecInput.dataset.digits;
+    const gapBlock = masterSeriesFindBlock(gapRecInput);
+    gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+    masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
     return;
   }
   const recInput = event.target.closest('.mseries-rec-input');

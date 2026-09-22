@@ -3261,10 +3261,38 @@ button:active {
   color: var(--text);
 }
 
+/* Checkbox disegnata a mano (appearance:none) invece di quella nativa, che
+   su macOS/Chrome a 16px viene resa quasi circolare — qui resta un
+   quadratino con gli angoli leggermente smussati, coerente con lo stile
+   "pill/rounded-square" del resto dei controlli del simulatore. */
 .mseries-gap-skip input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+  margin: 0;
+  border: 1.5px solid var(--card-border);
+  border-radius: 5px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mseries-gap-skip input[type="checkbox"]:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.mseries-gap-skip input[type="checkbox"]:checked::after {
+  content: '';
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translate(-1px, -1px);
 }
 
 .mseries-gap-rec-row {
@@ -3272,10 +3300,6 @@ button:active {
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-}
-
-.mseries-gap-rec-row[hidden] {
-  display: none;
 }
 
 .mseries-gap-rec-label {
@@ -3292,6 +3316,17 @@ button:active {
   text-align: center;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+}
+
+.mseries-gap-note {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.mseries-gap-note[hidden] {
+  display: none;
 }
 
 .mseries-result-gap {
@@ -3327,15 +3362,46 @@ button:active {
   font-weight: 700;
 }
 
-.mseries-dist-input {
+.mseries-dist-wrap {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
-  padding: 8px 10px;
+}
+
+.mseries-dist-input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 38px 8px 10px;
   border: 1px solid var(--card-border);
   border-radius: 10px;
   background: #fff;
   font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Il "/" per le piramidi (es. 200/300/400) vive dentro l'input, sulla dx:
+   la tastiera numerica del campo non ha il tasto "/", quindi lo si preme
+   qui invece di dover passare a quella completa. */
+.mseries-dist-slash-btn {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-strong);
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mseries-dist-slash-btn:hover {
+  background: #e6e8ec;
 }
 
 .mseries-del-block-btn {
@@ -3424,6 +3490,12 @@ button:active {
 
 .mseries-total b {
   color: var(--text);
+}
+
+.mseries-total-used {
+  margin-top: -4px;
+  font-size: 0.74rem;
+  font-style: italic;
 }
 
 .mseries-result-block + .mseries-result-block {
