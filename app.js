@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22d';
-console.log('[Lapsi] build', APP_BUILD, '— proiezioni colorate per origine, avviso 1000 mancante, calcolo VAM a una riga');
+const APP_BUILD = '2026-09-22e';
+console.log('[Lapsi] build', APP_BUILD, '— colori VAM/1000 richiamati su tile ed etichette, avviso VAM stimata');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4688,14 +4688,27 @@ function masterCombinedProjectionsMarkup(entry) {
     return '';
   }
 
-  // Se manca il Tempo sul 1000 (ma c'è la VAM, altrimenti si sarebbe già
-  // usciti sopra) un avviso prende il posto delle tile delle ripetute.
-  const repeatSection = repeatTiles || '<div class="mtest-combined-hint">Per il calcolo delle ripetute corte fai il test sul 1000.</div>';
+  // Se manca il Tempo sul 1000 un avviso arancio prende il posto delle tile
+  // delle ripetute (senza quel dato non c'è modo di calcolarle). Se manca la
+  // VAM diretta, le zone di ritmo si vedono comunque (ricavate dal Tempo sul
+  // 1000, vedi sopra) ma un avviso viola sotto ricorda che sono una stima.
+  const repeatSection = repeatTiles || '<div class="mtest-combined-hint mtest-combined-hint-thousand">Per il calcolo delle ripetute corte fai il test sul 1000.</div>';
+  const vamHint = !latestVam && zoneTiles
+    ? '<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.</div>'
+    : '';
 
   return `
     <div class="mtest-combined">
       <span class="mtest-block-label">Proiezioni sui lavori</span>
-      <div class="calc-output">${repeatSection}${zoneTiles}</div>
+      <div class="mtest-proj-group">
+        <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
+        <div class="calc-output">${repeatSection}</div>
+      </div>
+      <div class="mtest-proj-group">
+        <span class="mtest-proj-group-label mtest-proj-group-label-vam">Ritmi</span>
+        <div class="calc-output">${zoneTiles}</div>
+        ${vamHint}
+      </div>
     </div>
   `;
 }
@@ -4706,7 +4719,7 @@ function masterSummaryTileMarkup(testKey, tests) {
   const displayValue = hasData ? masterTestDisplayValue(testKey, latest) : '– : –';
   const subLine = hasData ? escapeHtml(latest.date) : 'Nessuna prova';
   return `
-    <div class="v2-tile${hasData ? '' : ' v2-tile-empty-slot'}">
+    <div class="v2-tile v2-tile-${testKey}${hasData ? '' : ' v2-tile-empty-slot'}">
       <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>${escapeHtml(MASTER_TEST_TITLES[testKey])}</div>
       <div class="v2-tile-val">${escapeHtml(displayValue)}</div>
       <div class="v2-tile-sub">${subLine}</div>

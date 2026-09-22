@@ -13,6 +13,10 @@
   --danger-dark: #ba3838;
   --success: #1d7a5d;
   --shadow: 0 16px 36px rgba(148, 163, 184, 0.12);
+  /* Stesso colore dei rispettivi grafici, riusato ovunque nella card Master
+     per legare visivamente un dato alla sua fonte (VAM o Tempo sul 1000). */
+  --vam-color: #8b5cf6;
+  --thousand-color: #FF5C3A;
 }
 
 * {
@@ -2827,6 +2831,16 @@ button:active {
   opacity: 0.55;
 }
 
+/* Stesso bordo colorato delle proiezioni già sulla tile riassuntiva, così il
+   colore si riconosce anche a card chiusa, prima di aprire il pannello. */
+.v2-tile-vam {
+  border-color: rgba(139, 92, 246, 0.45);
+}
+
+.v2-tile-thousand {
+  border-color: rgba(255, 92, 58, 0.45);
+}
+
 .v2-actions {
   display: flex;
   align-items: center;
@@ -2979,6 +2993,15 @@ button:active {
   flex-wrap: wrap;
 }
 
+/* .calc-input-row (comune a entrambe le righe) fissa il proprio display,
+   sovrascrivendo altrimenti la regola nativa [hidden]{display:none} (stesso
+   bug di .calc-module[hidden] più sopra nel file). */
+.mtest-meters-row[hidden],
+.mtest-vam-result-row[hidden],
+.mtest-meters-label[hidden] {
+  display: none;
+}
+
 .mtest-calc-result {
   flex: 1 1 auto;
   min-width: 0;
@@ -2998,6 +3021,38 @@ button:active {
   border-top: 1px dashed var(--card-border);
 }
 
+/* Stesso colore anche sul titolo del binario, così si lega la sezione dove
+   il dato si inserisce/storicizza alla stessa tinta usata nelle tile
+   riassuntive e nelle proiezioni. */
+.mtest-block[data-test="vam"] > .mtest-block-label {
+  color: var(--vam-color);
+}
+
+.mtest-block[data-test="thousand"] > .mtest-block-label {
+  color: var(--thousand-color);
+}
+
+.mtest-proj-group + .mtest-proj-group {
+  margin-top: 14px;
+}
+
+.mtest-proj-group-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.mtest-proj-group-label-thousand {
+  color: var(--thousand-color);
+}
+
+.mtest-proj-group-label-vam {
+  color: var(--vam-color);
+}
+
 .mtest-combined-hint {
   flex: 1 1 100%;
   padding: 10px 12px;
@@ -3007,6 +3062,19 @@ button:active {
   font-style: italic;
   color: var(--muted);
   text-align: center;
+}
+
+.mtest-proj-group > .mtest-combined-hint {
+  flex: none;
+  margin-top: 8px;
+}
+
+.mtest-combined-hint-thousand {
+  border-color: rgba(255, 92, 58, 0.45);
+}
+
+.mtest-combined-hint-vam {
+  border-color: rgba(139, 92, 246, 0.45);
 }
 
 /* Riga del tempo reale su cui si basano le proiezioni */
