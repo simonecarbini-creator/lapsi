@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-21e';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: diario allenamenti tra i test e grafico andamento');
+const APP_BUILD = '2026-09-22a';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: VAM e Tempo sul 1000 come binari indipendenti, proiezioni raggruppate');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4220,10 +4220,11 @@ function getMaster() {
   return [...cachedMaster];
 }
 
-// Una prova di un test incorporato nella card ("Tempo sul 1000" per le
-// ripetute brevi, VAM o "Tempo sul 1000" per il mezzofondo). Storico
-// append-only: "ripeti test" aggiunge una prova nuova, la matita corregge
-// solo l'ultima (per un errore di battitura, non per riscrivere la storia).
+// Una prova di un test incorporato nella card: VAM o Tempo sul 1000, due
+// binari indipendenti (non più una scelta esclusiva). Storico append-only:
+// "ripeti test" aggiunge una prova nuova, la matita corregge solo l'ultima
+// (per un errore di battitura, non per riscrivere la storia); il cestino
+// elimina una prova specifica, anche fino a svuotare il binario.
 function normalizeMasterTestEntry(record) {
   if (!record || typeof record !== 'object') {
     return null;
@@ -4234,7 +4235,6 @@ function normalizeMasterTestEntry(record) {
   }
   return {
     id: record.id || `mt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    src: record.src === 'k' ? 'k' : 'vam',
     value,
     date: String(record.date || ''),
     createdAt: record.createdAt || new Date(0).toISOString(),
@@ -4251,10 +4251,10 @@ function normalizeMasterAthlete(entry) {
     surname: entry.surname || '',
     avatar: entry.avatar || null,
     createdAt: entry.createdAt || new Date(0).toISOString(),
-    ripetuteTests: Array.isArray(entry.ripetuteTests) ? entry.ripetuteTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
-    mezzofondoTests: Array.isArray(entry.mezzofondoTests) ? entry.mezzofondoTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
-    ripetuteNotes: normalizeNotes(entry.ripetuteNotes),
-    mezzofondoNotes: normalizeNotes(entry.mezzofondoNotes),
+    vamTests: Array.isArray(entry.vamTests) ? entry.vamTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    vamNotes: normalizeNotes(entry.vamNotes),
+    thousandNotes: normalizeNotes(entry.thousandNotes),
   };
 }
 
@@ -4326,13 +4326,17 @@ function renderMasterPagination(total) {
   nav.innerHTML = paginationMarkup(masterCurrentPage, totalPages);
 }
 
-// ----- Test incorporati nella card (ripetute brevi + mezzofondo) -----
-// Ogni card ospita due test indipendenti dentro il pannello "→", entrambi
-// con lo stesso comportamento: vuoto -> richiesta di inserimento; salvato ->
-// storico append-only (ogni "Ripeti test" aggiunge una prova, non sovrascrive
-// le precedenti — solo la matita corregge l'ultima, per un errore di
-// battitura). Solo l'ultima prova mostra le proiezioni sui lavori.
-const MASTER_TEST_TITLES = { ripetute: 'Ripetute brevi', mezzofondo: 'Mezzofondo e fondo' };
+// ----- Test incorporati nella card (VAM + Tempo sul 1000) -----
+// Due binari indipendenti (non più una scelta esclusiva tra VAM e tempo, né
+// una categoria "ripetute brevi" a parte): ciascuno vuoto -> richiesta di
+// inserimento; salvato -> storico append-only (ogni "Ripeti test" aggiunge
+// una prova, non sovrascrive le precedenti — solo la matita corregge
+// l'ultima, per un errore di battitura; il cestino elimina una prova
+// specifica, anche fino a svuotare il binario). Le proiezioni sui lavori
+// (ripetute + zone di ritmo) sono invece raggruppate in un'unica sezione che
+// legge l'ultima prova di entrambi i binari — vedi masterCombinedProjectionsMarkup.
+const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
+const MASTER_TEST_KEYS = ['vam', 'thousand'];
 
 // Chiave "athleteId:testKey" -> 'edit' (corregge l'ultima prova) | 'repeat'
 // (ne aggiunge una nuova): stato solo di UI, non persistito.
@@ -4343,76 +4347,36 @@ let masterTestEditing = new Map();
 // senza questo l'espansione si perderebbe a ogni salvataggio.
 let masterExpandedPanels = new Set();
 
-function masterTestNameLabel(testKey, src) {
-  if (testKey === 'ripetute') {
-    return 'Tempo sul 1000';
-  }
-  return src === 'k' ? 'Tempo sul 1000' : 'VAM';
-}
-
 function masterTestDisplayValue(testKey, test) {
-  if (testKey === 'mezzofondo' && test.src === 'vam') {
-    return `${test.value} km/h`;
-  }
-  return test.value;
-}
-
-function masterTestProjectionsMarkup(testKey, test) {
-  if (testKey === 'ripetute') {
-    const T = RipeteCalc.parseThousand(test.value);
-    if (!T) {
-      return '';
-    }
-    const tiles = RipeteCalc.repeatTimesFor(T, RipeteCalc.VOL_DEFAULT, RipeteCalc.REC_DEFAULT)
-      .map(({ dist, seconds }) => `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
-      .join('');
-    return `<div class="calc-output mtest-projections">${tiles}</div>`;
-  }
-  const vam = test.src === 'k' ? MezzofondoCalc.parseThousandToVam(test.value) : MezzofondoCalc.parseVam(test.value);
-  if (!vam) {
-    return '';
-  }
-  const tiles = MezzofondoCalc.pacesForVam(vam)
-    .map(({ label, minutes }) => `<div class="calc-out-tile"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
-    .join('');
-  return `<div class="calc-output mtest-projections">${tiles}</div>`;
+  return testKey === 'vam' ? `${test.value} km/h` : test.value;
 }
 
 function masterTestEntryMarkup(testKey, test, isLatest) {
-  const nameLabel = masterTestNameLabel(testKey, test.src);
   const displayValue = masterTestDisplayValue(testKey, test);
   const editBtn = isLatest ? `<button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>` : '';
   return `
     <div class="mtest-entry${isLatest ? ' mtest-entry-latest' : ''}">
-      <div class="mtest-head">
-        <span class="mtest-name">${escapeHtml(nameLabel)}</span>
-        <span class="mtest-value-wrap">
-          <span class="mtest-value">${escapeHtml(displayValue)}</span>
-          ${editBtn}
-        </span>
-        <span class="mtest-date">${escapeHtml(test.date)}</span>
-      </div>
-      ${isLatest ? masterTestProjectionsMarkup(testKey, test) : ''}
+      <span class="mtest-value-wrap">
+        <span class="mtest-value">${escapeHtml(displayValue)}</span>
+        ${editBtn}
+      </span>
+      <span class="mtest-date">${escapeHtml(test.date)}</span>
+      <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">
+        <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>
+      </button>
     </div>
   `;
 }
 
 function masterTestFormMarkup(testKey, prefill, showCancel) {
-  const src = testKey === 'mezzofondo' ? (prefill && prefill.src) || 'vam' : '';
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  const placeholder = testKey === 'ripetute' ? '4\'00"' : (src === 'k' ? '3\'47"' : '14,0');
-  const srcChipsMarkup = testKey === 'mezzofondo' ? `
-    <div class="chip-row mtest-src-chips" data-test="mezzofondo" role="group" aria-label="Tipo di dato">
-      <button type="button" class="fchip" data-value="vam">VAM in km/h</button>
-      <button type="button" class="fchip" data-value="k">Tempo sul 1000</button>
-    </div>` : '';
+  const placeholder = testKey === 'thousand' ? '4\'00"' : '14,0';
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
-      <span class="mtest-empty-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
-      ${srcChipsMarkup}
+      <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       <div class="calc-input-row">
-        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-src="${src}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="${placeholder}" />
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="${placeholder}" />
         <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="${testKey}">Salva</button>
         ${showCancel ? `<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="${testKey}">Annulla</button>` : ''}
       </div>
@@ -4420,17 +4384,13 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
   `;
 }
 
-// Grafico dell'andamento di un singolo test nel tempo (stesso stile di
-// buildResultsChart, ma un'unica serie): tempo sul 1000 -> secondi (più
-// basso è meglio, in alto nel grafico), VAM -> km/h (più alto è meglio). Per
-// il mezzofondo inserito come "Tempo sul 1000" si converte comunque in VAM,
-// così lo storico resta un'unica serie coerente anche cambiando sorgente.
+// Grafico dell'andamento di un binario nel tempo (stesso stile di
+// buildResultsChart, ma un'unica serie): Tempo sul 1000 -> secondi (più
+// basso è meglio, in alto nel grafico), VAM -> km/h (più alto è meglio).
 function buildMasterTestChart(tests, testKey) {
   const toPoint = (record) => {
     const t = parseItDate(record.date);
-    const v = testKey === 'ripetute'
-      ? RipeteCalc.parseThousand(record.value)
-      : (record.src === 'k' ? MezzofondoCalc.parseThousandToVam(record.value) : MezzofondoCalc.parseVam(record.value));
+    const v = testKey === 'thousand' ? RipeteCalc.parseThousand(record.value) : MezzofondoCalc.parseVam(record.value);
     return { t, v, date: record.date };
   };
   const points = tests
@@ -4443,9 +4403,9 @@ function buildMasterTestChart(tests, testKey) {
   }
 
   const uid = Math.random().toString(36).slice(2, 8);
-  const color = testKey === 'ripetute' ? CHART_RUN_COLOR : CHART_JUMP_COLOR;
-  const invert = testKey === 'ripetute'; // tempo più basso = meglio -> in alto
-  const formatValue = testKey === 'ripetute' ? formatChartClock : (v) => v.toFixed(1).replace('.', ',');
+  const color = testKey === 'thousand' ? CHART_RUN_COLOR : CHART_JUMP_COLOR;
+  const invert = testKey === 'thousand'; // tempo più basso = meglio -> in alto
+  const formatValue = testKey === 'thousand' ? formatChartClock : (v) => v.toFixed(1).replace('.', ',');
 
   const W = 340;
   const H = 146;
@@ -4535,8 +4495,8 @@ function buildMasterTestChart(tests, testKey) {
 }
 
 // Diario tra un test e la sua ripetizione: stesso componente delle note
-// atleta/velocista, ma uno per test (ripetuteNotes/mezzofondoNotes) invece
-// che uno solo per atleta.
+// atleta/velocista, ma uno per binario (vamNotes/thousandNotes) invece che
+// uno solo per atleta.
 function buildMasterTestNotesBlock(entry, testKey) {
   const notes = Array.isArray(entry[`${testKey}Notes`]) ? entry[`${testKey}Notes`] : [];
   const logMarkup = notes.length
@@ -4658,6 +4618,7 @@ function masterTestBlockMarkup(entry, testKey) {
   const historyMarkup = tests.map((t, i) => masterTestEntryMarkup(testKey, t, i === tests.length - 1)).join('');
   return `
     <div class="mtest-block" data-test="${testKey}">
+      <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       ${historyMarkup}
       ${buildMasterTestChart(tests, testKey)}
       ${buildMasterTestNotesBlock(entry, testKey)}
@@ -4666,23 +4627,61 @@ function masterTestBlockMarkup(entry, testKey) {
   `;
 }
 
-function masterSummaryTileMarkup(testKey, tests) {
-  if (!tests.length) {
+// Proiezioni sui lavori raggruppate: ripetute (dal Tempo sul 1000) + zone di
+// ritmo rigenerante/lenta/lunga/media/soglia/2000/1000 (dalla VAM). La VAM
+// usa la prova diretta se c'è, altrimenti la ricava dal Tempo sul 1000 —
+// così anche un solo binario compilato basta per avere le zone di ritmo.
+function masterCombinedProjectionsMarkup(entry) {
+  const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
+  const latestVam = entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
+
+  let repeatTiles = '';
+  if (latestThousand) {
+    const T = RipeteCalc.parseThousand(latestThousand.value);
+    if (T) {
+      repeatTiles = RipeteCalc.repeatTimesFor(T, RipeteCalc.VOL_DEFAULT, RipeteCalc.REC_DEFAULT)
+        .map(({ dist, seconds }) => `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
+        .join('');
+    }
+  }
+
+  const vam = latestVam
+    ? MezzofondoCalc.parseVam(latestVam.value)
+    : (latestThousand ? MezzofondoCalc.parseThousandToVam(latestThousand.value) : null);
+  let zoneTiles = '';
+  if (vam) {
+    zoneTiles = MezzofondoCalc.pacesForVam(vam)
+      .map(({ label, minutes }) => `<div class="calc-out-tile"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+      .join('');
+  }
+
+  if (!repeatTiles && !zoneTiles) {
     return '';
   }
-  const latest = tests[tests.length - 1];
-  const nameLabel = masterTestNameLabel(testKey, latest.src);
-  const displayValue = masterTestDisplayValue(testKey, latest);
+
   return `
-    <div class="v2-tile">
+    <div class="mtest-combined">
+      <span class="mtest-block-label">Proiezioni sui lavori</span>
+      <div class="calc-output">${repeatTiles}${zoneTiles}</div>
+    </div>
+  `;
+}
+
+function masterSummaryTileMarkup(testKey, tests) {
+  const hasData = tests.length > 0;
+  const latest = hasData ? tests[tests.length - 1] : null;
+  const displayValue = hasData ? masterTestDisplayValue(testKey, latest) : '– : –';
+  const subLine = hasData ? escapeHtml(latest.date) : 'Nessuna prova';
+  return `
+    <div class="v2-tile${hasData ? '' : ' v2-tile-empty-slot'}">
       <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>${escapeHtml(MASTER_TEST_TITLES[testKey])}</div>
       <div class="v2-tile-val">${escapeHtml(displayValue)}</div>
-      <div class="v2-tile-sub">${escapeHtml(nameLabel)} · ${escapeHtml(latest.date)}</div>
+      <div class="v2-tile-sub">${subLine}</div>
     </div>`;
 }
 
 function mtestApplyMask(input) {
-  const isTime = input.dataset.test === 'ripetute' || input.dataset.src === 'k';
+  const isTime = input.dataset.test === 'thousand';
   input.value = isTime ? formatTimeMask(input.dataset.digits || '') : formatVamMask(input.dataset.digits || '');
   const end = input.value.length;
   input.setSelectionRange(end, end);
@@ -4695,10 +4694,9 @@ async function handleMasterTestSave(saveBtn) {
   const input = saveBtn.closest('.mtest-block').querySelector('.mtest-input');
   const rawValue = input.value.trim();
 
-  const src = testKey === 'mezzofondo' ? (input.dataset.src === 'k' ? 'k' : 'vam') : undefined;
-  const parsedOk = testKey === 'ripetute'
+  const parsedOk = testKey === 'thousand'
     ? !!RipeteCalc.parseThousand(rawValue)
-    : !!(src === 'k' ? MezzofondoCalc.parseThousandToVam(rawValue) : MezzofondoCalc.parseVam(rawValue));
+    : !!MezzofondoCalc.parseVam(rawValue);
 
   if (!rawValue || !parsedOk) {
     alert('Inserisci un valore valido.');
@@ -4718,9 +4716,6 @@ async function handleMasterTestSave(saveBtn) {
     date: shortYearDate(now.date),
     createdAt: now.iso,
   };
-  if (src) {
-    newEntry.src = src;
-  }
 
   const fieldKey = `${testKey}Tests`;
   const editKey = `${athleteId}:${testKey}`;
@@ -4737,6 +4732,33 @@ async function handleMasterTestSave(saveBtn) {
   masterTestEditing.delete(editKey);
   renderMaster();
   showToast('Salvato!');
+}
+
+async function handleMasterEntryDelete(button) {
+  const testKey = button.dataset.test;
+  const entryId = button.dataset.id;
+  const card = button.closest('.athlete-item');
+  const athleteId = card.dataset.id;
+  const fieldKey = `${testKey}Tests`;
+
+  const confirmed = await showConfirm('Eliminare questa prova?', {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Elimina',
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  const currentList = Array.isArray(entries[index][fieldKey]) ? entries[index][fieldKey] : [];
+  entries[index] = { ...entries[index], [fieldKey]: currentList.filter((t) => t.id !== entryId) };
+  await saveMaster(entries);
+  renderMaster();
+  showToast('Eliminato!');
 }
 
 function masterCollapseOtherCards(exceptItem) {
@@ -4900,12 +4922,7 @@ function renderMaster() {
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
 
-    const ripetuteTile = masterSummaryTileMarkup('ripetute', entry.ripetuteTests);
-    const mezzofondoTile = masterSummaryTileMarkup('mezzofondo', entry.mezzofondoTests);
-    const tilesInner = ripetuteTile + mezzofondoTile;
-    const tilesMarkup = tilesInner
-      ? `<div class="v2-tiles">${tilesInner}</div>`
-      : '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato registrato</div></div>';
+    const tilesMarkup = `<div class="v2-tiles">${MASTER_TEST_KEYS.map((key) => masterSummaryTileMarkup(key, entry[`${key}Tests`])).join('')}</div>`;
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
@@ -4955,15 +4972,11 @@ function renderMaster() {
     panel.className = 'projection-panel';
     panel.hidden = !isExpanded;
     panel.innerHTML = `
-      ${masterTestBlockMarkup(entry, 'ripetute')}
-      ${masterTestBlockMarkup(entry, 'mezzofondo')}
+      ${masterTestBlockMarkup(entry, 'vam')}
+      ${masterTestBlockMarkup(entry, 'thousand')}
+      ${masterCombinedProjectionsMarkup(entry)}
     `;
     item.appendChild(panel);
-
-    panel.querySelectorAll('.mtest-src-chips').forEach((group) => {
-      const input = group.closest('.mtest-block').querySelector('.mtest-input');
-      setChipGroupSelection(group, input.dataset.src);
-    });
 
     masterListEl.appendChild(item);
   });
@@ -4981,6 +4994,12 @@ async function handleMasterListClick(event) {
   const notesButton = event.target.closest('.mtest-notes .notes-btn');
   if (notesButton) {
     await handleMasterTestNotesAdd(notesButton);
+    return;
+  }
+
+  const entryDelButton = event.target.closest('.mtest-entry-del');
+  if (entryDelButton) {
+    await handleMasterEntryDelete(entryDelButton);
     return;
   }
 
@@ -5004,19 +5023,6 @@ async function handleMasterListClick(event) {
     const card = cancelBtn.closest('.athlete-item');
     masterTestEditing.delete(`${card.dataset.id}:${cancelBtn.dataset.test}`);
     renderMaster();
-    return;
-  }
-
-  const srcChip = event.target.closest('.mtest-src-chips .fchip');
-  if (srcChip) {
-    const group = srcChip.closest('.mtest-src-chips');
-    const newSrc = srcChip.dataset.value;
-    setChipGroupSelection(group, newSrc);
-    const input = group.closest('.mtest-block').querySelector('.mtest-input');
-    input.dataset.src = newSrc;
-    input.dataset.digits = newSrc === 'k' ? '400' : '140';
-    input.placeholder = newSrc === 'k' ? '3\'47"' : '14,0';
-    mtestApplyMask(input);
     return;
   }
 
@@ -5106,8 +5112,8 @@ async function handleMasterListClick(event) {
   const remaining = entries.filter((entry) => entry.id !== entryId);
   await saveMaster(remaining);
   masterExpandedPanels.delete(entryId);
-  masterTestEditing.delete(`${entryId}:ripetute`);
-  masterTestEditing.delete(`${entryId}:mezzofondo`);
+  masterTestEditing.delete(`${entryId}:vam`);
+  masterTestEditing.delete(`${entryId}:thousand`);
   renderMaster();
   showToast('Eliminato!');
 }
