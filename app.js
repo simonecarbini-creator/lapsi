@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22e';
-console.log('[Lapsi] build', APP_BUILD, '— colori VAM/1000 richiamati su tile ed etichette, avviso VAM stimata');
+const APP_BUILD = '2026-09-22f';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: VAM e Tempo sul 1000 affiancati, pulsanti a icona');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4367,14 +4367,20 @@ function masterTestEntryMarkup(testKey, test, isLatest) {
   `;
 }
 
+// Icone dei pulsanti di calcolo/conferma dei due binari — riquadri stretti e
+// affiancati, niente spazio per etichette testuali.
+const MTEST_CALC_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8" y2="11"/><line x1="12" y1="11" x2="12" y2="11"/><line x1="16" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="8" y2="15"/><line x1="12" y1="15" x2="12" y2="15"/><line x1="16" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="8" y2="19"/><line x1="12" y1="19" x2="12" y2="19"/></svg>';
+const MTEST_CHECK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+const MTEST_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
+
 // Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
 // metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
 // VAM = metri / 100 (equivalente a metri × 10 / 1000), arrotondata al decimo.
 // La VAM si inserisce solo passando dai metri percorsi in 6 minuti (più
 // comodo da rilevare durante un test sul campo): una riga alla volta — prima
-// i metri + "Calcola", poi il risultato in km/h con "Salva"/"Ricalcola". Il
-// valore vero e proprio vive in un input nascosto, così handleMasterTestSave
-// non deve sapere come ci si è arrivati.
+// i metri + calcolatrice, poi il risultato in km/h con spunta (salva) e
+// reload (ricalcola) sotto. Il valore vero e proprio vive in un input
+// nascosto, così handleMasterTestSave non deve sapere come ci si è arrivati.
 function masterVamFormMarkup(prefill, showCancel) {
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -4382,15 +4388,17 @@ function masterVamFormMarkup(prefill, showCancel) {
   return `
     <div class="mtest-block mtest-empty-block" data-test="vam">
       <span class="mtest-block-label">VAM</span>
-      <span class="mtest-meters-label"${showCancel ? ' hidden' : ''}>Metri percorsi in 6 minuti</span>
+      <span class="mtest-meters-label"${showCancel ? ' hidden' : ''}>Metri in 6 min</span>
       <div class="calc-input-row mtest-meters-row"${showCancel ? ' hidden' : ''}>
-        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="es. 1500" />
-        <button type="button" class="fbtn fbtn-primary mtest-calc-btn" data-test="vam">Calcola</button>
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
+        <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
       </div>
-      <div class="calc-input-row mtest-vam-result-row"${showCancel ? '' : ' hidden'}>
+      <div class="mtest-vam-result-row"${showCancel ? '' : ' hidden'}>
         <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
-        <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="vam">Salva</button>
-        <button type="button" class="fbtn fbtn-ghost mtest-calc-reset-btn" data-test="vam">Ricalcola</button>
+        <div class="mtest-calc-actions-row">
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+        </div>
       </div>
       ${cancelBtn}
       <input type="text" hidden class="mtest-input" data-test="vam" data-digits="${digits}" value="${escapeHtml(value)}" />
@@ -4409,9 +4417,70 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       <div class="calc-input-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="4'00&quot;" />
-        <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="${testKey}">Salva</button>
+        <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="${testKey}" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
         ${showCancel ? `<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="${testKey}">Annulla</button>` : ''}
       </div>
+    </div>
+  `;
+}
+
+// Vista compatta dell'ultima prova (valore, data, matita, cestino) quando il
+// binario ha già dati e non è in modifica — vive nella colonna stretta
+// affiancata all'altro binario; lo storico completo e il grafico stanno
+// invece sotto, a piena larghezza (vedi masterTestDetailMarkup).
+function masterTestCompactEntryMarkup(testKey, test) {
+  const displayValue = masterTestDisplayValue(testKey, test);
+  return `
+    <div class="mtest-compact-entry">
+      <span class="mtest-compact-value">${escapeHtml(displayValue)}</span>
+      <span class="mtest-compact-date">${escapeHtml(test.date)}</span>
+      <div class="mtest-compact-actions">
+        <button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>
+        <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Contenuto della colonna stretta (una per binario, affiancate): il form se
+// vuoto/in modifica, altrimenti solo l'ultima prova in forma compatta.
+function masterTestCompactMarkup(entry, testKey) {
+  const tests = entry[`${testKey}Tests`] || [];
+  const editKey = `${entry.id}:${testKey}`;
+  const mode = masterTestEditing.get(editKey);
+  if (mode) {
+    const prefill = tests.length ? tests[tests.length - 1] : null;
+    return masterTestFormMarkup(testKey, prefill, tests.length > 0);
+  }
+  if (!tests.length) {
+    return masterTestFormMarkup(testKey, null, false);
+  }
+  const latest = tests[tests.length - 1];
+  return `
+    <div class="mtest-compact-wrap" data-test="${testKey}">
+      <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
+      ${masterTestCompactEntryMarkup(testKey, latest)}
+    </div>
+  `;
+}
+
+// Storico oltre l'ultima prova (già in colonna) + grafico + "Ripeti test", a
+// piena larghezza sotto le due colonne — niente se il binario è vuoto o in
+// modifica (il form vive già nella colonna).
+function masterTestDetailMarkup(entry, testKey) {
+  const tests = entry[`${testKey}Tests`] || [];
+  const editKey = `${entry.id}:${testKey}`;
+  if (masterTestEditing.has(editKey) || !tests.length) {
+    return '';
+  }
+  const olderEntries = tests.slice(0, -1).map((t) => masterTestEntryMarkup(testKey, t, false)).join('');
+  return `
+    <div class="mtest-detail" data-test="${testKey}">
+      ${olderEntries}
+      ${buildMasterTestChart(tests, testKey)}
+      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
     </div>
   `;
 }
@@ -4632,28 +4701,6 @@ async function handleMasterTestNotesClear(button) {
   block.querySelector('.notes-log').innerHTML = '<div class="notes-empty">Nessun allenamento annotato</div>';
   button.hidden = true;
   showToast('Annotazioni cancellate!');
-}
-
-function masterTestBlockMarkup(entry, testKey) {
-  const tests = entry[`${testKey}Tests`] || [];
-  const editKey = `${entry.id}:${testKey}`;
-  const mode = masterTestEditing.get(editKey);
-  if (mode) {
-    const prefill = tests.length ? tests[tests.length - 1] : null;
-    return masterTestFormMarkup(testKey, prefill, tests.length > 0);
-  }
-  if (!tests.length) {
-    return masterTestFormMarkup(testKey, null, false);
-  }
-  const historyMarkup = tests.map((t, i) => masterTestEntryMarkup(testKey, t, i === tests.length - 1)).join('');
-  return `
-    <div class="mtest-block" data-test="${testKey}">
-      <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
-      ${historyMarkup}
-      ${buildMasterTestChart(tests, testKey)}
-      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
-    </div>
-  `;
 }
 
 // Proiezioni sui lavori raggruppate: ripetute (dal Tempo sul 1000) + zone di
@@ -5055,8 +5102,12 @@ function renderMaster() {
     panel.className = 'projection-panel';
     panel.hidden = !isExpanded;
     panel.innerHTML = `
-      ${masterTestBlockMarkup(entry, 'vam')}
-      ${masterTestBlockMarkup(entry, 'thousand')}
+      <div class="mtest-calc-grid">
+        <div class="mtest-calc-col">${masterTestCompactMarkup(entry, 'vam')}</div>
+        <div class="mtest-calc-col">${masterTestCompactMarkup(entry, 'thousand')}</div>
+      </div>
+      ${masterTestDetailMarkup(entry, 'vam')}
+      ${masterTestDetailMarkup(entry, 'thousand')}
       ${masterCombinedProjectionsMarkup(entry)}
       ${buildMasterNotesBlock(entry)}
     `;

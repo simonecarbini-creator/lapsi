@@ -2859,14 +2859,40 @@ button:active {
   margin-left: auto;
 }
 
-/* Test incorporati nella card Master (VAM + Tempo sul 1000), dentro il
-   pannello "→": ogni binario è vuoto->richiesta di input, oppure uno storico
-   di prove (append-only) con grafico, diario e "ripeti test". Le proiezioni
-   sui lavori sono raggruppate a parte, vedi .mtest-combined. */
-.mtest-block + .mtest-block {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--card-border);
+/* Test incorporati nella card Master (VAM + Tempo sul 1000): due colonne
+   affiancate con lo stato compatto di ciascun binario (form se vuoto/in
+   modifica, altrimenti solo l'ultima prova) — staccate dalle icone
+   matita/cestino/freccia sopra. Storico oltre l'ultima prova, grafico e
+   "ripeti test" stanno invece sotto, a piena larghezza (vedi .mtest-detail).
+   Le proiezioni sui lavori sono raggruppate a parte, vedi .mtest-combined. */
+.mtest-calc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.mtest-calc-col {
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mtest-calc-col .calc-input-row {
+  gap: 6px;
+}
+
+.mtest-calc-col .calc-input {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mtest-calc-col .fbtn {
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 0.7rem;
 }
 
 .mtest-block-label {
@@ -2875,6 +2901,80 @@ button:active {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--muted);
+}
+
+.mtest-block[data-test="vam"] > .mtest-block-label,
+.mtest-compact-wrap[data-test="vam"] > .mtest-block-label {
+  color: var(--vam-color);
+}
+
+.mtest-block[data-test="thousand"] > .mtest-block-label,
+.mtest-compact-wrap[data-test="thousand"] > .mtest-block-label {
+  color: var(--thousand-color);
+}
+
+/* Pulsanti a sola icona (calcolatrice/spunta/reload): niente spazio per il
+   testo in una colonna stretta e affiancata all'altra. */
+.mtest-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mtest-icon-btn-primary {
+  background: #e4f4ea;
+  color: #1a6f52;
+}
+
+.mtest-icon-btn-primary:hover {
+  background: #d5ecdf;
+}
+
+.mtest-icon-btn-ghost {
+  background: #ffe1dc;
+  color: #c53d30;
+}
+
+.mtest-icon-btn-ghost:hover {
+  background: #f9d0c9;
+}
+
+/* Vista compatta dell'ultima prova (colonna stretta): valore/data impilati,
+   matita/cestino piccoli sotto — invece della riga larga usata nello
+   storico a piena larghezza (.mtest-entry, sotto). */
+.mtest-compact-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mtest-compact-value {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mtest-compact-date {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.mtest-compact-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.mtest-detail {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--card-border);
 }
 
 .mtest-entry {
@@ -2947,7 +3047,7 @@ button:active {
   white-space: nowrap;
 }
 
-.mtest-block .results-chart {
+.mtest-detail .results-chart {
   margin-top: 14px;
 }
 
@@ -2972,10 +3072,6 @@ button:active {
   flex-wrap: wrap;
 }
 
-.mtest-empty-block .calc-input {
-  width: 100px;
-}
-
 .mtest-meters-row {
   margin-bottom: 12px;
   padding-bottom: 12px;
@@ -2990,27 +3086,34 @@ button:active {
 }
 
 .mtest-vam-result-row {
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-/* .calc-input-row (comune a entrambe le righe) fissa il proprio display,
-   sovrascrivendo altrimenti la regola nativa [hidden]{display:none} (stesso
-   bug di .calc-module[hidden] più sopra nel file). */
+/* .calc-input-row (riga metri) fissa il proprio display, sovrascrivendo
+   altrimenti la regola nativa [hidden]{display:none} (stesso bug di
+   .calc-module[hidden] più sopra nel file). */
 .mtest-meters-row[hidden],
 .mtest-vam-result-row[hidden],
 .mtest-meters-label[hidden] {
   display: none;
 }
 
+.mtest-calc-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
 .mtest-calc-result {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 0.9rem;
+  display: block;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
 .mtest-calc-result-val {
   color: var(--text);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
