@@ -2944,13 +2944,20 @@ button:active {
   background: #f9d0c9;
 }
 
-/* Vista compatta dell'ultima prova (colonna stretta): valore/data impilati,
-   matita/cestino piccoli sotto — invece della riga larga usata nello
-   storico a piena larghezza (.mtest-entry, sotto). */
-.mtest-compact-entry {
+/* Ultima prova (colonna stretta): valore in grande, matita/cestino ancorati
+   a destra sulla stessa riga, data sotto. */
+.mtest-latest-entry {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.mtest-latest-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .mtest-compact-value {
@@ -2968,40 +2975,34 @@ button:active {
 .mtest-compact-actions {
   display: flex;
   gap: 6px;
-  margin-top: 2px;
+  flex-shrink: 0;
 }
 
-.mtest-detail {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--card-border);
-}
-
-.mtest-entry {
+/* Prove precedenti (stesso riquadro, sotto l'ultima): valore piccolo non in
+   bold, data e cestino ancorati a destra — niente matita, si corregge solo
+   l'ultima. */
+.mtest-older-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
-}
-
-.mtest-entry + .mtest-entry {
+  gap: 6px;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dotted var(--card-border);
 }
 
-.mtest-value-wrap {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.mtest-older-value {
   flex: 1 1 auto;
   min-width: 0;
-}
-
-.mtest-value {
-  font-weight: 800;
+  font-size: 0.82rem;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+.mtest-older-date {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .mtest-edit-btn,
@@ -3040,21 +3041,25 @@ button:active {
   display: block;
 }
 
-.mtest-date {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: 0.72rem;
-  white-space: nowrap;
+/* Grafico, a piena larghezza sotto le due colonne (troppo stretto per
+   starci dentro). */
+.mtest-chart-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--card-border);
 }
 
-.mtest-detail .results-chart {
-  margin-top: 14px;
+.mtest-repeat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .mtest-repeat-btn {
+  flex: 1 1 auto;
+  min-width: 0;
   display: block;
-  width: 100%;
-  margin-top: 12px;
   padding: 8px;
   border-radius: 12px;
   border: 1px dashed var(--card-border);
@@ -3066,6 +3071,23 @@ button:active {
 
 .mtest-repeat-btn:hover {
   background: var(--bg-strong);
+}
+
+.mtest-info-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--muted);
+}
+
+.mtest-info-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
 }
 
 .mtest-empty-block .calc-input-row {

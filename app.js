@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22f';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: VAM e Tempo sul 1000 affiancati, pulsanti a icona');
+const APP_BUILD = '2026-09-22g';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: storico e ripeti test per colonna, info 6-8 settimane, ordine 1000/VAM');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4335,7 +4335,9 @@ function renderMasterPagination(total) {
 // (ripetute + zone di ritmo) sono invece raggruppate in un'unica sezione che
 // legge l'ultima prova di entrambi i binari — vedi masterCombinedProjectionsMarkup.
 const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
-const MASTER_TEST_KEYS = ['vam', 'thousand'];
+// Ordine di visualizzazione (tile riassuntive + colonne nel pannello): Tempo
+// sul 1000 a sinistra, VAM a destra.
+const MASTER_TEST_KEYS = ['thousand', 'vam'];
 
 // Chiave "athleteId:testKey" -> 'edit' (corregge l'ultima prova) | 'repeat'
 // (ne aggiunge una nuova): stato solo di UI, non persistito.
@@ -4350,28 +4352,13 @@ function masterTestDisplayValue(testKey, test) {
   return testKey === 'vam' ? `${test.value} km/h` : test.value;
 }
 
-function masterTestEntryMarkup(testKey, test, isLatest) {
-  const displayValue = masterTestDisplayValue(testKey, test);
-  const editBtn = isLatest ? `<button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>` : '';
-  return `
-    <div class="mtest-entry${isLatest ? ' mtest-entry-latest' : ''}">
-      <span class="mtest-value-wrap">
-        <span class="mtest-value">${escapeHtml(displayValue)}</span>
-        ${editBtn}
-      </span>
-      <span class="mtest-date">${escapeHtml(test.date)}</span>
-      <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">
-        <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>
-      </button>
-    </div>
-  `;
-}
-
 // Icone dei pulsanti di calcolo/conferma dei due binari — riquadri stretti e
 // affiancati, niente spazio per etichette testuali.
 const MTEST_CALC_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="11" x2="8" y2="11"/><line x1="12" y1="11" x2="12" y2="11"/><line x1="16" y1="11" x2="16" y2="11"/><line x1="8" y1="15" x2="8" y2="15"/><line x1="12" y1="15" x2="12" y2="15"/><line x1="16" y1="15" x2="16" y2="15"/><line x1="8" y1="19" x2="8" y2="19"/><line x1="12" y1="19" x2="12" y2="19"/></svg>';
 const MTEST_CHECK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 const MTEST_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
+const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>';
+const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
 
 // Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
 // metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
@@ -4424,29 +4411,53 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
   `;
 }
 
-// Vista compatta dell'ultima prova (valore, data, matita, cestino) quando il
-// binario ha già dati e non è in modifica — vive nella colonna stretta
-// affiancata all'altro binario; lo storico completo e il grafico stanno
-// invece sotto, a piena larghezza (vedi masterTestDetailMarkup).
-function masterTestCompactEntryMarkup(testKey, test) {
+// Ultima prova: valore grande in bold con matita/cestino ancorati a destra
+// sulla stessa riga, data sotto.
+function masterTestLatestEntryMarkup(testKey, test) {
   const displayValue = masterTestDisplayValue(testKey, test);
   return `
-    <div class="mtest-compact-entry">
-      <span class="mtest-compact-value">${escapeHtml(displayValue)}</span>
-      <span class="mtest-compact-date">${escapeHtml(test.date)}</span>
-      <div class="mtest-compact-actions">
-        <button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>
-        <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">
-          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>
-        </button>
+    <div class="mtest-latest-entry">
+      <div class="mtest-latest-row">
+        <span class="mtest-compact-value">${escapeHtml(displayValue)}</span>
+        <div class="mtest-compact-actions">
+          <button type="button" class="mtest-edit-btn" data-test="${testKey}" aria-label="Modifica risultato">✎</button>
+          <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
+        </div>
       </div>
+      <span class="mtest-compact-date">${escapeHtml(test.date)}</span>
     </div>
   `;
 }
 
-// Contenuto della colonna stretta (una per binario, affiancate): il form se
-// vuoto/in modifica, altrimenti solo l'ultima prova in forma compatta.
-function masterTestCompactMarkup(entry, testKey) {
+// Prove precedenti: valore piccolo non in bold, data e cestino ancorati a
+// destra sulla stessa riga — nessuna matita (si corregge solo l'ultima).
+function masterTestOlderEntryMarkup(testKey, test) {
+  const displayValue = masterTestDisplayValue(testKey, test);
+  return `
+    <div class="mtest-older-entry">
+      <span class="mtest-older-value">${escapeHtml(displayValue)}</span>
+      <span class="mtest-older-date">${escapeHtml(test.date)}</span>
+      <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
+    </div>
+  `;
+}
+
+function masterRepeatRowMarkup(testKey) {
+  return `
+    <div class="mtest-repeat-row">
+      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
+      <button type="button" class="mtest-info-btn" data-test="${testKey}" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
+    </div>
+  `;
+}
+
+// Colonna di un binario (una per test, affiancate): il form se vuoto/in
+// modifica; altrimenti l'ultima prova in grande seguita dalle precedenti più
+// piccole (più recente prima) e da "Ripeti test" — tutto nello stesso
+// riquadro, non più diviso tra colonna e sezione a parte. Il grafico resta
+// invece a piena larghezza sotto entrambe le colonne (vedi
+// masterTestChartSectionMarkup), perché troppo stretto per starci dentro.
+function masterTestColumnMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
   const editKey = `${entry.id}:${testKey}`;
   const mode = masterTestEditing.get(editKey);
@@ -4458,31 +4469,26 @@ function masterTestCompactMarkup(entry, testKey) {
     return masterTestFormMarkup(testKey, null, false);
   }
   const latest = tests[tests.length - 1];
+  const olderMarkup = tests.slice(0, -1).reverse().map((t) => masterTestOlderEntryMarkup(testKey, t)).join('');
   return `
     <div class="mtest-compact-wrap" data-test="${testKey}">
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
-      ${masterTestCompactEntryMarkup(testKey, latest)}
+      ${masterTestLatestEntryMarkup(testKey, latest)}
+      ${olderMarkup}
+      ${masterRepeatRowMarkup(testKey)}
     </div>
   `;
 }
 
-// Storico oltre l'ultima prova (già in colonna) + grafico + "Ripeti test", a
-// piena larghezza sotto le due colonne — niente se il binario è vuoto o in
-// modifica (il form vive già nella colonna).
-function masterTestDetailMarkup(entry, testKey) {
-  const tests = entry[`${testKey}Tests`] || [];
-  const editKey = `${entry.id}:${testKey}`;
-  if (masterTestEditing.has(editKey) || !tests.length) {
+// Grafico dell'andamento, a piena larghezza sotto le due colonne — niente se
+// il binario è vuoto, in modifica, o ha meno di due prove (buildMasterTestChart
+// stessa già lo gestisce, ma evitiamo di aprire il wrapper per nulla).
+function masterTestChartSectionMarkup(entry, testKey) {
+  if (masterTestEditing.has(`${entry.id}:${testKey}`)) {
     return '';
   }
-  const olderEntries = tests.slice(0, -1).map((t) => masterTestEntryMarkup(testKey, t, false)).join('');
-  return `
-    <div class="mtest-detail" data-test="${testKey}">
-      ${olderEntries}
-      ${buildMasterTestChart(tests, testKey)}
-      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
-    </div>
-  `;
+  const chart = buildMasterTestChart(entry[`${testKey}Tests`] || [], testKey);
+  return chart ? `<div class="mtest-chart-section" data-test="${testKey}">${chart}</div>` : '';
 }
 
 // Grafico dell'andamento di un binario nel tempo (stesso stile di
@@ -4817,6 +4823,13 @@ function handleMasterVamRecalc(button) {
   metersInput.focus();
 }
 
+async function handleMasterTestInfo() {
+  await showChoice('Quando ripetere il test', {
+    detail: 'Per vedere un miglioramento reale, ripeti il test dopo 6-8 settimane di allenamento.',
+    options: [{ value: 'ok', label: 'Ho capito', className: 'app-btn-success' }],
+  });
+}
+
 async function handleMasterTestSave(saveBtn) {
   const testKey = saveBtn.dataset.test;
   const card = saveBtn.closest('.athlete-item');
@@ -5103,11 +5116,9 @@ function renderMaster() {
     panel.hidden = !isExpanded;
     panel.innerHTML = `
       <div class="mtest-calc-grid">
-        <div class="mtest-calc-col">${masterTestCompactMarkup(entry, 'vam')}</div>
-        <div class="mtest-calc-col">${masterTestCompactMarkup(entry, 'thousand')}</div>
+        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
       </div>
-      ${masterTestDetailMarkup(entry, 'vam')}
-      ${masterTestDetailMarkup(entry, 'thousand')}
+      ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
       ${masterCombinedProjectionsMarkup(entry)}
       ${buildMasterNotesBlock(entry)}
     `;
@@ -5153,6 +5164,12 @@ async function handleMasterListClick(event) {
   const saveBtn = event.target.closest('.mtest-save-btn');
   if (saveBtn) {
     await handleMasterTestSave(saveBtn);
+    return;
+  }
+
+  const infoBtn = event.target.closest('.mtest-info-btn');
+  if (infoBtn) {
+    await handleMasterTestInfo();
     return;
   }
 
