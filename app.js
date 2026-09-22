@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22p';
-console.log('[Lapsi] build', APP_BUILD, '— sezione menu "Come funzionano i calcoli"');
+const APP_BUILD = '2026-09-22q';
+console.log('[Lapsi] build', APP_BUILD, '— deduzione volume pause lunghe raddoppiata (1/2 km)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4516,16 +4516,20 @@ function masterSeriesBlockRowMarkup(block, index) {
 
 // Soglie del recupero tra le serie che riducono il volume usato nel calcolo
 // del passo (vedi masterSeriesBuilderMarkup): sotto i 4' la pausa è normale
-// e non tocca il volume; da 4' a meno di 8' vale una pausa "lunga" (-0,5 km);
-// da 8' in su una pausa "molto lunga" (-1 km) — non cumulativo, il valore più
+// e non tocca il volume; da 4' a meno di 8' vale una pausa "lunga" (-1 km);
+// da 8' in su una pausa "molto lunga" (-2 km) — non cumulativo, il valore più
 // alto sostituisce quello più basso. Le soglie si applicano al recupero
 // EFFETTIVO (RipeteCalc.effectiveRecovery): se è attivo, 9' di corsetta
 // blanda valgono come una pausa passiva più corta, e possono restare sotto
-// una soglia che con un recupero passivo scatterebbe.
+// una soglia che con un recupero passivo scatterebbe — visto che adjVol (la
+// correzione esistente, non toccata) ha una pendenza dolce, l'attraversare o
+// no una soglia va "amplificato" qui sulla deduzione perché si veda sul
+// tempo finale (vedi conversazione: con -0,5/-1 km un salto di soglia intera
+// spostava il target di ~1"; raddoppiato a -1/-2 km diventa ~2-3").
 const MSERIES_GAP_MED_THRESHOLD = 240; // 4'
 const MSERIES_GAP_LONG_THRESHOLD = 480; // 8'
-const MSERIES_GAP_MED_DEDUCTION = 0.5; // km
-const MSERIES_GAP_LONG_DEDUCTION = 1; // km
+const MSERIES_GAP_MED_DEDUCTION = 1; // km
+const MSERIES_GAP_LONG_DEDUCTION = 2; // km
 
 function masterSeriesGapDeductionKm(gap) {
   const rec = seriesParseRecSeconds(gap.recDigits);
@@ -4548,7 +4552,7 @@ function masterSeriesGapNote(gap) {
     ? ` (corsa lenta, equivalente a ${RipeteCalc.formatLabel(Math.round(RipeteCalc.effectiveRecovery(rec, true)))} fermo)`
     : '';
   if (deduction === 0) return `rec ${label} tra le serie${activeNote}: conta per intero nel volume totale.`;
-  const kmLabel = deduction === MSERIES_GAP_LONG_DEDUCTION ? '1 km' : '0,5 km';
+  const kmLabel = `${String(deduction).replace('.', ',')} km`;
   return `rec ${label} tra le serie${activeNote}: abbastanza per far togliere ${kmLabel} dal volume totale.`;
 }
 
