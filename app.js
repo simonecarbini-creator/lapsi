@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22j';
-console.log('[Lapsi] build', APP_BUILD, '— rimossa riga vam vuota, riquadri allineati anche a dati misti');
+const APP_BUILD = '2026-09-22k';
+console.log('[Lapsi] build', APP_BUILD, '— simulatore serie ripetute nella card Master');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4360,6 +4360,164 @@ const MTEST_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-
 const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>';
 const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
 const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
+const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+// Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
+// [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si
+// azzera al reload) — le serie sono da costruire e provare lì per lì, non
+// dati storici come le prove VAM/1000. Stessa idea di masterTestEditing:
+// una Map a livello di modulo così sopravvive ai renderMaster() interni
+// (aggiungere/togliere un blocco, calcolare) senza serializzare nulla.
+let masterSeriesState = new Map();
+
+function masterSeriesDefaultBlock() {
+  return {
+    id: `mser-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    reps: '3',
+    dist: '400',
+    recDigits: '130',
+  };
+}
+
+function masterSeriesGetState(athleteId) {
+  if (!masterSeriesState.has(athleteId)) {
+    masterSeriesState.set(athleteId, { blocks: [masterSeriesDefaultBlock()], showResults: false });
+  }
+  return masterSeriesState.get(athleteId);
+}
+
+// Da un input dentro un .mseries-block (data-block-id) risale alla card
+// dell'atleta per trovare lo stato e il blocco giusti — usato dai listener
+// 'input'/'keydown' delegati, che scrivono il valore digitato direttamente
+// nello stato senza rifare il render (perderebbe il focus a ogni tasto).
+function masterSeriesFindBlock(inputEl) {
+  const card = inputEl.closest('.athlete-item');
+  const state = masterSeriesGetState(card.dataset.id);
+  return state.blocks.find((b) => b.id === inputEl.dataset.blockId);
+}
+
+// Maschera del recupero mentre si digita: come formatTimeMask ma con le
+// virgolette tipografiche (′ ″) usate da RipeteCalc.formatSeconds, e senza
+// il vincolo dei minuti (formatTimeMask va bene per "4'00"" del 1000, qui
+// un recupero di soli 45" è normale). 1-2 cifre = solo secondi, 3-4 = mm+ss.
+function seriesFormatRecMask(digits) {
+  const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, 4);
+  if (!d) return '';
+  if (d.length <= 2) return `${d}″`;
+  return `${d.slice(0, -2)}′${d.slice(-2)}″`;
+}
+
+function seriesParseRecSeconds(digits) {
+  const d = String(digits || '').replace(/[^0-9]/g, '');
+  if (!d) return null;
+  if (d.length <= 2) {
+    const s = parseInt(d, 10);
+    return s > 0 ? s : null;
+  }
+  const mm = parseInt(d.slice(0, -2), 10);
+  const ss = parseInt(d.slice(-2), 10);
+  if (Number.isNaN(mm) || Number.isNaN(ss) || ss > 59) return null;
+  const total = mm * 60 + ss;
+  return total > 0 ? total : null;
+}
+
+// "400" -> [400]; "200/300/400/600/400/300" -> [200,300,400,600,400,300].
+// Tiene l'ordine e le ripetizioni (un 400 due volte nella piramide resta
+// due voci distinte, serve a disegnare la serie così com'è) e scarta solo i
+// pezzi non numerici o fuori da un range plausibile per ripetute corte.
+function masterSeriesParseDistances(str) {
+  return String(str || '')
+    .split('/')
+    .map((part) => parseInt(part.replace(/[^0-9]/g, ''), 10))
+    .filter((n) => Number.isFinite(n) && n >= 50 && n <= 3000);
+}
+
+function masterSeriesBlockVolume(block) {
+  const reps = Math.max(1, parseInt(block.reps, 10) || 1);
+  const distances = masterSeriesParseDistances(block.dist);
+  return reps * distances.reduce((sum, d) => sum + d, 0);
+}
+
+function masterSeriesBlockRowMarkup(block, index) {
+  return `
+    <div class="mseries-block" data-block-id="${block.id}">
+      <div class="mseries-block-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-reps-input" data-block-id="${block.id}" value="${escapeHtml(block.reps)}" placeholder="N" aria-label="Numero ripetute" />
+        <span class="mseries-x">×</span>
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400 o 200/300/400" aria-label="Distanze" />
+        <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${index === 0 ? ' disabled' : ''}>${MTEST_DEL_ICON}</button>
+      </div>
+      <div class="mseries-block-rec-row">
+        <span class="mseries-rec-label">recupero</span>
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
+      </div>
+    </div>
+  `;
+}
+
+function masterSeriesResultBlockMarkup(block, T, totalKm) {
+  const reps = Math.max(1, parseInt(block.reps, 10) || 1);
+  const distances = masterSeriesParseDistances(block.dist);
+  const rec = seriesParseRecSeconds(block.recDigits);
+  if (!distances.length || !rec) {
+    return `<div class="mseries-result-block mseries-result-block-invalid">Blocco incompleto: controlla distanze e recupero.</div>`;
+  }
+  const tiles = distances
+    .map((dist) => {
+      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, rec);
+      return `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
+    })
+    .join('');
+  const header = `${reps > 1 ? `${reps} × ` : ''}${distances.join('-')} m`;
+  const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}`;
+  return `
+    <div class="mseries-result-block">
+      <div class="mseries-result-header"><b>${escapeHtml(header)}</b><span>${escapeHtml(recLabel)}</span></div>
+      <div class="calc-output">${tiles}</div>
+    </div>
+  `;
+}
+
+function masterSeriesBuilderMarkup(entry) {
+  const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
+  const T = latestThousand ? RipeteCalc.parseThousand(latestThousand.value) : null;
+  if (!T) {
+    return `
+      <div class="mtest-combined mseries-block-wrap">
+        <span class="mtest-block-label">Simulatore ripetute</span>
+        <div class="mtest-combined-hint mtest-combined-hint-thousand">Per usare il simulatore delle ripetute fai il test sul 1000.</div>
+      </div>
+    `;
+  }
+
+  const state = masterSeriesGetState(entry.id);
+  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
+  const totalKm = totalMeters / 1000;
+
+  const blocksMarkup = state.blocks
+    .map((block, index) => `${index > 0 ? '<div class="mseries-block-plus">+</div>' : ''}${masterSeriesBlockRowMarkup(block, index)}`)
+    .join('');
+
+  const resultsMarkup = state.showResults
+    ? `
+      <div class="mseries-results">
+        <div class="mseries-total">Volume totale: <b>${(totalMeters / 1000).toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)</div>
+        ${state.blocks.map((block) => masterSeriesResultBlockMarkup(block, T, totalKm)).join('')}
+      </div>
+    `
+    : '';
+
+  return `
+    <div class="mtest-combined mseries-block-wrap">
+      <span class="mtest-block-label">Simulatore ripetute</span>
+      <div class="mseries-blocks">${blocksMarkup}</div>
+      <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+      <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
+      ${resultsMarkup}
+    </div>
+  `;
+}
 
 // Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
 // metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
@@ -5194,6 +5352,7 @@ function renderMaster() {
       </div>
       ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
       ${masterCombinedProjectionsMarkup(entry)}
+      ${masterSeriesBuilderMarkup(entry)}
       ${buildMasterNotesBlock(entry)}
     `;
     item.appendChild(panel);
@@ -5244,6 +5403,33 @@ async function handleMasterListClick(event) {
   const infoBtn = event.target.closest('.mtest-info-btn');
   if (infoBtn) {
     await handleMasterTestInfo();
+    return;
+  }
+
+  const addBlockBtn = event.target.closest('.mseries-add-block-btn');
+  if (addBlockBtn) {
+    const state = masterSeriesGetState(addBlockBtn.dataset.id);
+    state.blocks.push(masterSeriesDefaultBlock());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const delBlockBtn = event.target.closest('.mseries-del-block-btn');
+  if (delBlockBtn && !delBlockBtn.disabled) {
+    const card = delBlockBtn.closest('.athlete-item');
+    const state = masterSeriesGetState(card.dataset.id);
+    state.blocks = state.blocks.filter((b) => b.id !== delBlockBtn.dataset.blockId);
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const seriesCalcBtn = event.target.closest('.mseries-calc-btn');
+  if (seriesCalcBtn) {
+    const state = masterSeriesGetState(seriesCalcBtn.dataset.id);
+    state.showResults = true;
+    renderMaster();
     return;
   }
 
@@ -5352,6 +5538,7 @@ async function handleMasterListClick(event) {
   masterExpandedPanels.delete(entryId);
   masterTestEditing.delete(`${entryId}:vam`);
   masterTestEditing.delete(`${entryId}:thousand`);
+  masterSeriesState.delete(entryId);
   renderMaster();
   showToast('Eliminato!');
 }
@@ -5362,6 +5549,19 @@ masterListEl.addEventListener('submit', handleMasterEditSubmit);
 // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
 // generalizzato per più input contemporaneamente sulla stessa pagina).
 masterListEl.addEventListener('keydown', (event) => {
+  const recInput = event.target.closest('.mseries-rec-input');
+  if (recInput) {
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      return;
+    }
+    event.preventDefault();
+    recInput.dataset.digits = (recInput.dataset.digits || '').slice(0, -1);
+    recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+    const end = recInput.value.length;
+    recInput.setSelectionRange(end, end);
+    masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+    return;
+  }
   const input = event.target.closest('.mtest-input');
   if (!input || (event.key !== 'Backspace' && event.key !== 'Delete')) {
     return;
@@ -5381,6 +5581,27 @@ masterListEl.addEventListener('input', (event) => {
   const metersInput = event.target.closest('.mtest-meters-input');
   if (metersInput) {
     metersInput.value = metersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+    return;
+  }
+  const repsInput = event.target.closest('.mseries-reps-input');
+  if (repsInput) {
+    repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+    masterSeriesFindBlock(repsInput).reps = repsInput.value;
+    return;
+  }
+  const distInput = event.target.closest('.mseries-dist-input');
+  if (distInput) {
+    distInput.value = distInput.value.replace(/[^0-9/]/g, '');
+    masterSeriesFindBlock(distInput).dist = distInput.value;
+    return;
+  }
+  const recInput = event.target.closest('.mseries-rec-input');
+  if (recInput) {
+    recInput.dataset.digits = recInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+    const end = recInput.value.length;
+    recInput.setSelectionRange(end, end);
+    masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
     return;
   }
   const input = event.target.closest('.mtest-input');

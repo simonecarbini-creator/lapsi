@@ -3222,6 +3222,179 @@ button:active {
   border-color: rgba(139, 92, 246, 0.45);
 }
 
+/* Simulatore ripetute: costruzione di una serie libera (blocchi N × distanze,
+   sommati fra loro con "+") sotto le proiezioni sui lavori. Vedi
+   masterSeriesBuilderMarkup in app.js. */
+.mseries-blocks {
+  margin-top: 10px;
+}
+
+.mseries-block {
+  padding: 10px;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mseries-block-plus {
+  margin: 6px 0;
+  text-align: center;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mseries-block-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mseries-reps-input {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.mseries-x {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.mseries-dist-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mseries-del-block-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
+.mseries-del-block-btn:disabled {
+  opacity: 0.35;
+}
+
+.mseries-block-rec-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mseries-rec-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.mseries-rec-input {
+  width: 74px;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mseries-add-block-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mseries-add-block-btn:hover {
+  background: var(--bg-strong);
+}
+
+.mseries-calc-btn {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.mseries-results {
+  margin-top: 14px;
+}
+
+.mseries-total {
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mseries-total b {
+  color: var(--text);
+}
+
+.mseries-result-block + .mseries-result-block {
+  margin-top: 12px;
+}
+
+.mseries-result-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.mseries-result-header span {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.mseries-result-block-invalid {
+  padding: 8px 10px;
+  border: 1px dashed rgba(192, 57, 43, 0.4);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #c0392b;
+}
+
 /* Riga del tempo reale su cui si basano le proiezioni */
 .projection-row-base {
   margin: 0 -6px;

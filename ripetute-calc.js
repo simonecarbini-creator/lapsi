@@ -70,6 +70,24 @@
     return PCT.map(([dist, pct]) => ({ dist, seconds: repeatSeconds(T, dist, pct, vol, rec) }));
   }
 
+  // pct per una distanza qualsiasi (non solo le 5 di PCT): la tabella è
+  // già perfettamente lineare (0,93 a 200m, +0,02 ogni 100m), quindi si
+  // ricava la stessa retta dai due estremi e si estrapola oltre — usata dal
+  // simulatore di serie personalizzate (vedi masterSeriesBuilderMarkup in
+  // app.js), dove le distanze non sono limitate alle cinque standard.
+  function pctForDist(dist) {
+    const [d0, p0] = PCT[0];
+    const [d1, p1] = PCT[PCT.length - 1];
+    const slope = (p1 - p0) / (d1 - d0);
+    return p0 + slope * (dist - d0);
+  }
+
+  // Scorciatoia: tempo (s) per una distanza qualsiasi, pct ricavato da
+  // pctForDist invece di dover passare la percentuale a mano.
+  function repeatSecondsForDist(T, dist, vol, rec) {
+    return repeatSeconds(T, dist, pctForDist(dist), vol, rec);
+  }
+
   // Formattazione di un tempo in secondi: sotto 59,75s arrotonda al mezzo
   // secondo (44″5, 39″), da 59,75s in su arrotonda al secondo (1′33″, i
   // secondi sempre a due cifre).
@@ -121,6 +139,8 @@
     adjRec,
     repeatSeconds,
     repeatTimesFor,
+    pctForDist,
+    repeatSecondsForDist,
     formatSeconds,
     formatLabel,
     parseThousand,
