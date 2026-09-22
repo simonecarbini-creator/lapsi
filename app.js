@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22n';
-console.log('[Lapsi] build', APP_BUILD, '— checkbox custom, recupero tra serie nel volume, tasto "/" per le piramidi');
+const APP_BUILD = '2026-09-22o';
+console.log('[Lapsi] build', APP_BUILD, '— tile verdi, checkbox a icona, calcola serie disattivabile, recupero attivo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4376,11 +4376,14 @@ function masterSeriesDefaultBlock() {
     reps: '3',
     dist: '400',
     recDigits: '130',
+    // true = il recupero tra le ripetute di questo blocco è attivo (corsetta
+    // blanda, non fermi): vedi RipeteCalc.effectiveRecovery.
+    recActive: false,
     // Recupero PRIMA di questo blocco (ignorato per il primo, index 0):
     // diverso dal recupero interno alle ripetute del blocco, come i "rest
     // step" tra le serie in Garmin Connect. skip=true = si passa dritti al
     // blocco successivo senza pausa.
-    gapBefore: { skip: false, recDigits: '200' },
+    gapBefore: { skip: false, recDigits: '200', recActive: false },
   };
 }
 
@@ -4409,6 +4412,27 @@ function masterSeriesUpdateGapNote(gapRecInput, gap) {
   const note = masterSeriesGapNote(gap);
   noteEl.textContent = note;
   noteEl.hidden = !note;
+}
+
+// Un valore digitato dopo aver già calcolato rende i risultati mostrati
+// obsoleti: qui si riporta "Calcola serie" al suo stato normale (cliccabile,
+// non tratteggiato) e si tolgono i risultati vecchi, senza un renderMaster()
+// completo che perderebbe il focus dell'input su cui si sta scrivendo.
+function masterSeriesInvalidate(inputEl) {
+  const card = inputEl.closest('.athlete-item');
+  const state = masterSeriesGetState(card.dataset.id);
+  if (!state.showResults) {
+    return;
+  }
+  state.showResults = false;
+  const results = card.querySelector('.mseries-results');
+  if (results) {
+    results.remove();
+  }
+  const calcBtn = card.querySelector('.mseries-calc-btn');
+  if (calcBtn) {
+    calcBtn.disabled = false;
+  }
 }
 
 // Maschera del recupero mentre si digita: come formatTimeMask ma con le
@@ -4453,6 +4477,22 @@ function masterSeriesBlockVolume(block) {
   return reps * distances.reduce((sum, d) => sum + d, 0);
 }
 
+// Checkbox custom (icona SVG invece del bordo nativo, che su macOS/Chrome a
+// 16-18px risultava un pallino poco leggibile) condivisa da "salta l'ultimo
+// recupero" e dai due toggle "attivo" (recupero attivo — corsetta blanda
+// invece di stare fermi, vedi RipeteCalc.effectiveRecovery). L'input reale
+// resta nel DOM ma invisibile (cliccabile/accessibile via la <label> che lo
+// contiene); la spunta è disegnata dallo span accanto via CSS (:checked+span).
+function masterSeriesCheckboxMarkup(inputClass, blockId, checked, labelText) {
+  return `
+    <label class="mseries-checkbox">
+      <input type="checkbox" class="${inputClass}" data-block-id="${blockId}"${checked ? ' checked' : ''} />
+      <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
+      <span class="mseries-checkbox-label">${escapeHtml(labelText)}</span>
+    </label>
+  `;
+}
+
 function masterSeriesBlockRowMarkup(block, index) {
   return `
     <div class="mseries-block" data-block-id="${block.id}">
@@ -4468,6 +4508,7 @@ function masterSeriesBlockRowMarkup(block, index) {
       <div class="mseries-block-rec-row">
         <span class="mseries-rec-label">recupero</span>
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
+        ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
       </div>
     </div>
   `;
@@ -4477,24 +4518,38 @@ function masterSeriesBlockRowMarkup(block, index) {
 // del passo (vedi masterSeriesBuilderMarkup): sotto i 4' la pausa è normale
 // e non tocca il volume; da 4' a meno di 8' vale una pausa "lunga" (-0,5 km);
 // da 8' in su una pausa "molto lunga" (-1 km) — non cumulativo, il valore più
-// alto sostituisce quello più basso.
+// alto sostituisce quello più basso. Le soglie si applicano al recupero
+// EFFETTIVO (RipeteCalc.effectiveRecovery): se è attivo, 9' di corsetta
+// blanda valgono come una pausa passiva più corta, e possono restare sotto
+// una soglia che con un recupero passivo scatterebbe.
+const MSERIES_GAP_MED_THRESHOLD = 240; // 4'
+const MSERIES_GAP_LONG_THRESHOLD = 480; // 8'
+const MSERIES_GAP_MED_DEDUCTION = 0.5; // km
+const MSERIES_GAP_LONG_DEDUCTION = 1; // km
+
 function masterSeriesGapDeductionKm(gap) {
   const rec = seriesParseRecSeconds(gap.recDigits);
-  if (!rec || rec < 240) return 0;
-  if (rec < 480) return 0.5;
-  return 1;
+  if (!rec) return 0;
+  const effRec = RipeteCalc.effectiveRecovery(rec, gap.recActive);
+  if (effRec < MSERIES_GAP_MED_THRESHOLD) return 0;
+  if (effRec < MSERIES_GAP_LONG_THRESHOLD) return MSERIES_GAP_MED_DEDUCTION;
+  return MSERIES_GAP_LONG_DEDUCTION;
 }
 
 // Frase sotto l'input "recupero tra le serie" che spiega quale delle tre
-// soglie sopra si applica, così non serve ricordarle a memoria.
+// soglie sopra si applica, così non serve ricordarle a memoria. Se il
+// recupero è attivo mostra anche l'equivalente passivo usato per la soglia.
 function masterSeriesGapNote(gap) {
   const rec = seriesParseRecSeconds(gap.recDigits);
   if (!rec) return '';
   const label = seriesFormatRecMask(gap.recDigits);
   const deduction = masterSeriesGapDeductionKm(gap);
-  if (deduction === 0) return `rec ${label} tra le serie: conta per intero nel volume totale.`;
-  const kmLabel = deduction === 1 ? '1 km' : '0,5 km';
-  return `rec ${label} tra le serie: abbastanza per far togliere ${kmLabel} dal volume totale.`;
+  const activeNote = gap.recActive
+    ? ` (corsa lenta, equivalente a ${RipeteCalc.formatLabel(Math.round(RipeteCalc.effectiveRecovery(rec, true)))} fermo)`
+    : '';
+  if (deduction === 0) return `rec ${label} tra le serie${activeNote}: conta per intero nel volume totale.`;
+  const kmLabel = deduction === MSERIES_GAP_LONG_DEDUCTION ? '1 km' : '0,5 km';
+  return `rec ${label} tra le serie${activeNote}: abbastanza per far togliere ${kmLabel} dal volume totale.`;
 }
 
 // Separatore tra un blocco e il successivo: checkbox "salta l'ultimo
@@ -4511,13 +4566,11 @@ function masterSeriesGapMarkup(block) {
   return `
     <div class="mseries-gap" data-block-id="${block.id}">
       <div class="mseries-gap-plus">+</div>
-      <label class="mseries-gap-skip">
-        <input type="checkbox" class="mseries-gap-skip-input" data-block-id="${block.id}"${gap.skip ? ' checked' : ''} />
-        <span>Salta l'ultimo recupero</span>
-      </label>
+      ${masterSeriesCheckboxMarkup('mseries-gap-skip-input', block.id, gap.skip, "Salta l'ultimo recupero")}
       <div class="mseries-gap-rec-row">
         <span class="mseries-gap-rec-label">recupero tra le serie</span>
         <input type="text" autocomplete="off" class="mseries-gap-rec-input" data-block-id="${block.id}" data-digits="${gap.recDigits}" value="${escapeHtml(seriesFormatRecMask(gap.recDigits))}" placeholder="3′00″" aria-label="Recupero tra le serie" />
+        ${masterSeriesCheckboxMarkup('mseries-gap-rec-active-input', block.id, gap.recActive, 'attivo')}
       </div>
       <div class="mseries-gap-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
     </div>
@@ -4543,14 +4596,18 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   if (!distances.length || !rec) {
     return `<div class="mseries-result-block mseries-result-block-invalid">Blocco incompleto: controlla distanze e recupero.</div>`;
   }
+  const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
   const tiles = distances
     .map((dist) => {
-      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, rec);
-      return `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
+      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
+      return `<div class="calc-out-tile calc-out-tile-series"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
     })
     .join('');
   const header = `${reps > 1 ? `${reps} × ` : ''}${distances.join('-')} m`;
-  const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}`;
+  const activeSuffix = block.recActive
+    ? ` (corsa lenta, equiv. ${RipeteCalc.formatLabel(Math.round(effRec))} fermo)`
+    : '';
+  const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${activeSuffix}`;
   return `
     <div class="mseries-result-block">
       <div class="mseries-result-header"><b>${escapeHtml(header)}</b><span>${escapeHtml(recLabel)}</span></div>
@@ -4605,7 +4662,7 @@ function masterSeriesBuilderMarkup(entry) {
       <span class="mtest-block-label">Simulatore ripetute</span>
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
-      <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
+      <button type="button" class="mseries-calc-btn" data-id="${entry.id}"${state.showResults ? ' disabled' : ''}>Calcola serie</button>
       ${resultsMarkup}
     </div>
   `;
@@ -5527,6 +5584,7 @@ async function handleMasterListClick(event) {
     const value = distInput.value;
     distInput.value = `${value.slice(0, start)}/${value.slice(end)}`;
     masterSeriesFindBlock(distInput).dist = distInput.value;
+    masterSeriesInvalidate(distInput);
     distInput.focus();
     distInput.setSelectionRange(start + 1, start + 1);
     return;
@@ -5542,7 +5600,28 @@ async function handleMasterListClick(event) {
 
   const gapSkipInput = event.target.closest('.mseries-gap-skip-input');
   if (gapSkipInput) {
+    const state = masterSeriesGetState(gapSkipInput.closest('.athlete-item').dataset.id);
     masterSeriesFindBlock(gapSkipInput).gapBefore.skip = gapSkipInput.checked;
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const recActiveInput = event.target.closest('.mseries-rec-active-input');
+  if (recActiveInput) {
+    const state = masterSeriesGetState(recActiveInput.closest('.athlete-item').dataset.id);
+    masterSeriesFindBlock(recActiveInput).recActive = recActiveInput.checked;
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const gapRecActiveInput = event.target.closest('.mseries-gap-rec-active-input');
+  if (gapRecActiveInput) {
+    const state = masterSeriesGetState(gapRecActiveInput.closest('.athlete-item').dataset.id);
+    const gapBlock = masterSeriesFindBlock(gapRecActiveInput);
+    gapBlock.gapBefore.recActive = gapRecActiveInput.checked;
+    state.showResults = false;
     renderMaster();
     return;
   }
@@ -5676,6 +5755,7 @@ masterListEl.addEventListener('keydown', (event) => {
     const gapBlock = masterSeriesFindBlock(gapRecInput);
     gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
     masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+    masterSeriesInvalidate(gapRecInput);
     return;
   }
   const recInput = event.target.closest('.mseries-rec-input');
@@ -5689,6 +5769,7 @@ masterListEl.addEventListener('keydown', (event) => {
     const end = recInput.value.length;
     recInput.setSelectionRange(end, end);
     masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+    masterSeriesInvalidate(recInput);
     return;
   }
   const input = event.target.closest('.mtest-input');
@@ -5716,12 +5797,14 @@ masterListEl.addEventListener('input', (event) => {
   if (repsInput) {
     repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
     masterSeriesFindBlock(repsInput).reps = repsInput.value;
+    masterSeriesInvalidate(repsInput);
     return;
   }
   const distInput = event.target.closest('.mseries-dist-input');
   if (distInput) {
     distInput.value = distInput.value.replace(/[^0-9/]/g, '');
     masterSeriesFindBlock(distInput).dist = distInput.value;
+    masterSeriesInvalidate(distInput);
     return;
   }
   const gapRecInput = event.target.closest('.mseries-gap-rec-input');
@@ -5733,6 +5816,7 @@ masterListEl.addEventListener('input', (event) => {
     const gapBlock = masterSeriesFindBlock(gapRecInput);
     gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
     masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+    masterSeriesInvalidate(gapRecInput);
     return;
   }
   const recInput = event.target.closest('.mseries-rec-input');
@@ -5742,6 +5826,7 @@ masterListEl.addEventListener('input', (event) => {
     const end = recInput.value.length;
     recInput.setSelectionRange(end, end);
     masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+    masterSeriesInvalidate(recInput);
     return;
   }
   const input = event.target.closest('.mtest-input');

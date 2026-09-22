@@ -88,6 +88,28 @@
     return repeatSeconds(T, dist, pctForDist(dist), vol, rec);
   }
 
+  // Recupero attivo (corsetta blanda invece di stare fermi): vale in media
+  // circa il 70% di un recupero passivo della stessa durata, ma per pause
+  // molto brevi (<= 60s) l'effetto è più tenue (85%) — sotto il minuto non
+  // c'è abbastanza tempo perché la corsetta "consumi" il recupero come nelle
+  // pause lunghe. Le due rette si incontrano esattamente a 60s (0,85×60 =
+  // 0,70×60+9 = 51s), quindi effectiveRecovery è continua nel breakpoint.
+  // Il trucco per usarla è NON toccare repeatSeconds/adjRec: si riduce il
+  // recupero PRIMA di passarlo a repeatSeconds/repeatSecondsForDist come
+  // parametro "rec", così la correzione esistente lavora sul recupero
+  // "equivalente fermo" senza bisogno di termini nuovi nella formula.
+  const ACTIVE_REC_BREAKPOINT = 60;
+  const ACTIVE_REC_SHORT_FACTOR = 0.85;
+  const ACTIVE_REC_LONG_FACTOR = 0.70;
+  const ACTIVE_REC_LONG_OFFSET = 9;
+
+  function effectiveRecovery(rec, active) {
+    if (!active || !rec) return rec;
+    return rec <= ACTIVE_REC_BREAKPOINT
+      ? rec * ACTIVE_REC_SHORT_FACTOR
+      : rec * ACTIVE_REC_LONG_FACTOR + ACTIVE_REC_LONG_OFFSET;
+  }
+
   // Formattazione di un tempo in secondi: sotto 59,75s arrotonda al mezzo
   // secondo (44″5, 39″), da 59,75s in su arrotonda al secondo (1′33″, i
   // secondi sempre a due cifre).
@@ -141,6 +163,11 @@
     repeatTimesFor,
     pctForDist,
     repeatSecondsForDist,
+    ACTIVE_REC_BREAKPOINT,
+    ACTIVE_REC_SHORT_FACTOR,
+    ACTIVE_REC_LONG_FACTOR,
+    ACTIVE_REC_LONG_OFFSET,
+    effectiveRecovery,
     formatSeconds,
     formatLabel,
     parseThousand,
