@@ -2862,9 +2862,11 @@ button:active {
 /* Test incorporati nella card Master (VAM + Tempo sul 1000): due colonne
    affiancate con lo stato compatto di ciascun binario (form se vuoto/in
    modifica, altrimenti solo l'ultima prova) — staccate dalle icone
-   matita/cestino/freccia sopra. Storico oltre l'ultima prova, grafico e
-   "ripeti test" stanno invece sotto, a piena larghezza (vedi .mtest-detail).
-   Le proiezioni sui lavori sono raggruppate a parte, vedi .mtest-combined. */
+   matita/cestino/freccia sopra. "Ripeti test" sta fuori dal riquadro grigio,
+   sotto (vedi .mtest-repeat-row); storico oltre l'ultima prova sta invece
+   dentro. Grafico a piena larghezza sotto entrambe le colonne (vedi
+   .mtest-chart-section). Le proiezioni sui lavori sono raggruppate a parte,
+   vedi .mtest-combined. */
 .mtest-calc-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2873,7 +2875,14 @@ button:active {
 }
 
 .mtest-calc-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   min-width: 0;
+}
+
+.mtest-compact-wrap,
+.mtest-calc-col .mtest-block.mtest-empty-block {
   padding: 10px;
   border-radius: 12px;
   background: var(--bg-strong);
@@ -2884,9 +2893,11 @@ button:active {
 }
 
 .mtest-calc-col .calc-input {
-  width: auto;
-  flex: 1 1 auto;
+  width: 74px;
+  flex: 0 0 auto;
   min-width: 0;
+  padding: 9px 8px;
+  font-size: 0.92rem;
 }
 
 .mtest-calc-col .fbtn {
@@ -3053,7 +3064,6 @@ button:active {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
 }
 
 .mtest-repeat-btn {
@@ -3088,10 +3098,6 @@ button:active {
 
 .mtest-info-btn:hover {
   background: rgba(233, 233, 233, 0.95);
-}
-
-.mtest-empty-block .calc-input-row {
-  flex-wrap: wrap;
 }
 
 .mtest-meters-row {

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22g';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: storico e ripeti test per colonna, info 6-8 settimane, ordine 1000/VAM');
+const APP_BUILD = '2026-09-22h';
+console.log('[Lapsi] build', APP_BUILD, '— ripeti test fuori dal riquadro, input+icona affiancati, ripeti VAM diretto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4368,19 +4368,25 @@ const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hi
 // i metri + calcolatrice, poi il risultato in km/h con spunta (salva) e
 // reload (ricalcola) sotto. Il valore vero e proprio vive in un input
 // nascosto, così handleMasterTestSave non deve sapere come ci si è arrivati.
-function masterVamFormMarkup(prefill, showCancel) {
-  const value = prefill ? prefill.value : '';
+// Come per il Tempo sul 1000, "Ripeti test" deve poter cambiare subito il
+// valore senza un passaggio in più: solo la matita (mode 'edit', corregge un
+// errore sull'ultima prova) parte dal risultato già pronto; "Ripeti test"
+// (mode 'repeat', prova nuova) parte invece già dalla riga dei metri, come
+// il primo inserimento.
+function masterVamFormMarkup(prefill, mode) {
+  const startWithResult = mode === 'edit';
+  const value = startWithResult && prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  const cancelBtn = showCancel ? '<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="vam">Annulla</button>' : '';
+  const cancelBtn = mode ? '<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="vam">Annulla</button>' : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="vam">
       <span class="mtest-block-label">VAM</span>
-      <span class="mtest-meters-label"${showCancel ? ' hidden' : ''}>Metri in 6 min</span>
-      <div class="calc-input-row mtest-meters-row"${showCancel ? ' hidden' : ''}>
+      <span class="mtest-meters-label"${startWithResult ? ' hidden' : ''}>Metri in 6 min</span>
+      <div class="calc-input-row mtest-meters-row"${startWithResult ? ' hidden' : ''}>
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
         <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
       </div>
-      <div class="mtest-vam-result-row"${showCancel ? '' : ' hidden'}>
+      <div class="mtest-vam-result-row"${startWithResult ? '' : ' hidden'}>
         <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
         <div class="mtest-calc-actions-row">
           <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
@@ -4393,10 +4399,11 @@ function masterVamFormMarkup(prefill, showCancel) {
   `;
 }
 
-function masterTestFormMarkup(testKey, prefill, showCancel) {
+function masterTestFormMarkup(testKey, prefill, mode) {
   if (testKey === 'vam') {
-    return masterVamFormMarkup(prefill, showCancel);
+    return masterVamFormMarkup(prefill, mode);
   }
+  const showCancel = !!mode;
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
   return `
@@ -4442,31 +4449,22 @@ function masterTestOlderEntryMarkup(testKey, test) {
   `;
 }
 
-function masterRepeatRowMarkup(testKey) {
-  return `
-    <div class="mtest-repeat-row">
-      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
-      <button type="button" class="mtest-info-btn" data-test="${testKey}" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
-    </div>
-  `;
-}
-
-// Colonna di un binario (una per test, affiancate): il form se vuoto/in
-// modifica; altrimenti l'ultima prova in grande seguita dalle precedenti più
-// piccole (più recente prima) e da "Ripeti test" — tutto nello stesso
-// riquadro, non più diviso tra colonna e sezione a parte. Il grafico resta
-// invece a piena larghezza sotto entrambe le colonne (vedi
-// masterTestChartSectionMarkup), perché troppo stretto per starci dentro.
+// Riquadro grigio di un binario (una per test, affiancate): il form se
+// vuoto/in modifica; altrimenti l'ultima prova in grande seguita dalle
+// precedenti più piccole (più recente prima). "Ripeti test" vive fuori da
+// questo riquadro (vedi masterTestRepeatMarkup) e il grafico a piena
+// larghezza sotto entrambe le colonne (vedi masterTestChartSectionMarkup),
+// perché troppo stretto per starci dentro.
 function masterTestColumnMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
   const editKey = `${entry.id}:${testKey}`;
   const mode = masterTestEditing.get(editKey);
   if (mode) {
     const prefill = tests.length ? tests[tests.length - 1] : null;
-    return masterTestFormMarkup(testKey, prefill, tests.length > 0);
+    return masterTestFormMarkup(testKey, prefill, mode);
   }
   if (!tests.length) {
-    return masterTestFormMarkup(testKey, null, false);
+    return masterTestFormMarkup(testKey, null, null);
   }
   const latest = tests[tests.length - 1];
   const olderMarkup = tests.slice(0, -1).reverse().map((t) => masterTestOlderEntryMarkup(testKey, t)).join('');
@@ -4475,7 +4473,21 @@ function masterTestColumnMarkup(entry, testKey) {
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       ${masterTestLatestEntryMarkup(testKey, latest)}
       ${olderMarkup}
-      ${masterRepeatRowMarkup(testKey)}
+    </div>
+  `;
+}
+
+// "Ripeti test" + icona info, fuori dal riquadro grigio, sotto — niente se
+// il binario è vuoto o in modifica (il form vive già nel riquadro sopra).
+function masterTestRepeatMarkup(entry, testKey) {
+  const tests = entry[`${testKey}Tests`] || [];
+  if (masterTestEditing.has(`${entry.id}:${testKey}`) || !tests.length) {
+    return '';
+  }
+  return `
+    <div class="mtest-repeat-row">
+      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
+      <button type="button" class="mtest-info-btn" data-test="${testKey}" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
     </div>
   `;
 }
@@ -5116,7 +5128,7 @@ function renderMaster() {
     panel.hidden = !isExpanded;
     panel.innerHTML = `
       <div class="mtest-calc-grid">
-        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
+        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
       </div>
       ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
       ${masterCombinedProjectionsMarkup(entry)}
