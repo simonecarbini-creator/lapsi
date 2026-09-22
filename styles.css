@@ -338,6 +338,104 @@ button, input {
   line-height: 1.4;
 }
 
+/* ===== "Come funzionano i calcoli": stesso guscio overlay di
+   .training-notes-overlay, contenuto proprio sotto — vedi renderInfoDoc()
+   in app.js. ===== */
+.info-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 16px;
+  padding-bottom: max(40px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-lede {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.info-section {
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  padding: 4px 14px;
+  background: var(--bg-strong);
+}
+
+.info-section summary {
+  padding: 12px 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.info-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.info-section summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 8px;
+  font-weight: 800;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.info-section[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.info-section-body {
+  padding: 0 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.info-section-body p {
+  margin: 0 0 8px;
+}
+
+.info-section-body ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.82rem;
+}
+
+.info-table td {
+  padding: 5px 8px;
+  border-bottom: 1px dotted var(--card-border);
+  font-variant-numeric: tabular-nums;
+}
+
+.info-table tr:last-child td {
+  border-bottom: none;
+}
+
+.info-table td:last-child {
+  text-align: right;
+  font-weight: 700;
+}
+
 .calc-input-row {
   display: flex;
   align-items: center;

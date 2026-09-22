@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22o';
-console.log('[Lapsi] build', APP_BUILD, '— tile verdi, checkbox a icona, calcola serie disattivabile, recupero attivo');
+const APP_BUILD = '2026-09-22p';
+console.log('[Lapsi] build', APP_BUILD, '— sezione menu "Come funzionano i calcoli"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -7008,6 +7008,143 @@ if (calcFondoInput) {
     applyCalcFondoMask();
     renderCalcFondo();
   });
+}
+
+// --- "Come funzionano i calcoli" -------------------------------------
+// Documentazione generata leggendo le costanti VERE dei moduli di calcolo
+// (RipeteCalc/MezzofondoCalc/VelocistiCalc, più le MSERIES_*/ACTIVE_REC_*
+// del simulatore in questo file) invece di numeri ricopiati a mano: se un
+// coefficiente cambia in uno di quei file, questa pagina cambia con lui al
+// prossimo apri/chiudi, senza toccare questo testo. Quello che NON si
+// aggiorna da solo è la prosa: quando si aggiunge una regola di calcolo
+// nuova (non solo un numero diverso su una regola esistente), aggiungere
+// qui la relativa sezione è responsabilità di chi la introduce.
+const infoBackdrop = document.getElementById('info-backdrop');
+const infoOverlay = document.getElementById('info-overlay');
+const infoClose = document.getElementById('info-close');
+const infoBody = document.getElementById('info-body');
+const menuInfoButton = document.getElementById('menu-info');
+
+function infoPct(x) {
+  return `${Math.round(x * 100)}%`;
+}
+
+function renderInfoDoc() {
+  if (!infoBody) {
+    return;
+  }
+
+  const vamZonesRows = MezzofondoCalc.ZONES.map(([label, pct]) => (
+    `<tr><td>${escapeHtml(label)}</td><td>${infoPct(pct)}</td></tr>`
+  )).join('');
+
+  const repeatPctRows = RipeteCalc.PCT.map(([dist, pct]) => (
+    `<tr><td>${dist} m</td><td>${infoPct(pct)}</td></tr>`
+  )).join('');
+
+  const volOptionsLabel = RipeteCalc.VOL_OPTIONS.map(([, label]) => label).join(', ');
+  const recOptionsLabel = RipeteCalc.REC_OPTIONS.map(([, label]) => label).join(', ');
+  const volDefaultLabel = RipeteCalc.VOL_OPTIONS.find(([v]) => v === RipeteCalc.VOL_DEFAULT)[1];
+  const recDefaultLabel = RipeteCalc.REC_OPTIONS.find(([r]) => r === RipeteCalc.REC_DEFAULT)[1];
+
+  const sprintCoefRows = VelocistiCalc.COEF.map(([dist, coef]) => (
+    `<tr><td>${dist} m</td><td>×${coef}</td></tr>`
+  )).join('');
+  const sprintPctsLabel = VelocistiCalc.PCTS.map((p) => `${p}%`).join(', ');
+
+  const gapMedMin = MSERIES_GAP_MED_THRESHOLD / 60;
+  const gapLongMin = MSERIES_GAP_LONG_THRESHOLD / 60;
+  const gapMedKm = String(MSERIES_GAP_MED_DEDUCTION).replace('.', ',');
+  const gapLongKm = String(MSERIES_GAP_LONG_DEDUCTION).replace('.', ',');
+
+  infoBody.innerHTML = `
+    <p class="info-lede">Le formule usate nei calcolatori dell'app, lette in diretta dai file che le implementano: se un coefficiente cambia, questa pagina cambia con lui.</p>
+
+    <details class="info-section" open>
+      <summary>VAM (Velocità Aerobica Massima)</summary>
+      <div class="info-section-body">
+        <p>Si può inserire in tre modi:</p>
+        <ul>
+          <li><b>Diretta</b>: un valore in km/h, valido tra ${MezzofondoCalc.VAM_MIN} e ${MezzofondoCalc.VAM_MAX}.</li>
+          <li><b>Da metri in 6 minuti</b>: VAM (km/h) = metri percorsi ÷ 100.</li>
+          <li><b>Stimata dal Tempo sul 1000</b>: VAM = 3600 ÷ T(sec) × ${MezzofondoCalc.VAM_FROM_1000_COEF} — una stima, meno precisa di un test diretto (per questo l'app segnala quando la VAM mostrata è ricavata così invece che misurata).</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Ritmi di allenamento (dalla VAM)</summary>
+      <div class="info-section-body">
+        <p>Ogni zona è una percentuale fissa della VAM; il ritmo al km è 60 ÷ (VAM × percentuale).</p>
+        <table class="info-table"><tbody>${vamZonesRows}</tbody></table>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Ripetute brevi (dal Tempo sul 1000)</summary>
+      <div class="info-section-body">
+        <p>Il tempo su ogni distanza è una percentuale del passo base (Tempo sul 1000 ÷ 10), corretta in base al volume totale di lavoro e al recupero:</p>
+        <table class="info-table"><tbody>${repeatPctRows}</tbody></table>
+        <ul>
+          <li><b>Volume</b>: più lungo il lavoro totale, più le ripetute rallentano (oltre i 3 km la correzione pesa di più). Opzioni: ${volOptionsLabel} (default ${volDefaultLabel}).</li>
+          <li><b>Recupero</b>: un recupero abbondante rispetto alla durata della prova la rallenta un po' (ci si "gestisce" meno); uno scarso la accelera leggermente, perché non c'è tempo di recuperare davvero. Opzioni: ${recOptionsLabel} (default ${recDefaultLabel}).</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Simulatore ripetute (card Master)</summary>
+      <div class="info-section-body">
+        <p>Estende le ripetute brevi a una serie libera invece delle sole cinque distanze standard qui sopra:</p>
+        <ul>
+          <li><b>Distanze non standard</b>: la percentuale del passo base si ricava allungando la stessa retta della tabella (0,93 a 200 m, +0,02 ogni 100 m) anche oltre i 600 m o sotto i 200 m.</li>
+          <li><b>Volume totale</b>: somma di ripetute × distanza su tutti i blocchi della serie (es. 10×400 + 3×200 = 4,6 km).</li>
+          <li><b>Pause lunghe tra le serie</b>: sotto i ${gapMedMin}′ il volume conta per intero nel calcolo del passo; da ${gapMedMin}′ a meno di ${gapLongMin}′ si tolgono ${gapMedKm} km dal volume usato; da ${gapLongMin}′ in su se ne tolgono ${gapLongKm} (per ogni pausa in quella fascia — il volume "reale" della seduta mostrato in cima resta invariato).</li>
+          <li><b>Recupero attivo</b> (corsetta blanda invece di stare fermi): vale in media il ${infoPct(RipeteCalc.ACTIVE_REC_LONG_FACTOR)} di un recupero passivo della stessa durata; sotto ${RipeteCalc.ACTIVE_REC_BREAKPOINT}″ l'effetto è più tenue (${infoPct(RipeteCalc.ACTIVE_REC_SHORT_FACTOR)}). Il recupero "equivalente fermo" così ottenuto sostituisce quello vero ovunque sopra (tempo target e soglie del volume), senza altre modifiche alle formule.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Andature sprint</summary>
+      <div class="info-section-body">
+        <p>Dal tempo sui 100 m da fermo (valido tra ${VelocistiCalc.MAX100_MIN} e ${VelocistiCalc.MAX100_MAX} s) si stima il massimale su altre distanze con un coefficiente tarato per ciascuna, poi si mostrano i tempi al ${sprintPctsLabel} di quel massimale:</p>
+        <table class="info-table"><tbody>${sprintCoefRows}</tbody></table>
+      </div>
+    </details>
+  `;
+}
+
+function openInfoOverlay() {
+  if (!infoOverlay || !infoBackdrop) {
+    return;
+  }
+  renderInfoDoc();
+  infoBackdrop.hidden = false;
+  infoOverlay.hidden = false;
+  lockBodyScroll();
+}
+
+function closeInfoOverlay() {
+  if (!infoOverlay || !infoBackdrop) {
+    return;
+  }
+  infoOverlay.hidden = true;
+  infoBackdrop.hidden = true;
+  unlockBodyScroll();
+}
+
+if (menuInfoButton) {
+  menuInfoButton.addEventListener('click', () => {
+    setMenuOpen(false);
+    openInfoOverlay();
+  });
+}
+if (infoClose) {
+  infoClose.addEventListener('click', closeInfoOverlay);
+}
+if (infoBackdrop) {
+  infoBackdrop.addEventListener('click', closeInfoOverlay);
 }
 
 async function initializeApp() {
