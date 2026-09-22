@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22q';
-console.log('[Lapsi] build', APP_BUILD, '— deduzione volume pause lunghe raddoppiata (1/2 km)');
+const APP_BUILD = '2026-09-22r';
+console.log('[Lapsi] build', APP_BUILD, '— annulla modifica card Master, icone modifica/elimina più grandi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5644,6 +5644,15 @@ async function handleMasterListClick(event) {
     const card = cancelBtn.closest('.athlete-item');
     masterTestEditing.delete(`${card.dataset.id}:${cancelBtn.dataset.test}`);
     renderMaster();
+    return;
+  }
+
+  const cancelEditButton = event.target.closest('.cancel-edit-btn');
+  if (cancelEditButton) {
+    const formItem = cancelEditButton.closest('.edit-form');
+    if (formItem) {
+      formItem.hidden = true;
+    }
     return;
   }
 

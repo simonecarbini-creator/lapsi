@@ -3129,10 +3129,10 @@ button:active {
 
 .mtest-edit-btn,
 .mtest-entry-del {
-  width: 20px;
-  height: 20px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  font-size: 0.75rem;
+  font-size: 0.92rem;
   line-height: 1;
   padding: 0;
   display: inline-flex;
@@ -3161,6 +3161,8 @@ button:active {
 
 .mtest-entry-del svg {
   display: block;
+  width: 16px;
+  height: 16px;
 }
 
 /* Grafico, a piena larghezza sotto le due colonne (troppo stretto per
