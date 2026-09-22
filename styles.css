@@ -378,10 +378,22 @@ button, input {
      riga invece che far andare la quinta (600m) da sola a capo. */
   flex: 1 1 18%;
   min-width: 0;
-  padding: 8px 4px;
+  padding: 7px 4px;
+  border: 1.5px solid transparent;
   border-radius: 12px;
   background: var(--bg-strong);
   text-align: center;
+}
+
+/* Proiezioni raggruppate della card Master: bordo colorato per distinguere
+   a colpo d'occhio le ripetute (dal Tempo sul 1000) dalle zone di ritmo
+   (dalla VAM) — stessi colori usati nei rispettivi grafici. */
+.calc-out-tile-thousand {
+  border-color: rgba(255, 92, 58, 0.45);
+}
+
+.calc-out-tile-vam {
+  border-color: rgba(139, 92, 246, 0.45);
 }
 
 .calc-out-tile b {
@@ -2963,11 +2975,38 @@ button:active {
   color: var(--muted);
 }
 
+.mtest-vam-result-row {
+  flex-wrap: wrap;
+}
+
+.mtest-calc-result {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.mtest-calc-result-val {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .mtest-combined,
 .projection-panel > .mtest-notes {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px dashed var(--card-border);
+}
+
+.mtest-combined-hint {
+  flex: 1 1 100%;
+  padding: 10px 12px;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--muted);
+  text-align: center;
 }
 
 /* Riga del tempo reale su cui si basano le proiezioni */

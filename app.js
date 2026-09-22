@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22c';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: calcolo VAM dai metri percorsi in 6 minuti');
+const APP_BUILD = '2026-09-22d';
+console.log('[Lapsi] build', APP_BUILD, '— proiezioni colorate per origine, avviso 1000 mancante, calcolo VAM a una riga');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4370,31 +4370,45 @@ function masterTestEntryMarkup(testKey, test, isLatest) {
 // Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
 // metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
 // VAM = metri / 100 (equivalente a metri × 10 / 1000), arrotondata al decimo.
-function masterVamMetersRowMarkup(testKey) {
-  if (testKey !== 'vam') {
-    return '';
-  }
+// La VAM si inserisce solo passando dai metri percorsi in 6 minuti (più
+// comodo da rilevare durante un test sul campo): una riga alla volta — prima
+// i metri + "Calcola", poi il risultato in km/h con "Salva"/"Ricalcola". Il
+// valore vero e proprio vive in un input nascosto, così handleMasterTestSave
+// non deve sapere come ci si è arrivati.
+function masterVamFormMarkup(prefill, showCancel) {
+  const value = prefill ? prefill.value : '';
+  const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
+  const cancelBtn = showCancel ? '<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="vam">Annulla</button>' : '';
   return `
-    <div class="mtest-meters-row">
-      <span class="mtest-meters-label">Metri percorsi in 6 minuti</span>
-      <div class="calc-input-row">
+    <div class="mtest-block mtest-empty-block" data-test="vam">
+      <span class="mtest-block-label">VAM</span>
+      <span class="mtest-meters-label"${showCancel ? ' hidden' : ''}>Metri percorsi in 6 minuti</span>
+      <div class="calc-input-row mtest-meters-row"${showCancel ? ' hidden' : ''}>
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="es. 1500" />
-        <button type="button" class="fbtn fbtn-primary mtest-calc-btn" data-test="${testKey}">Calcola</button>
+        <button type="button" class="fbtn fbtn-primary mtest-calc-btn" data-test="vam">Calcola</button>
       </div>
+      <div class="calc-input-row mtest-vam-result-row"${showCancel ? '' : ' hidden'}>
+        <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
+        <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="vam">Salva</button>
+        <button type="button" class="fbtn fbtn-ghost mtest-calc-reset-btn" data-test="vam">Ricalcola</button>
+      </div>
+      ${cancelBtn}
+      <input type="text" hidden class="mtest-input" data-test="vam" data-digits="${digits}" value="${escapeHtml(value)}" />
     </div>
   `;
 }
 
 function masterTestFormMarkup(testKey, prefill, showCancel) {
+  if (testKey === 'vam') {
+    return masterVamFormMarkup(prefill, showCancel);
+  }
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  const placeholder = testKey === 'thousand' ? '4\'00"' : '14,0';
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
-      ${masterVamMetersRowMarkup(testKey)}
       <div class="calc-input-row">
-        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="${placeholder}" />
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="4'00&quot;" />
         <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="${testKey}">Salva</button>
         ${showCancel ? `<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="${testKey}">Annulla</button>` : ''}
       </div>
@@ -4655,7 +4669,7 @@ function masterCombinedProjectionsMarkup(entry) {
     const T = RipeteCalc.parseThousand(latestThousand.value);
     if (T) {
       repeatTiles = RipeteCalc.repeatTimesFor(T, RipeteCalc.VOL_DEFAULT, RipeteCalc.REC_DEFAULT)
-        .map(({ dist, seconds }) => `<div class="calc-out-tile"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
+        .map(({ dist, seconds }) => `<div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
         .join('');
     }
   }
@@ -4666,7 +4680,7 @@ function masterCombinedProjectionsMarkup(entry) {
   let zoneTiles = '';
   if (vam) {
     zoneTiles = MezzofondoCalc.pacesForVam(vam)
-      .map(({ label, minutes }) => `<div class="calc-out-tile"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+      .map(({ label, minutes }) => `<div class="calc-out-tile calc-out-tile-vam"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
       .join('');
   }
 
@@ -4674,10 +4688,14 @@ function masterCombinedProjectionsMarkup(entry) {
     return '';
   }
 
+  // Se manca il Tempo sul 1000 (ma c'è la VAM, altrimenti si sarebbe già
+  // usciti sopra) un avviso prende il posto delle tile delle ripetute.
+  const repeatSection = repeatTiles || '<div class="mtest-combined-hint">Per il calcolo delle ripetute corte fai il test sul 1000.</div>';
+
   return `
     <div class="mtest-combined">
       <span class="mtest-block-label">Proiezioni sui lavori</span>
-      <div class="calc-output">${repeatTiles}${zoneTiles}</div>
+      <div class="calc-output">${repeatSection}${zoneTiles}</div>
     </div>
   `;
 }
@@ -4702,9 +4720,9 @@ function mtestApplyMask(input) {
   input.setSelectionRange(end, end);
 }
 
-// VAM = metri / 100 (equivalente a metri × 10 / 1000): scrive il risultato,
-// arrotondato al decimo, nel campo VAM qui sotto — l'utente può ancora
-// correggerlo a mano prima di salvare.
+// VAM = metri / 100 (equivalente a metri × 10 / 1000), arrotondata al
+// decimo: passa dalla riga "metri" a quella col risultato in km/h, pronto
+// per essere salvato (o ricalcolato da capo).
 function handleMasterVamCalc(button) {
   const block = button.closest('.mtest-block');
   const metersInput = block.querySelector('.mtest-meters-input');
@@ -4713,9 +4731,30 @@ function handleMasterVamCalc(button) {
     alert('Inserisci i metri percorsi in 6 minuti.');
     return;
   }
+  const digits = String(Math.round((meters / 100) * 10));
+  const vamValue = formatVamMask(digits);
+
   const vamInput = block.querySelector('.mtest-input[data-test="vam"]');
-  vamInput.dataset.digits = String(Math.round((meters / 100) * 10));
-  mtestApplyMask(vamInput);
+  vamInput.value = vamValue;
+  vamInput.dataset.digits = digits;
+  block.querySelector('.mtest-calc-result-val').textContent = vamValue;
+
+  block.querySelector('.mtest-meters-label').hidden = true;
+  block.querySelector('.mtest-meters-row').hidden = true;
+  block.querySelector('.mtest-vam-result-row').hidden = false;
+}
+
+// Torna alla riga "metri" per una nuova misurazione, senza toccare il
+// pannello (niente re-render, come per apri/chiudi form).
+function handleMasterVamRecalc(button) {
+  const block = button.closest('.mtest-block');
+  block.querySelector('.mtest-vam-result-row').hidden = true;
+  block.querySelector('.mtest-meters-label').hidden = false;
+  const metersRow = block.querySelector('.mtest-meters-row');
+  metersRow.hidden = false;
+  const metersInput = metersRow.querySelector('.mtest-meters-input');
+  metersInput.value = '';
+  metersInput.focus();
 }
 
 async function handleMasterTestSave(saveBtn) {
@@ -5038,6 +5077,12 @@ async function handleMasterListClick(event) {
   const calcBtn = event.target.closest('.mtest-calc-btn');
   if (calcBtn) {
     handleMasterVamCalc(calcBtn);
+    return;
+  }
+
+  const recalcBtn = event.target.closest('.mtest-calc-reset-btn');
+  if (recalcBtn) {
+    handleMasterVamRecalc(recalcBtn);
     return;
   }
 
