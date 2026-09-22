@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22i';
-console.log('[Lapsi] build', APP_BUILD, '— riquadri altezza uguale, ripeti test inline, annulla a icona');
+const APP_BUILD = '2026-09-22j';
+console.log('[Lapsi] build', APP_BUILD, '— rimossa riga vam vuota, riquadri allineati anche a dati misti');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5189,7 +5189,8 @@ function renderMaster() {
     panel.hidden = !isExpanded;
     panel.innerHTML = `
       <div class="mtest-calc-grid">
-        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
+        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
+        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
       </div>
       ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
       ${masterCombinedProjectionsMarkup(entry)}

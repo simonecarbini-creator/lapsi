@@ -2876,22 +2876,26 @@ button:active {
 }
 
 .mtest-calc-col {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   min-width: 0;
 }
 
-/* flex: 1 1 auto fa crescere il riquadro grigio fino a riempire la colonna
-   (che la grid stira già all'altezza della riga più alta) — così le due
-   colonne hanno sempre la stessa altezza anche con un numero diverso di
-   prove, e "Ripeti test" resta allineato sotto in entrambe. */
+.mtest-calc-col-repeat {
+  margin-top: 10px;
+}
+
+/* I riquadri grigi sono nella prima riga della grid, "Ripeti test" nella
+   seconda: la grid stira ogni riga in autonomo, così i due riquadri hanno
+   sempre la stessa altezza a prescindere da "Ripeti test" (che può mancare
+   da un lato quando solo un test ha una prova salvata — in quel caso resta
+   semplicemente spazio vuoto sotto il riquadro vuoto, atteso). height:100%
+   fa riempire alla colonna (già stirata dalla grid) il riquadro al suo interno. */
 .mtest-compact-wrap,
 .mtest-calc-col .mtest-block.mtest-empty-block {
-  flex: 1 1 auto;
+  height: 100%;
   padding: 10px;
   border-radius: 12px;
   background: var(--bg-strong);
+  box-sizing: border-box;
 }
 
 .mtest-calc-col .calc-input-row {
@@ -3114,8 +3118,6 @@ button:active {
 
 .mtest-meters-row {
   margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px dotted var(--card-border);
 }
 
 .mtest-meters-label {
