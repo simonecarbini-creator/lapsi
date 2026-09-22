@@ -2925,10 +2925,6 @@ button:active {
   margin-top: 14px;
 }
 
-.mtest-block .notes-block {
-  margin-top: 14px;
-}
-
 .mtest-repeat-btn {
   display: block;
   width: 100%;
@@ -2954,7 +2950,8 @@ button:active {
   width: 100px;
 }
 
-.mtest-combined {
+.mtest-combined,
+.projection-panel > .mtest-notes {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px dashed var(--card-border);

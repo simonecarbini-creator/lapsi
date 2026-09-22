@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22a';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: VAM e Tempo sul 1000 come binari indipendenti, proiezioni raggruppate');
+const APP_BUILD = '2026-09-22b';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: proiezioni subito sotto i test, diario allenamenti unico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4253,8 +4253,7 @@ function normalizeMasterAthlete(entry) {
     createdAt: entry.createdAt || new Date(0).toISOString(),
     vamTests: Array.isArray(entry.vamTests) ? entry.vamTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
-    vamNotes: normalizeNotes(entry.vamNotes),
-    thousandNotes: normalizeNotes(entry.thousandNotes),
+    notes: normalizeNotes(entry.notes),
   };
 }
 
@@ -4494,11 +4493,11 @@ function buildMasterTestChart(tests, testKey) {
   `;
 }
 
-// Diario tra un test e la sua ripetizione: stesso componente delle note
-// atleta/velocista, ma uno per binario (vamNotes/thousandNotes) invece che
-// uno solo per atleta.
-function buildMasterTestNotesBlock(entry, testKey) {
-  const notes = Array.isArray(entry[`${testKey}Notes`]) ? entry[`${testKey}Notes`] : [];
+// Diario allenamenti: uno solo per atleta (non per binario), tra le
+// proiezioni sui lavori e "Ripeti test" — stesso componente delle note
+// atleta/velocista.
+function buildMasterNotesBlock(entry) {
+  const notes = Array.isArray(entry.notes) ? entry.notes : [];
   const logMarkup = notes.length
     ? notes.map((note) => `
         <div class="notes-entry">
@@ -4508,7 +4507,7 @@ function buildMasterTestNotesBlock(entry, testKey) {
       `).join('')
     : '<div class="notes-empty">Nessun allenamento annotato</div>';
   return `
-    <div class="notes-block mtest-notes" data-athlete-id="${escapeHtml(entry.id)}" data-test="${testKey}">
+    <div class="notes-block mtest-notes" data-athlete-id="${escapeHtml(entry.id)}">
       <div class="notes-label">Allenamenti nel frattempo</div>
       <div class="notes-log">${logMarkup}</div>
       <div class="notes-new">
@@ -4538,7 +4537,6 @@ async function handleMasterTestNotesAdd(button) {
   }
 
   const athleteId = block.dataset.athleteId;
-  const fieldKey = `${block.dataset.test}Notes`;
   const entries = getMaster();
   const index = entries.findIndex((entry) => entry.id === athleteId);
   if (index === -1) {
@@ -4548,8 +4546,8 @@ async function handleMasterTestNotesAdd(button) {
   const now = getNowParts();
   const stamp = `${shortYearDate(now.date)} ${now.time.slice(0, 5)}`;
   const newNote = { id: `note-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, text, savedAt: stamp };
-  const current = Array.isArray(entries[index][fieldKey]) ? entries[index][fieldKey] : [];
-  entries[index] = { ...entries[index], [fieldKey]: [...current, newNote] };
+  const current = Array.isArray(entries[index].notes) ? entries[index].notes : [];
+  entries[index] = { ...entries[index], notes: [...current, newNote] };
   await saveMaster(entries);
 
   const log = block.querySelector('.notes-log');
@@ -4578,13 +4576,12 @@ async function handleMasterTestNotesClear(button) {
     return;
   }
   const athleteId = block.dataset.athleteId;
-  const fieldKey = `${block.dataset.test}Notes`;
   const entries = getMaster();
   const index = entries.findIndex((entry) => entry.id === athleteId);
   if (index === -1) {
     return;
   }
-  if (!(Array.isArray(entries[index][fieldKey]) && entries[index][fieldKey].length)) {
+  if (!(Array.isArray(entries[index].notes) && entries[index].notes.length)) {
     return;
   }
 
@@ -4596,7 +4593,7 @@ async function handleMasterTestNotesClear(button) {
     return;
   }
 
-  entries[index] = { ...entries[index], [fieldKey]: [] };
+  entries[index] = { ...entries[index], notes: [] };
   await saveMaster(entries);
 
   block.querySelector('.notes-log').innerHTML = '<div class="notes-empty">Nessun allenamento annotato</div>';
@@ -4621,7 +4618,6 @@ function masterTestBlockMarkup(entry, testKey) {
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       ${historyMarkup}
       ${buildMasterTestChart(tests, testKey)}
-      ${buildMasterTestNotesBlock(entry, testKey)}
       <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
     </div>
   `;
@@ -4975,6 +4971,7 @@ function renderMaster() {
       ${masterTestBlockMarkup(entry, 'vam')}
       ${masterTestBlockMarkup(entry, 'thousand')}
       ${masterCombinedProjectionsMarkup(entry)}
+      ${buildMasterNotesBlock(entry)}
     `;
     item.appendChild(panel);
 
