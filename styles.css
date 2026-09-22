@@ -2870,6 +2870,7 @@ button:active {
 .mtest-calc-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   gap: 10px;
   margin-top: 16px;
 }
@@ -2881,8 +2882,13 @@ button:active {
   min-width: 0;
 }
 
+/* flex: 1 1 auto fa crescere il riquadro grigio fino a riempire la colonna
+   (che la grid stira già all'altezza della riga più alta) — così le due
+   colonne hanno sempre la stessa altezza anche con un numero diverso di
+   prove, e "Ripeti test" resta allineato sotto in entrambe. */
 .mtest-compact-wrap,
 .mtest-calc-col .mtest-block.mtest-empty-block {
+  flex: 1 1 auto;
   padding: 10px;
   border-radius: 12px;
   background: var(--bg-strong);
@@ -2892,18 +2898,15 @@ button:active {
   gap: 6px;
 }
 
+/* L'input prende tutto lo spazio che avanza accanto all'icona (fissa a
+   destra), invece di avere una larghezza propria: si adatta senza mai
+   spingere l'icona a capo. */
 .mtest-calc-col .calc-input {
-  width: 74px;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
   padding: 9px 8px;
   font-size: 0.92rem;
-}
-
-.mtest-calc-col .fbtn {
-  margin-top: 8px;
-  padding: 6px 14px;
-  font-size: 0.7rem;
 }
 
 .mtest-block-label {
@@ -3063,6 +3066,15 @@ button:active {
 .mtest-repeat-row {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+/* Form compatto di "Ripeti test" (fuori dal riquadro grigio, al posto del
+   pulsante): stessa struttura in colonna della VAM dentro il riquadro, ma
+   senza etichetta — il riquadro sopra dice già di che test si tratta. */
+.mtest-repeat-form {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 

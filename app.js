@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22h';
-console.log('[Lapsi] build', APP_BUILD, '— ripeti test fuori dal riquadro, input+icona affiancati, ripeti VAM diretto');
+const APP_BUILD = '2026-09-22i';
+console.log('[Lapsi] build', APP_BUILD, '— riquadri altezza uguale, ripeti test inline, annulla a icona');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4359,6 +4359,7 @@ const MTEST_CHECK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-h
 const MTEST_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
 const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>';
 const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
+const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 
 // Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
 // metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
@@ -4368,16 +4369,17 @@ const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hi
 // i metri + calcolatrice, poi il risultato in km/h con spunta (salva) e
 // reload (ricalcola) sotto. Il valore vero e proprio vive in un input
 // nascosto, così handleMasterTestSave non deve sapere come ci si è arrivati.
-// Come per il Tempo sul 1000, "Ripeti test" deve poter cambiare subito il
-// valore senza un passaggio in più: solo la matita (mode 'edit', corregge un
-// errore sull'ultima prova) parte dal risultato già pronto; "Ripeti test"
-// (mode 'repeat', prova nuova) parte invece già dalla riga dei metri, come
-// il primo inserimento.
+// Usate solo per il primo inserimento (mode null) e per la matita (mode
+// 'edit', corregge un errore sull'ultima prova) — "Ripeti test" ora vive
+// fuori dal riquadro grigio con un proprio form compatto, vedi
+// masterTestRepeatFormMarkup. Annulla è una x a icona (non testo, altrimenti
+// non ci sta) presente su entrambe le righe della VAM, così resta
+// raggiungibile anche passando dal risultato ai metri via "Ricalcola".
 function masterVamFormMarkup(prefill, mode) {
   const startWithResult = mode === 'edit';
   const value = startWithResult && prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  const cancelBtn = mode ? '<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="vam">Annulla</button>' : '';
+  const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="vam">
       <span class="mtest-block-label">VAM</span>
@@ -4385,34 +4387,38 @@ function masterVamFormMarkup(prefill, mode) {
       <div class="calc-input-row mtest-meters-row"${startWithResult ? ' hidden' : ''}>
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
         <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
+        ${cancelBtn}
       </div>
       <div class="mtest-vam-result-row"${startWithResult ? '' : ' hidden'}>
         <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
         <div class="mtest-calc-actions-row">
           <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
           <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+          ${cancelBtn}
         </div>
       </div>
-      ${cancelBtn}
       <input type="text" hidden class="mtest-input" data-test="vam" data-digits="${digits}" value="${escapeHtml(value)}" />
     </div>
   `;
 }
 
+// "Min e sec" sotto al titolo fa occupare al riquadro del Tempo sul 1000 lo
+// stesso spazio (etichetta + riga input) del riquadro della VAM.
 function masterTestFormMarkup(testKey, prefill, mode) {
   if (testKey === 'vam') {
     return masterVamFormMarkup(prefill, mode);
   }
-  const showCancel = !!mode;
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
+  const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
+      <span class="mtest-meters-label">Min e sec</span>
       <div class="calc-input-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="4'00&quot;" />
         <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="${testKey}" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
-        ${showCancel ? `<button type="button" class="fbtn fbtn-ghost mtest-cancel-btn" data-test="${testKey}">Annulla</button>` : ''}
+        ${cancelBtn}
       </div>
     </div>
   `;
@@ -4449,17 +4455,19 @@ function masterTestOlderEntryMarkup(testKey, test) {
   `;
 }
 
-// Riquadro grigio di un binario (una per test, affiancate): il form se
-// vuoto/in modifica; altrimenti l'ultima prova in grande seguita dalle
-// precedenti più piccole (più recente prima). "Ripeti test" vive fuori da
-// questo riquadro (vedi masterTestRepeatMarkup) e il grafico a piena
-// larghezza sotto entrambe le colonne (vedi masterTestChartSectionMarkup),
-// perché troppo stretto per starci dentro.
+// Riquadro grigio di un binario (una per test, affiancate): il form solo se
+// vuoto o in modifica (matita, mode 'edit' — corregge l'ultima prova).
+// "Ripeti test" (mode 'repeat') NON tocca questo riquadro: resta con lo
+// stato attuale visibile, il suo form compatto vive fuori, al posto del
+// pulsante "Ripeti test" (vedi masterTestRepeatMarkup) — così si vede sempre
+// cosa si sta per sostituire. Il grafico sta a piena larghezza sotto
+// entrambe le colonne (vedi masterTestChartSectionMarkup), troppo stretto
+// per starci dentro.
 function masterTestColumnMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
   const editKey = `${entry.id}:${testKey}`;
   const mode = masterTestEditing.get(editKey);
-  if (mode) {
+  if (mode === 'edit') {
     const prefill = tests.length ? tests[tests.length - 1] : null;
     return masterTestFormMarkup(testKey, prefill, mode);
   }
@@ -4477,12 +4485,55 @@ function masterTestColumnMarkup(entry, testKey) {
   `;
 }
 
-// "Ripeti test" + icona info, fuori dal riquadro grigio, sotto — niente se
-// il binario è vuoto o in modifica (il form vive già nel riquadro sopra).
+// Form compatto di "Ripeti test", senza etichetta (il riquadro sopra la
+// mostra già): stesse due fasi della VAM (metri+calcolatrice, poi
+// risultato+salva/ricalcola), riga sola per il Tempo sul 1000.
+function masterTestRepeatFormMarkup(testKey) {
+  if (testKey === 'vam') {
+    return `
+      <div class="mtest-repeat-form" data-test="vam">
+        <div class="calc-input-row mtest-meters-row">
+          <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
+        </div>
+        <div class="mtest-vam-result-row" hidden>
+          <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">—</b> km/h</span>
+          <div class="mtest-calc-actions-row">
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
+          </div>
+        </div>
+        <input type="text" hidden class="mtest-input" data-test="vam" data-digits="" value="" />
+      </div>
+    `;
+  }
+  return `
+    <div class="mtest-repeat-form" data-test="${testKey}">
+      <div class="calc-input-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="" value="" placeholder="4'00&quot;" />
+        <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="${testKey}" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
+        <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
+      </div>
+    </div>
+  `;
+}
+
+// "Ripeti test" + icona info, fuori dal riquadro grigio, sotto — diventa il
+// form compatto quando mode è 'repeat'; niente durante la modifica (mode
+// 'edit', il form vive già nel riquadro sopra) o se il binario è vuoto.
 function masterTestRepeatMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
-  if (masterTestEditing.has(`${entry.id}:${testKey}`) || !tests.length) {
+  if (!tests.length) {
     return '';
+  }
+  const mode = masterTestEditing.get(`${entry.id}:${testKey}`);
+  if (mode === 'edit') {
+    return '';
+  }
+  if (mode === 'repeat') {
+    return masterTestRepeatFormMarkup(testKey);
   }
   return `
     <div class="mtest-repeat-row">
@@ -4493,12 +4544,11 @@ function masterTestRepeatMarkup(entry, testKey) {
 }
 
 // Grafico dell'andamento, a piena larghezza sotto le due colonne — niente se
-// il binario è vuoto, in modifica, o ha meno di due prove (buildMasterTestChart
-// stessa già lo gestisce, ma evitiamo di aprire il wrapper per nulla).
+// il binario ha meno di due prove (buildMasterTestChart stessa già lo
+// gestisce, ma evitiamo di aprire il wrapper per nulla). Resta visibile
+// anche mentre si modifica o si ripete un test, perché i dati mostrati non
+// cambiano finché non si salva.
 function masterTestChartSectionMarkup(entry, testKey) {
-  if (masterTestEditing.has(`${entry.id}:${testKey}`)) {
-    return '';
-  }
   const chart = buildMasterTestChart(entry[`${testKey}Tests`] || [], testKey);
   return chart ? `<div class="mtest-chart-section" data-test="${testKey}">${chart}</div>` : '';
 }
@@ -4800,9 +4850,14 @@ function mtestApplyMask(input) {
 
 // VAM = metri / 100 (equivalente a metri × 10 / 1000), arrotondata al
 // decimo: passa dalla riga "metri" a quella col risultato in km/h, pronto
-// per essere salvato (o ricalcolato da capo).
+// per essere salvato (o ricalcolato da capo). Il contenitore è .mtest-block
+// quando si sta correggendo l'ultima prova (matita) dentro il riquadro
+// grigio, .mtest-repeat-form quando si sta ripetendo il test fuori da esso —
+// stessi elementi interni in entrambi i casi, tranne l'etichetta "Metri in 6
+// min" che nel form compatto di "Ripeti test" non c'è (il riquadro sopra
+// mostra già "VAM").
 function handleMasterVamCalc(button) {
-  const block = button.closest('.mtest-block');
+  const block = button.closest('.mtest-block, .mtest-repeat-form');
   const metersInput = block.querySelector('.mtest-meters-input');
   const meters = parseInt(metersInput.value, 10);
   if (!Number.isFinite(meters) || meters <= 0) {
@@ -4817,7 +4872,10 @@ function handleMasterVamCalc(button) {
   vamInput.dataset.digits = digits;
   block.querySelector('.mtest-calc-result-val').textContent = vamValue;
 
-  block.querySelector('.mtest-meters-label').hidden = true;
+  const metersLabel = block.querySelector('.mtest-meters-label');
+  if (metersLabel) {
+    metersLabel.hidden = true;
+  }
   block.querySelector('.mtest-meters-row').hidden = true;
   block.querySelector('.mtest-vam-result-row').hidden = false;
 }
@@ -4825,9 +4883,12 @@ function handleMasterVamCalc(button) {
 // Torna alla riga "metri" per una nuova misurazione, senza toccare il
 // pannello (niente re-render, come per apri/chiudi form).
 function handleMasterVamRecalc(button) {
-  const block = button.closest('.mtest-block');
+  const block = button.closest('.mtest-block, .mtest-repeat-form');
   block.querySelector('.mtest-vam-result-row').hidden = true;
-  block.querySelector('.mtest-meters-label').hidden = false;
+  const metersLabel = block.querySelector('.mtest-meters-label');
+  if (metersLabel) {
+    metersLabel.hidden = false;
+  }
   const metersRow = block.querySelector('.mtest-meters-row');
   metersRow.hidden = false;
   const metersInput = metersRow.querySelector('.mtest-meters-input');
@@ -4846,7 +4907,7 @@ async function handleMasterTestSave(saveBtn) {
   const testKey = saveBtn.dataset.test;
   const card = saveBtn.closest('.athlete-item');
   const athleteId = card.dataset.id;
-  const input = saveBtn.closest('.mtest-block').querySelector('.mtest-input');
+  const input = saveBtn.closest('.mtest-block, .mtest-repeat-form').querySelector('.mtest-input');
   const rawValue = input.value.trim();
 
   const parsedOk = testKey === 'thousand'
