@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22k';
-console.log('[Lapsi] build', APP_BUILD, '— simulatore serie ripetute nella card Master');
+const APP_BUILD = '2026-09-22l';
+console.log('[Lapsi] build', APP_BUILD, '— campo distanze simulatore: tastiera con "/"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4444,7 +4444,7 @@ function masterSeriesBlockRowMarkup(block, index) {
       <div class="mseries-block-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-reps-input" data-block-id="${block.id}" value="${escapeHtml(block.reps)}" placeholder="N" aria-label="Numero ripetute" />
         <span class="mseries-x">×</span>
-        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400 o 200/300/400" aria-label="Distanze" />
+        <input type="text" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400 o 200/300/400" aria-label="Distanze" />
         <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${index === 0 ? ' disabled' : ''}>${MTEST_DEL_ICON}</button>
       </div>
       <div class="mseries-block-rec-row">
