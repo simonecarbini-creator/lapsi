@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22b';
-console.log('[Lapsi] build', APP_BUILD, '— card Master: proiezioni subito sotto i test, diario allenamenti unico');
+const APP_BUILD = '2026-09-22c';
+console.log('[Lapsi] build', APP_BUILD, '— card Master: calcolo VAM dai metri percorsi in 6 minuti');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4367,6 +4367,24 @@ function masterTestEntryMarkup(testKey, test, isLatest) {
   `;
 }
 
+// Per la VAM, oltre a poterla scrivere direttamente, si può calcolarla dai
+// metri percorsi in 6 minuti (com'è più comodo rilevare il test sul campo):
+// VAM = metri / 100 (equivalente a metri × 10 / 1000), arrotondata al decimo.
+function masterVamMetersRowMarkup(testKey) {
+  if (testKey !== 'vam') {
+    return '';
+  }
+  return `
+    <div class="mtest-meters-row">
+      <span class="mtest-meters-label">Metri percorsi in 6 minuti</span>
+      <div class="calc-input-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="es. 1500" />
+        <button type="button" class="fbtn fbtn-primary mtest-calc-btn" data-test="${testKey}">Calcola</button>
+      </div>
+    </div>
+  `;
+}
+
 function masterTestFormMarkup(testKey, prefill, showCancel) {
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -4374,6 +4392,7 @@ function masterTestFormMarkup(testKey, prefill, showCancel) {
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
+      ${masterVamMetersRowMarkup(testKey)}
       <div class="calc-input-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-input" data-test="${testKey}" data-digits="${digits}" value="${escapeHtml(value)}" placeholder="${placeholder}" />
         <button type="button" class="fbtn fbtn-primary mtest-save-btn" data-test="${testKey}">Salva</button>
@@ -4681,6 +4700,22 @@ function mtestApplyMask(input) {
   input.value = isTime ? formatTimeMask(input.dataset.digits || '') : formatVamMask(input.dataset.digits || '');
   const end = input.value.length;
   input.setSelectionRange(end, end);
+}
+
+// VAM = metri / 100 (equivalente a metri × 10 / 1000): scrive il risultato,
+// arrotondato al decimo, nel campo VAM qui sotto — l'utente può ancora
+// correggerlo a mano prima di salvare.
+function handleMasterVamCalc(button) {
+  const block = button.closest('.mtest-block');
+  const metersInput = block.querySelector('.mtest-meters-input');
+  const meters = parseInt(metersInput.value, 10);
+  if (!Number.isFinite(meters) || meters <= 0) {
+    alert('Inserisci i metri percorsi in 6 minuti.');
+    return;
+  }
+  const vamInput = block.querySelector('.mtest-input[data-test="vam"]');
+  vamInput.dataset.digits = String(Math.round((meters / 100) * 10));
+  mtestApplyMask(vamInput);
 }
 
 async function handleMasterTestSave(saveBtn) {
@@ -5000,6 +5035,12 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const calcBtn = event.target.closest('.mtest-calc-btn');
+  if (calcBtn) {
+    handleMasterVamCalc(calcBtn);
+    return;
+  }
+
   const saveBtn = event.target.closest('.mtest-save-btn');
   if (saveBtn) {
     await handleMasterTestSave(saveBtn);
@@ -5135,6 +5176,11 @@ masterListEl.addEventListener('input', (event) => {
   if (notesInput) {
     const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
     button.disabled = notesInput.value.trim() === '';
+    return;
+  }
+  const metersInput = event.target.closest('.mtest-meters-input');
+  if (metersInput) {
+    metersInput.value = metersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
     return;
   }
   const input = event.target.closest('.mtest-input');

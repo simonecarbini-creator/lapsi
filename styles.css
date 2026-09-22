@@ -2950,6 +2950,19 @@ button:active {
   width: 100px;
 }
 
+.mtest-meters-row {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dotted var(--card-border);
+}
+
+.mtest-meters-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .mtest-combined,
 .projection-panel > .mtest-notes {
   margin-top: 14px;
