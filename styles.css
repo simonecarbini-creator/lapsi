@@ -498,12 +498,6 @@ button, input {
   border-color: rgba(139, 92, 246, 0.45);
 }
 
-/* Tile del simulatore ripetute (card Master): verde, per distinguerle a
-   colpo d'occhio dalle proiezioni standard (arancio/viola) qui sopra. */
-.calc-out-tile-series {
-  border-color: rgba(34, 197, 94, 0.5);
-}
-
 .calc-out-tile b {
   display: block;
   font-size: clamp(0.78rem, 4vw, 1rem);
@@ -3369,6 +3363,13 @@ button:active {
 .mseries-checkbox {
   display: flex;
   align-items: center;
+  /* align-items:center sulla riga (.mseries-block-rec-row/.mseries-gap-rec-row)
+     non centra bene questa label rispetto all'input, più alto — pare un
+     effetto del figlio input[type=checkbox] position:absolute nascosto.
+     Margini auto sull'asse verticale, verificati, risolvono in modo
+     affidabile a prescindere dalla causa. */
+  margin-top: auto;
+  margin-bottom: auto;
   gap: 6px;
   font-size: 0.78rem;
   color: var(--text);

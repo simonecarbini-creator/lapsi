@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22r';
-console.log('[Lapsi] build', APP_BUILD, '— annulla modifica card Master, icone modifica/elimina più grandi');
+const APP_BUILD = '2026-09-22t';
+console.log('[Lapsi] build', APP_BUILD, '— checkbox centrate verticalmente, note allenamenti');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4335,9 +4335,9 @@ function renderMasterPagination(total) {
 // (ripetute + zone di ritmo) sono invece raggruppate in un'unica sezione che
 // legge l'ultima prova di entrambi i binari — vedi masterCombinedProjectionsMarkup.
 const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
-// Ordine di visualizzazione (tile riassuntive + colonne nel pannello): Tempo
-// sul 1000 a sinistra, VAM a destra.
-const MASTER_TEST_KEYS = ['thousand', 'vam'];
+// Ordine di visualizzazione (tile riassuntive + colonne nel pannello): VAM
+// a sinistra, Tempo sul 1000 a destra.
+const MASTER_TEST_KEYS = ['vam', 'thousand'];
 
 // Chiave "athleteId:testKey" -> 'edit' (corregge l'ultima prova) | 'repeat'
 // (ne aggiunge una nuova): stato solo di UI, non persistito.
@@ -4604,7 +4604,7 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   const tiles = distances
     .map((dist) => {
       const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
-      return `<div class="calc-out-tile calc-out-tile-series"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
+      return `<div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
     })
     .join('');
   const header = `${reps > 1 ? `${reps} × ` : ''}${distances.join('-')} m`;
@@ -4620,13 +4620,19 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   `;
 }
 
+// Gruppo "Ripetute" di Proiezioni sui lavori: non più le 5 tile a
+// volume/recupero fissi (2 km, 1'30" — quelle sono sparite, il simulatore
+// le rimpiazza) ma il simulatore stesso, con la stessa etichetta arancio
+// maiuscola che aveva il vecchio gruppo fisso. Chiamata da
+// masterCombinedProjectionsMarkup, non ha un proprio .mtest-combined: è un
+// .mtest-proj-group annidato nello stesso wrapper di "Ritmi".
 function masterSeriesBuilderMarkup(entry) {
   const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
   const T = latestThousand ? RipeteCalc.parseThousand(latestThousand.value) : null;
   if (!T) {
     return `
-      <div class="mtest-combined mseries-block-wrap">
-        <span class="mtest-block-label">Simulatore ripetute</span>
+      <div class="mtest-proj-group mseries-proj-group">
+        <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
         <div class="mtest-combined-hint mtest-combined-hint-thousand">Per usare il simulatore delle ripetute fai il test sul 1000.</div>
       </div>
     `;
@@ -4662,8 +4668,8 @@ function masterSeriesBuilderMarkup(entry) {
     : '';
 
   return `
-    <div class="mtest-combined mseries-block-wrap">
-      <span class="mtest-block-label">Simulatore ripetute</span>
+    <div class="mtest-proj-group mseries-proj-group">
+      <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
       <button type="button" class="mseries-calc-btn" data-id="${entry.id}"${state.showResults ? ' disabled' : ''}>Calcola serie</button>
@@ -4989,7 +4995,7 @@ function buildMasterNotesBlock(entry) {
     : '<div class="notes-empty">Nessun allenamento annotato</div>';
   return `
     <div class="notes-block mtest-notes" data-athlete-id="${escapeHtml(entry.id)}">
-      <div class="notes-label">Allenamenti nel frattempo</div>
+      <div class="notes-label">Note allenamenti</div>
       <div class="notes-log">${logMarkup}</div>
       <div class="notes-new">
         <textarea class="notes-input" rows="2" placeholder="Es. 5x400 in 1'35&quot;, buone sensazioni…"></textarea>
@@ -5086,19 +5092,16 @@ async function handleMasterTestNotesClear(button) {
 // ritmo rigenerante/lenta/lunga/media/soglia/2000/1000 (dalla VAM). La VAM
 // usa la prova diretta se c'è, altrimenti la ricava dal Tempo sul 1000 —
 // così anche un solo binario compilato basta per avere le zone di ritmo.
+// "Proiezioni sui lavori": prima i Ritmi (dalla VAM), poi le Ripetute — che
+// non sono più le 5 tile a volume/recupero fissi (2 km, 1'30") ma il
+// simulatore stesso (masterSeriesBuilderMarkup), con la stessa etichetta
+// arancio maiuscola che il gruppo fisso aveva prima. Il simulatore richiede
+// solo il Tempo sul 1000 (gestisce da sé l'avviso se manca), quindi il suo
+// gruppo c'è sempre; l'intero blocco sparisce solo se manca anche la VAM
+// (diretta o stimata) e quindi non c'è nulla da mostrare per i Ritmi.
 function masterCombinedProjectionsMarkup(entry) {
   const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
   const latestVam = entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
-
-  let repeatTiles = '';
-  if (latestThousand) {
-    const T = RipeteCalc.parseThousand(latestThousand.value);
-    if (T) {
-      repeatTiles = RipeteCalc.repeatTimesFor(T, RipeteCalc.VOL_DEFAULT, RipeteCalc.REC_DEFAULT)
-        .map(({ dist, seconds }) => `<div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`)
-        .join('');
-    }
-  }
 
   const vam = latestVam
     ? MezzofondoCalc.parseVam(latestVam.value)
@@ -5110,31 +5113,29 @@ function masterCombinedProjectionsMarkup(entry) {
       .join('');
   }
 
-  if (!repeatTiles && !zoneTiles) {
+  if (!zoneTiles && !latestThousand) {
     return '';
   }
 
-  // Se manca il Tempo sul 1000 un avviso arancio prende il posto delle tile
-  // delle ripetute (senza quel dato non c'è modo di calcolarle). Se manca la
-  // VAM diretta, le zone di ritmo si vedono comunque (ricavate dal Tempo sul
-  // 1000, vedi sopra) ma un avviso viola sotto ricorda che sono una stima.
-  const repeatSection = repeatTiles || '<div class="mtest-combined-hint mtest-combined-hint-thousand">Per il calcolo delle ripetute corte fai il test sul 1000.</div>';
   const vamHint = !latestVam && zoneTiles
     ? '<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.</div>'
     : '';
 
-  return `
-    <div class="mtest-combined">
-      <span class="mtest-block-label">Proiezioni sui lavori</span>
-      <div class="mtest-proj-group">
-        <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
-        <div class="calc-output">${repeatSection}</div>
-      </div>
+  const ritmiGroup = zoneTiles
+    ? `
       <div class="mtest-proj-group">
         <span class="mtest-proj-group-label mtest-proj-group-label-vam">Ritmi</span>
         <div class="calc-output">${zoneTiles}</div>
         ${vamHint}
       </div>
+    `
+    : '';
+
+  return `
+    <div class="mtest-combined">
+      <span class="mtest-block-label">Proiezioni sui lavori</span>
+      ${ritmiGroup}
+      ${masterSeriesBuilderMarkup(entry)}
     </div>
   `;
 }
@@ -5505,7 +5506,6 @@ function renderMaster() {
       </div>
       ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
       ${masterCombinedProjectionsMarkup(entry)}
-      ${masterSeriesBuilderMarkup(entry)}
       ${buildMasterNotesBlock(entry)}
     `;
     item.appendChild(panel);
@@ -5751,6 +5751,18 @@ async function handleMasterListClick(event) {
 
 masterListEl.addEventListener('click', handleMasterListClick);
 masterListEl.addEventListener('submit', handleMasterEditSubmit);
+
+// Simulatore ripetute: entrando in un campo ripetute/recupero il contenuto
+// è già selezionato, così la prima cifra digitata sostituisce il vecchio
+// valore invece di accodarsi (comodo per correggere un blocco già
+// compilato senza doverlo prima svuotare a mano). 'focusin' invece di
+// 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
+masterListEl.addEventListener('focusin', (event) => {
+  const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
+  if (input) {
+    input.select();
+  }
+});
 
 // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
 // generalizzato per più input contemporaneamente sulla stessa pagina).
