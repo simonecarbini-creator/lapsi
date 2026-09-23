@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23c';
-console.log('[Lapsi] build', APP_BUILD, '— tastiera numerica recupero tra serie, icona reload, storico su due righe');
+const APP_BUILD = '2026-09-23d';
+console.log('[Lapsi] build', APP_BUILD, '— sezioni Test/Allenamenti/Risultati gare, risultati gara nella card chiusa');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1208,6 +1208,30 @@ function parseItDate(dateStr) {
     year += 2000;
   }
   return new Date(year, Number(month) - 1, Number(day)).getTime();
+}
+
+// yyyy-mm-dd (valore nativo di <input type="date">) -> dd/mm/yyyy, lo stesso
+// formato usato ovunque nell'app (getNowParts/parseItDate) — così le date
+// dei risultati gara restano ordinabili/confrontabili con lo stesso codice.
+function isoDateToIt(iso) {
+  const match = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return '';
+  }
+  const [, y, m, d] = match;
+  return `${d}/${m}/${y}`;
+}
+
+// dd/mm/yyyy -> yyyy-mm-dd, per precompilare <input type="date"> quando si
+// vuole mostrare una data già salvata (nessun uso attuale in scrittura, solo
+// eventuali riletture future del form).
+function itDateToIso(it) {
+  const match = String(it || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) {
+    return '';
+  }
+  const [, d, m, y] = match;
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
 const CHART_RUN_COLOR = '#FF5C3A';
@@ -4241,6 +4265,40 @@ function normalizeMasterTestEntry(record) {
   };
 }
 
+// Distanze coperte da fondo/mezzofondo mostrabili in "Risultati gare" —
+// stessa lista data dall'utente, valore interno breve + etichetta estesa.
+const RACE_TYPES = [
+  ['100k', '100 km'],
+  ['50k', '50 km'],
+  ['maratona', 'Maratona'],
+  ['mezza', 'Mezza maratona'],
+  ['10k', '10 km'],
+  ['5k', '5 km'],
+  ['3k', '3 km'],
+  ['1500', '1500 m'],
+  ['800', '800 m'],
+];
+const RACE_TYPE_LABELS = Object.fromEntries(RACE_TYPES);
+
+function normalizeMasterRaceResult(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const type = String(record.type || '');
+  const result = String(record.result || '').trim();
+  if (!RACE_TYPE_LABELS[type] || !result) {
+    return null;
+  }
+  return {
+    id: record.id || `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    result,
+    date: String(record.date || ''),
+    location: String(record.location || '').trim(),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
 function normalizeMasterAthlete(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -4253,6 +4311,7 @@ function normalizeMasterAthlete(entry) {
     createdAt: entry.createdAt || new Date(0).toISOString(),
     vamTests: Array.isArray(entry.vamTests) ? entry.vamTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    raceResults: Array.isArray(entry.raceResults) ? entry.raceResults.map(normalizeMasterRaceResult).filter(Boolean) : [],
     notes: normalizeNotes(entry.notes),
   };
 }
@@ -4331,9 +4390,8 @@ function renderMasterPagination(total) {
 // inserimento; salvato -> storico append-only (ogni "Ripeti test" aggiunge
 // una prova, non sovrascrive le precedenti — solo la matita corregge
 // l'ultima, per un errore di battitura; il cestino elimina una prova
-// specifica, anche fino a svuotare il binario). Le proiezioni sui lavori
-// (ripetute + zone di ritmo) sono invece raggruppate in un'unica sezione che
-// legge l'ultima prova di entrambi i binari — vedi masterCombinedProjectionsMarkup.
+// specifica, anche fino a svuotare il binario). Le zone di ritmo leggono
+// l'ultima prova di entrambi i binari — vedi masterRitmiSectionMarkup.
 const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
 // Ordine di visualizzazione (tile riassuntive + colonne nel pannello): VAM
 // a sinistra, Tempo sul 1000 a destra.
@@ -4347,6 +4405,20 @@ let masterTestEditing = new Map();
 // (salvare un test, modificarlo) rifanno il render dell'intera lista, quindi
 // senza questo l'espansione si perderebbe a ogni salvataggio.
 let masterExpandedPanels = new Set();
+
+// Le tre sezioni apri/chiudi dentro il pannello (Test/Allenamenti/Risultati
+// gare) sono <details> native: lo stato aperto/chiuso va ricordato a parte
+// (chiave "athleteId:sectionKey") per lo stesso motivo di masterExpandedPanels
+// — un renderMaster() qualsiasi le farebbe tornare ai default. "Test" parte
+// aperta (contenuto principale), le altre due chiuse.
+let masterSectionOpen = new Map();
+function masterSectionIsOpen(entryId, key, defaultOpen) {
+  const mapKey = `${entryId}:${key}`;
+  if (!masterSectionOpen.has(mapKey)) {
+    masterSectionOpen.set(mapKey, defaultOpen);
+  }
+  return masterSectionOpen.get(mapKey);
+}
 
 function masterTestDisplayValue(testKey, test) {
   return testKey === 'vam' ? `${test.value} km/h` : test.value;
@@ -4366,6 +4438,8 @@ const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hi
 // simulatore: più equilibrata/riconoscibile a icona isolata, senza toccare
 // l'icona "Ricalcola" della VAM che usa ancora MTEST_RELOAD_ICON.
 const MSERIES_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 15-6.7L21 7"/><polyline points="21 3 21 7 17 7"/><path d="M21 13a9 9 0 0 1-15 6.7L3 17"/><polyline points="3 21 3 17 7 17"/></svg>';
+// Coppa/trofeo per le tile dei risultati gara nella card chiusa.
+const MTEST_TROPHY_ICON = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg>';
 
 // Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
 // [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si
@@ -4632,12 +4706,11 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   `;
 }
 
-// Gruppo "Ripetute" di Proiezioni sui lavori: non più le 5 tile a
-// volume/recupero fissi (2 km, 1'30" — quelle sono sparite, il simulatore
-// le rimpiazza) ma il simulatore stesso, con la stessa etichetta arancio
-// maiuscola che aveva il vecchio gruppo fisso. Chiamata da
-// masterCombinedProjectionsMarkup, non ha un proprio .mtest-combined: è un
-// .mtest-proj-group annidato nello stesso wrapper di "Ritmi".
+// Simulatore ripetute (sezione "Allenamenti"): non più le 5 tile a
+// volume/recupero fissi (2 km, 1'30") del vecchio gruppo "Ripetute", ma
+// mantiene la stessa etichetta arancio maiuscola. Ritorna un
+// .mtest-proj-group già completo (non serve un .mtest-combined attorno,
+// è la prima cosa nella sezione).
 function masterSeriesBuilderMarkup(entry) {
   const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
   const T = latestThousand ? RipeteCalc.parseThousand(latestThousand.value) : null;
@@ -5163,58 +5236,163 @@ async function handleMasterTestNotesClear(button) {
 // solo il Tempo sul 1000 (gestisce da sé l'avviso se manca), quindi il suo
 // gruppo c'è sempre; l'intero blocco sparisce solo se manca anche la VAM
 // (diretta o stimata) e quindi non c'è nulla da mostrare per i Ritmi.
-function masterCombinedProjectionsMarkup(entry) {
+// Gruppo "Ritmi" (zone dalla VAM), sezione "Test": prima viveva insieme al
+// simulatore sotto "Proiezioni sui lavori", ora quel titolo non serve più
+// (la sezione "Test" già dice di cosa si tratta) e "Ripetute"/il simulatore
+// è passato alla sezione "Allenamenti" — vedi masterSeriesBuilderMarkup.
+function masterRitmiSectionMarkup(entry) {
   const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
   const latestVam = entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
 
   const vam = latestVam
     ? MezzofondoCalc.parseVam(latestVam.value)
     : (latestThousand ? MezzofondoCalc.parseThousandToVam(latestThousand.value) : null);
-  let zoneTiles = '';
-  if (vam) {
-    zoneTiles = MezzofondoCalc.pacesForVam(vam)
-      .map(({ label, minutes }) => `<div class="calc-out-tile calc-out-tile-vam"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
-      .join('');
-  }
-
-  if (!zoneTiles && !latestThousand) {
+  if (!vam) {
     return '';
   }
-
-  const vamHint = !latestVam && zoneTiles
+  const zoneTiles = MezzofondoCalc.pacesForVam(vam)
+    .map(({ label, minutes }) => `<div class="calc-out-tile calc-out-tile-vam"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+    .join('');
+  const vamHint = !latestVam
     ? '<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.</div>'
     : '';
 
-  const ritmiGroup = zoneTiles
-    ? `
-      <div class="mtest-proj-group">
-        <span class="mtest-proj-group-label mtest-proj-group-label-vam">Ritmi</span>
-        <div class="calc-output">${zoneTiles}</div>
-        ${vamHint}
-      </div>
-    `
-    : '';
-
   return `
-    <div class="mtest-combined">
-      <span class="mtest-block-label">Proiezioni sui lavori</span>
-      ${ritmiGroup}
-      ${masterSeriesBuilderMarkup(entry)}
+    <div class="mtest-combined mtest-proj-group">
+      <span class="mtest-proj-group-label mtest-proj-group-label-vam">Ritmi</span>
+      <div class="calc-output">${zoneTiles}</div>
+      ${vamHint}
     </div>
   `;
 }
 
-function masterSummaryTileMarkup(testKey, tests) {
-  const hasData = tests.length > 0;
-  const latest = hasData ? tests[tests.length - 1] : null;
-  const displayValue = hasData ? masterTestDisplayValue(testKey, latest) : '– : –';
-  const subLine = hasData ? escapeHtml(latest.date) : 'Nessuna prova';
+// Card chiusa: al posto delle due tile VAM/1000 (che si ripetevano identiche
+// appena sotto, dentro "Test") mostra fino a 6 risultati gara, i più
+// recenti per data, 2 colonne × 3 righe. Vuoto -> stesso placeholder già
+// usato per "Nessun risultato registrato" negli altri elenchi atleti.
+function masterRaceResultsSummaryMarkup(entry) {
+  const results = [...(entry.raceResults || [])]
+    .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0))
+    .slice(0, 6);
+  if (!results.length) {
+    return '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato gara</div></div>';
+  }
+  const tiles = results.map((race) => {
+    const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+    return `
+      <div class="v2-race-tile">
+        <div class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span></div>
+        <div class="v2-race-result">${escapeHtml(race.result)}</div>
+        <div class="v2-race-meta">${meta}</div>
+      </div>
+    `;
+  }).join('');
+  return `<div class="v2-race-grid">${tiles}</div>`;
+}
+
+// Sezione "Risultati gare": form per aggiungerne uno (distanza da RACE_TYPES,
+// risultato libero — le distanze coperte vanno dai 100 km agli 800 m, un
+// tempo unico mm:ss/hh:mm:ss non avrebbe senso per tutte) + elenco di quelli
+// già salvati, eliminabili. Quelli più recenti per data finiscono nella
+// card chiusa (vedi masterRaceResultsSummaryMarkup).
+function masterRaceResultsSectionMarkup(entry) {
+  const typeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
+  const results = [...(entry.raceResults || [])]
+    .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0));
+  const listMarkup = results.length
+    ? results.map((race) => {
+      const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+      return `
+        <div class="race-entry">
+          <div class="race-entry-main">
+            <span class="race-entry-type">${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span>
+            <span class="race-entry-result">${escapeHtml(race.result)}</span>
+          </div>
+          <span class="race-entry-meta">${meta || '—'}</span>
+          <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
+        </div>
+      `;
+    }).join('')
+    : '<div class="race-empty">Nessun risultato ancora aggiunto.</div>';
+
   return `
-    <div class="v2-tile v2-tile-${testKey}${hasData ? '' : ' v2-tile-empty-slot'}">
-      <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>${escapeHtml(MASTER_TEST_TITLES[testKey])}</div>
-      <div class="v2-tile-val">${escapeHtml(displayValue)}</div>
-      <div class="v2-tile-sub">${subLine}</div>
-    </div>`;
+    <div class="race-form" data-id="${entry.id}">
+      <div class="field-row">
+        <div class="field-group">
+          <label>Distanza</label>
+          <select class="race-type-input">${typeOptions}</select>
+        </div>
+        <div class="field-group">
+          <label>Risultato</label>
+          <input type="text" class="race-result-input" placeholder="es. 42:15" autocomplete="off" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Data</label>
+          <input type="date" class="race-date-input" />
+        </div>
+        <div class="field-group">
+          <label>Luogo</label>
+          <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" />
+        </div>
+      </div>
+      <button type="button" class="race-add-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi risultato</button>
+    </div>
+    <div class="race-list">${listMarkup}</div>
+  `;
+}
+
+async function handleMasterRaceAdd(addBtn) {
+  const form = addBtn.closest('.race-form');
+  const athleteId = form.dataset.id;
+  const typeInput = form.querySelector('.race-type-input');
+  const resultInput = form.querySelector('.race-result-input');
+  const dateInput = form.querySelector('.race-date-input');
+  const locationInput = form.querySelector('.race-location-input');
+
+  const result = resultInput.value.trim();
+  const dateIso = dateInput.value;
+  if (!result || !dateIso) {
+    alert('Inserisci almeno il risultato e la data.');
+    return;
+  }
+
+  const entries = getMaster();
+  const index = entries.findIndex((e) => e.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+
+  const newRace = {
+    id: `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: typeInput.value,
+    result,
+    date: isoDateToIt(dateIso),
+    location: locationInput.value.trim(),
+    createdAt: new Date().toISOString(),
+  };
+
+  const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
+  entries[index] = { ...entries[index], raceResults: [...currentList, newRace] };
+  await saveMaster(entries);
+  renderMaster();
+  showToast('Salvato!');
+}
+
+async function handleMasterRaceDelete(delBtn) {
+  const card = delBtn.closest('.athlete-item');
+  const athleteId = card.dataset.id;
+  const raceId = delBtn.dataset.id;
+  const entries = getMaster();
+  const index = entries.findIndex((e) => e.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
+  entries[index] = { ...entries[index], raceResults: currentList.filter((race) => race.id !== raceId) };
+  await saveMaster(entries);
+  renderMaster();
 }
 
 function mtestApplyMask(input) {
@@ -5514,7 +5692,7 @@ function renderMaster() {
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
 
-    const tilesMarkup = `<div class="v2-tiles">${MASTER_TEST_KEYS.map((key) => masterSummaryTileMarkup(key, entry[`${key}Tests`])).join('')}</div>`;
+    const tilesMarkup = masterRaceResultsSummaryMarkup(entry);
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
@@ -5563,18 +5741,38 @@ function renderMaster() {
     const panel = document.createElement('div');
     panel.className = 'projection-panel';
     panel.hidden = !isExpanded;
+    const testOpen = masterSectionIsOpen(entry.id, 'test', true);
+    const trainingOpen = masterSectionIsOpen(entry.id, 'training', false);
+    const racesOpen = masterSectionIsOpen(entry.id, 'races', false);
     panel.innerHTML = `
-      <div class="mtest-calc-grid">
-        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
-        ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
-        <div class="mtest-repeat-info-row">
-          <button type="button" class="mtest-info-btn" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
-          <span>Quando ripetere un test</span>
+      <details class="mtest-section" data-section-key="test"${testOpen ? ' open' : ''}>
+        <summary class="mtest-section-summary">Test</summary>
+        <div class="mtest-section-body">
+          <div class="mtest-calc-grid">
+            ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
+            ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
+            <div class="mtest-repeat-info-row">
+              <button type="button" class="mtest-info-btn" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
+              <span>Quando ripetere un test</span>
+            </div>
+          </div>
+          ${masterCombinedChartSectionMarkup(entry)}
+          ${masterRitmiSectionMarkup(entry)}
         </div>
-      </div>
-      ${masterCombinedChartSectionMarkup(entry)}
-      ${masterCombinedProjectionsMarkup(entry)}
-      ${buildMasterNotesBlock(entry)}
+      </details>
+      <details class="mtest-section" data-section-key="training"${trainingOpen ? ' open' : ''}>
+        <summary class="mtest-section-summary">Allenamenti</summary>
+        <div class="mtest-section-body">
+          ${masterSeriesBuilderMarkup(entry)}
+          ${buildMasterNotesBlock(entry)}
+        </div>
+      </details>
+      <details class="mtest-section" data-section-key="races"${racesOpen ? ' open' : ''}>
+        <summary class="mtest-section-summary">Risultati gare</summary>
+        <div class="mtest-section-body">
+          ${masterRaceResultsSectionMarkup(entry)}
+        </div>
+      </details>
     `;
     item.appendChild(panel);
 
@@ -5600,6 +5798,18 @@ async function handleMasterListClick(event) {
   const entryDelButton = event.target.closest('.mtest-entry-del');
   if (entryDelButton) {
     await handleMasterEntryDelete(entryDelButton);
+    return;
+  }
+
+  const raceAddButton = event.target.closest('.race-add-btn');
+  if (raceAddButton) {
+    await handleMasterRaceAdd(raceAddButton);
+    return;
+  }
+
+  const raceDelButton = event.target.closest('.race-entry-del');
+  if (raceDelButton) {
+    await handleMasterRaceDelete(raceDelButton);
     return;
   }
 
@@ -5821,12 +6031,32 @@ async function handleMasterListClick(event) {
   masterTestEditing.delete(`${entryId}:vam`);
   masterTestEditing.delete(`${entryId}:thousand`);
   masterSeriesState.delete(entryId);
+  masterSectionOpen.delete(`${entryId}:test`);
+  masterSectionOpen.delete(`${entryId}:training`);
+  masterSectionOpen.delete(`${entryId}:races`);
   renderMaster();
   showToast('Eliminato!');
 }
 
 masterListEl.addEventListener('click', handleMasterListClick);
 masterListEl.addEventListener('submit', handleMasterEditSubmit);
+
+// Ricorda quale delle tre <details> (Test/Allenamenti/Risultati gare) resta
+// aperta/chiusa tra un renderMaster() e l'altro. Capture (terzo parametro
+// true) invece di lasciar risalire l'evento: "toggle" non garantisce il
+// bubbling su tutti i motori, la cattura funziona comunque perché scende
+// sempre fino al target.
+masterListEl.addEventListener('toggle', (event) => {
+  const details = event.target;
+  if (!(details instanceof HTMLDetailsElement) || !details.dataset.sectionKey) {
+    return;
+  }
+  const card = details.closest('.athlete-item');
+  if (!card) {
+    return;
+  }
+  masterSectionOpen.set(`${card.dataset.id}:${details.dataset.sectionKey}`, details.open);
+}, true);
 
 // Simulatore ripetute: entrando in un campo ripetute/recupero il contenuto
 // è già selezionato, così la prima cifra digitata sostituisce il vecchio

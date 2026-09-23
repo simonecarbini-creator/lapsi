@@ -2528,6 +2528,139 @@ button:active {
   display: none;
 }
 
+/* ===== Le tre sezioni apri/chiudi del pannello Master (Test/Allenamenti/
+   Risultati gare): <details> native, stesso "chevron che ruota" già usato
+   per "Come funzionano i calcoli" ma con un'intestazione più marcata,
+   trattandosi qui delle sezioni principali del pannello e non di voci
+   secondarie dentro un'unica pagina. ===== */
+.mtest-section {
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.mtest-section-summary {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text);
+  background: var(--bg-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.mtest-section-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mtest-section-summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 8px;
+  font-weight: 800;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.mtest-section[open] > .mtest-section-summary::before {
+  transform: rotate(90deg);
+}
+
+.mtest-section-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ===== "Risultati gare": form per aggiungerne uno + elenco di quelli già
+   salvati (i più recenti finiscono anche nella card chiusa, vedi
+   .v2-race-grid). ===== */
+.race-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.race-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.race-empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.race-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.race-entry-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.race-entry-type {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9a6b0c;
+}
+
+.race-entry-result {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.race-entry-meta {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-entry-del {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
 /* ===== Note atleta: registro con data per ogni nota ===== */
 .notes-block {
   margin: 14px 0 4px;
@@ -2925,18 +3058,52 @@ button:active {
   color: var(--muted);
 }
 
-.v2-tile-empty-slot {
-  opacity: 0.55;
+/* Card chiusa Master: risultati gara al posto delle vecchie tile VAM/1000
+   (che si ripetevano identiche appena sotto, dentro "Test"). Stesso stile
+   morbido di .v2-tile, in griglia 2 colonne invece che in riga, per stare
+   fino a 6 senza dover scrollare in orizzontale. */
+.v2-race-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-/* Stesso bordo colorato delle proiezioni già sulla tile riassuntiva, così il
-   colore si riconosce anche a card chiusa, prima di aprire il pannello. */
-.v2-tile-vam {
-  border-color: rgba(139, 92, 246, 0.45);
+.v2-race-tile {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, #fbf6ec, #f5ecd8);
+  border: 1px solid rgba(184, 134, 11, 0.35);
 }
 
-.v2-tile-thousand {
-  border-color: rgba(255, 92, 58, 0.45);
+.v2-race-type {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9a6b0c;
+}
+
+.v2-race-result {
+  margin-top: 4px;
+  font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.v2-race-meta {
+  margin-top: 2px;
+  font-size: 0.62rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .v2-actions {
