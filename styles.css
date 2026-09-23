@@ -2961,10 +2961,19 @@ button:active {
   background: #ffe1d0;
 }
 
+/* "Effetto disattivato": non solo grigio, anche più piccola/trasparente e
+   con un bordo tratteggiato — lo stesso linguaggio visivo già usato per i
+   pulsanti disabilitati altrove nell'app (es. "Ripeti test" senza dati). */
 .v2-strava-inactive {
-  background: rgba(15, 23, 42, 0.05);
+  background: transparent;
+  border: 1.5px dashed var(--card-border);
   color: #c2c6cd;
+  opacity: 0.7;
   cursor: default;
+}
+
+.v2-strava-inactive svg {
+  transform: scale(0.85);
 }
 
 .v2-avatar {
@@ -3133,7 +3142,6 @@ button:active {
 .v2-race-row {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 7px 2px;
 }
 
@@ -3151,6 +3159,7 @@ button:active {
      invece di restare allineato. white-space:nowrap invece di andare a
      capo su due righe per "Mezza maratona" (la più lunga della lista). */
   flex: 0 0 98px;
+  margin-right: 10px;
   overflow: hidden;
   white-space: nowrap;
   font-size: 0.56rem;
@@ -3161,9 +3170,12 @@ button:active {
 }
 
 .v2-race-result {
-  /* Stessa idea: larghezza fissa + testo allineato a destra, così i tempi
-     restano tutti in colonna invece di scivolare a seconda di quanto è
-     largo il tipo di gara sulla stessa riga. */
+  /* Larghezza fissa + testo allineato a destra, così i tempi restano tutti
+     in colonna invece di scivolare a seconda di quanto è largo il tipo di
+     gara sulla stessa riga. Non più spinto in fondo alla riga con
+     margin-left:auto: segue subito dopo, luogo/data a un margine fisso
+     (~10px, .v2-race-meta) invece che appesi all'estremità destra della
+     card con uno spazio che cambiava a seconda di quanto testo c'era. */
   flex: 0 0 88px;
   text-align: right;
   font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
@@ -3174,10 +3186,10 @@ button:active {
 }
 
 .v2-race-meta {
-  margin-left: 4px;
-  flex: 1 1 auto;
+  margin-left: 10px;
+  flex: 0 1 auto;
   min-width: 0;
-  text-align: right;
+  text-align: left;
   font-size: 0.64rem;
   color: var(--muted);
   overflow: hidden;
