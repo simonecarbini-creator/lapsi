@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23o';
-console.log('[Lapsi] build', APP_BUILD, '— icona info più grande, testi con riferimento colore viola/arancio');
+const APP_BUILD = '2026-09-23q';
+console.log('[Lapsi] build', APP_BUILD, '— fix sovrapposizione riga gara: tipo/risultato/data fratelli, priorità al tipo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5373,10 +5373,8 @@ function masterRaceResultsSectionMarkup(entry) {
       const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
       return `
         <div class="race-entry${race.id === editingId ? ' race-entry-editing' : ''}">
-          <div class="race-entry-main">
-            <span class="race-entry-type">${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span>
-            <span class="race-entry-result">${escapeHtml(race.result)}</span>
-          </div>
+          <span class="race-entry-type">${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span>
+          <span class="race-entry-result">${escapeHtml(race.result)}</span>
           <span class="race-entry-meta">${meta || '—'}</span>
           <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
           <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>

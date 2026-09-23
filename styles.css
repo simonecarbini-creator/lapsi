@@ -2638,17 +2638,17 @@ button:active {
   outline: 1.5px solid var(--primary);
 }
 
-.race-entry-main {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
+/* Tipo, risultato e luogo/data sono ora tre fratelli diretti nella stessa
+   riga flex (non più tipo+risultato annidati in un wrapper a parte): serve
+   perché la priorità di restringimento va calcolata tutta insieme. Prima,
+   col wrapper, la riga stringeva il wrapper anche sotto la larghezza minima
+   del risultato (che non si restringe mai), col risultato in overflow
+   proprio SOTTO il testo di luogo/data — sovrapposizione illeggibile. */
 .race-entry-type {
-  flex-shrink: 1;
-  min-width: 0;
+  flex-shrink: 999;
+  flex-grow: 0;
+  flex-basis: auto;
+  min-width: 22px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2660,7 +2660,7 @@ button:active {
 }
 
 .race-entry-result {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   white-space: nowrap;
   font-size: 0.9rem;
   font-weight: 700;
@@ -2669,10 +2669,15 @@ button:active {
 }
 
 .race-entry-meta {
-  flex-shrink: 0;
+  /* Niente più max-width fisso: prima troncava luogo/data anche quando la
+     riga aveva spazio libero (es. "10 km", tipo corto). Restringimento
+     basso (1, contro i 999 del tipo): cede solo se il tipo, ridotto già al
+     minimo, ancora non basta — nel caso normale prende solo lo spazio di
+     cui ha bisogno, senza crescere oltre (niente flex-grow). */
+  flex: 0 1 auto;
+  min-width: 20px;
   font-size: 0.68rem;
   color: var(--muted);
-  max-width: 90px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
