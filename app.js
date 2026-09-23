@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23h';
-console.log('[Lapsi] build', APP_BUILD, '— città di nuovo in fondo alla card, icona Strava più grande, disattivo solo opacità');
+const APP_BUILD = '2026-09-23i';
+console.log('[Lapsi] build', APP_BUILD, '— gap tempo-città gara sempre 10px');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al

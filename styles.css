@@ -3188,7 +3188,7 @@ button:active {
   margin-left: 10px;
   flex: 1 1 auto;
   min-width: 0;
-  text-align: right;
+  text-align: left;
   font-size: 0.64rem;
   color: var(--muted);
   overflow: hidden;
