@@ -3077,7 +3077,7 @@ button:active {
 }
 
 .mtest-compact-value {
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -3397,13 +3397,6 @@ button:active {
   background: rgba(0, 0, 0, 0.03);
 }
 
-.mseries-gap-plus {
-  margin-bottom: 6px;
-  text-align: center;
-  font-weight: 700;
-  color: var(--muted);
-}
-
 /* Checkbox "a icona" condivisa da "salta l'ultimo recupero" e dai due
    toggle "attivo": il border-trick CSS (bordo ruotato a 45°) usato prima
    per il segno di spunta era illeggibile a 18px, sembrava un semplice "/".
@@ -3499,9 +3492,9 @@ button:active {
 }
 
 .mseries-result-gap {
-  margin: 10px 0;
+  margin: 8px 0;
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-style: italic;
   color: var(--muted);
 }
@@ -3648,40 +3641,52 @@ button:active {
   text-align: center;
 }
 
-/* Una volta calcolata, la serie resta "congelata" finché non cambia
-   qualcosa: il pulsante torna alla stessa grafica tratteggiata usata per
-   le azioni secondarie (es. "Aggiungi blocco"), invece di restare pieno
-   come se si potesse ricalcolare senza motivo. */
-.mseries-calc-btn:disabled {
-  border: 1px dashed var(--card-border);
-  background: transparent;
-  color: var(--muted);
-  cursor: default;
+.mseries-results {
+  margin-top: 4px;
 }
 
-.mseries-results {
-  margin-top: 14px;
+/* Volume a sx, reload a dx: cliccarlo torna alla vista con i blocchi da
+   compilare (stessi valori di prima, si limita a rimettere
+   state.showResults a false) invece di lasciare "Calcola serie" pieno e
+   i blocchi sempre visibili sotto — con più blocchi il riepilogo si
+   perdeva in mezzo agli input. */
+.mseries-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .mseries-total {
-  margin-bottom: 10px;
   font-size: 0.82rem;
   color: var(--muted);
-  text-align: center;
+  text-align: left;
 }
 
 .mseries-total b {
   color: var(--text);
 }
 
-.mseries-total-used {
-  margin-top: -4px;
-  font-size: 0.74rem;
-  font-style: italic;
+.mseries-reload-btn {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--muted);
+}
+
+.mseries-reload-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
 }
 
 .mseries-result-block + .mseries-result-block {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .mseries-result-header {

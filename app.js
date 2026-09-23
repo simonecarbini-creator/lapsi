@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23a';
-console.log('[Lapsi] build', APP_BUILD, '— box VAM su una riga, grafico unico, ripeti test sempre presente, un solo info');
+const APP_BUILD = '2026-09-23b';
+console.log('[Lapsi] build', APP_BUILD, '— font uniforme box test, grafico con offset anti-sovrapposizione, simulatore compatto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4569,7 +4569,6 @@ function masterSeriesGapMarkup(block) {
   const note = masterSeriesGapNote(gap);
   return `
     <div class="mseries-gap" data-block-id="${block.id}">
-      <div class="mseries-gap-plus">+</div>
       ${masterSeriesCheckboxMarkup('mseries-gap-skip-input', block.id, gap.skip, "Salta l'ultimo recupero")}
       <div class="mseries-gap-rec-row">
         <span class="mseries-gap-rec-label">recupero tra le serie</span>
@@ -4581,16 +4580,24 @@ function masterSeriesGapMarkup(block) {
   `;
 }
 
-// Didascalia tra due blocchi di risultati: ricorda il recupero impostato
-// tra le due serie (o che l'ultimo recupero interno è stato saltato) e
-// l'eventuale riduzione di volume applicata, così il legame con la nota
-// nel builder è visibile anche nei risultati.
+// Didascalia tra due blocchi di risultati: versione compatta (non la frase
+// intera di masterSeriesGapNote, usata invece sotto l'input nel builder) —
+// giusto il recupero, l'equivalente "fermo" se attivo, e l'impatto secco
+// sul volume, per stare su una riga sola invece di un periodo.
 function masterSeriesResultGapMarkup(block) {
   const gap = block.gapBefore;
-  const parts = [];
-  if (gap.skip) parts.push("ultimo recupero saltato");
-  parts.push(masterSeriesGapNote(gap) || 'recupero tra le serie da impostare');
-  return `<div class="mseries-result-gap">${escapeHtml(parts.join(' · '))}</div>`;
+  const rec = seriesParseRecSeconds(gap.recDigits);
+  if (!rec) {
+    return `<div class="mseries-result-gap">recupero tra le serie da impostare</div>`;
+  }
+  const label = seriesFormatRecMask(gap.recDigits);
+  const deduction = masterSeriesGapDeductionKm(gap);
+  const activeNote = gap.recActive
+    ? ` (≈${RipeteCalc.formatLabel(Math.round(RipeteCalc.effectiveRecovery(rec, true)))} fermo)`
+    : '';
+  const impact = deduction > 0 ? `−${String(deduction).replace('.', ',')} km` : 'volume pieno';
+  const skipNote = gap.skip ? "ultimo recupero saltato · " : '';
+  return `<div class="mseries-result-gap">${escapeHtml(`${skipNote}rec ${label}${activeNote} tra le serie · ${impact}`)}</div>`;
 }
 
 function masterSeriesResultBlockMarkup(block, T, totalKm) {
@@ -4649,31 +4656,38 @@ function masterSeriesBuilderMarkup(entry) {
   const rawKm = totalMeters / 1000;
   const totalKm = Math.max(0, rawKm - gapDeductionKm);
 
+  // Dopo "Calcola serie" i blocchi da compilare (e i pulsanti per costruirli)
+  // spariscono: restano solo il risultato e il totale, con un'icona reload
+  // per tornare a modificare la serie invece di tenere tutto sempre visibile
+  // — altrimenti con più blocchi il riepilogo si perdeva in mezzo agli input.
+  if (state.showResults) {
+    const usedVolumeSuffix = gapDeductionKm > 0
+      ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (pause lunghe)`
+      : '';
+    return `
+      <div class="mtest-proj-group mseries-proj-group">
+        <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
+        <div class="mseries-results">
+          <div class="mseries-total-row">
+            <div class="mseries-total">Volume: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)${usedVolumeSuffix}</div>
+            <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+          </div>
+          ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   const blocksMarkup = state.blocks
     .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
     .join('');
-
-  const usedVolumeLine = gapDeductionKm > 0
-    ? `<div class="mseries-total mseries-total-used">Volume usato per il calcolo: <b>${totalKm.toFixed(2).replace('.', ',')} km</b> (pause lunghe tra le serie)</div>`
-    : '';
-
-  const resultsMarkup = state.showResults
-    ? `
-      <div class="mseries-results">
-        <div class="mseries-total">Volume totale: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)</div>
-        ${usedVolumeLine}
-        ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
-      </div>
-    `
-    : '';
 
   return `
     <div class="mtest-proj-group mseries-proj-group">
       <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
-      <button type="button" class="mseries-calc-btn" data-id="${entry.id}"${state.showResults ? ' disabled' : ''}>Calcola serie</button>
-      ${resultsMarkup}
+      <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
     </div>
   `;
 }
@@ -4948,9 +4962,16 @@ function buildMasterCombinedChart(entry) {
     return xs;
   };
 
-  const seriesSvg = (points, scale, color) => {
+  // yOffset: le due serie hanno assi indipendenti, quindi possono capitare
+  // andamenti diversi che finiscono comunque proiettati sugli stessi pixel
+  // (es. entrambe migliorano della stessa frazione del proprio range) — in
+  // quel caso una riga coprirebbe l'altra. Un piccolo scarto verticale fisso
+  // (pochi px su un grafico di ~110px di altezza) separa sempre le due
+  // linee quando sono entrambe disegnate, impercettibile quando non
+  // coincidono, senza dover rilevare la sovrapposizione caso per caso.
+  const seriesSvg = (points, scale, color, yOffset = 0) => {
     const xs = seriesXs(points);
-    const coords = points.map((point, index) => ({ x: xs[index], y: scale.yFor(point.v) }));
+    const coords = points.map((point, index) => ({ x: xs[index], y: scale.yFor(point.v) + yOffset }));
     const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
     const dots = coords.map((c) => `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3" fill="${color}"/>`).join('');
     return `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
@@ -4962,11 +4983,13 @@ function buildMasterCombinedChart(entry) {
     return `<text x="${x}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${color}">${escapeHtml(format(value))}</text>`;
   }).join('');
 
+  const dualOffset = (hasThousand && hasVam) ? 2 : 0;
+
   let thousandLayer = '';
   let thousandTicks = '';
   if (hasThousand) {
     const scale = scaleFor(thousandPoints, true); // tempo più basso = meglio -> in alto
-    thousandLayer = seriesSvg(thousandPoints, scale, CHART_RUN_COLOR);
+    thousandLayer = seriesSvg(thousandPoints, scale, CHART_RUN_COLOR, -dualOffset);
     thousandTicks = axisTicks(scale, formatChartClock, mL - 5, 'end', CHART_RUN_COLOR);
   }
 
@@ -4974,7 +4997,7 @@ function buildMasterCombinedChart(entry) {
   let vamTicks = '';
   if (hasVam) {
     const scale = scaleFor(vamPoints, false);
-    vamLayer = seriesSvg(vamPoints, scale, CHART_JUMP_COLOR);
+    vamLayer = seriesSvg(vamPoints, scale, CHART_JUMP_COLOR, dualOffset);
     vamTicks = axisTicks(scale, (v) => v.toFixed(1).replace('.', ','), W - mR + 5, 'start', CHART_JUMP_COLOR);
   }
 
@@ -5636,6 +5659,14 @@ async function handleMasterListClick(event) {
   if (seriesCalcBtn) {
     const state = masterSeriesGetState(seriesCalcBtn.dataset.id);
     state.showResults = true;
+    renderMaster();
+    return;
+  }
+
+  const seriesReloadBtn = event.target.closest('.mseries-reload-btn');
+  if (seriesReloadBtn) {
+    const state = masterSeriesGetState(seriesReloadBtn.dataset.id);
+    state.showResults = false;
     renderMaster();
     return;
   }
