@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23b';
-console.log('[Lapsi] build', APP_BUILD, '— font uniforme box test, grafico con offset anti-sovrapposizione, simulatore compatto');
+const APP_BUILD = '2026-09-23c';
+console.log('[Lapsi] build', APP_BUILD, '— tastiera numerica recupero tra serie, icona reload, storico su due righe');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4361,6 +4361,11 @@ const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hid
 const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
 const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+// Doppia freccia circolare (refresh "a due punte") invece della singola di
+// MTEST_RELOAD_ICON, usata solo per tornare a modificare la serie del
+// simulatore: più equilibrata/riconoscibile a icona isolata, senza toccare
+// l'icona "Ricalcola" della VAM che usa ancora MTEST_RELOAD_ICON.
+const MSERIES_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 15-6.7L21 7"/><polyline points="21 3 21 7 17 7"/><path d="M21 13a9 9 0 0 1-15 6.7L3 17"/><polyline points="3 21 3 17 7 17"/></svg>';
 
 // Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
 // [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si
@@ -4572,7 +4577,7 @@ function masterSeriesGapMarkup(block) {
       ${masterSeriesCheckboxMarkup('mseries-gap-skip-input', block.id, gap.skip, "Salta l'ultimo recupero")}
       <div class="mseries-gap-rec-row">
         <span class="mseries-gap-rec-label">recupero tra le serie</span>
-        <input type="text" autocomplete="off" class="mseries-gap-rec-input" data-block-id="${block.id}" data-digits="${gap.recDigits}" value="${escapeHtml(seriesFormatRecMask(gap.recDigits))}" placeholder="3′00″" aria-label="Recupero tra le serie" />
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-gap-rec-input" data-block-id="${block.id}" data-digits="${gap.recDigits}" value="${escapeHtml(seriesFormatRecMask(gap.recDigits))}" placeholder="3′00″" aria-label="Recupero tra le serie" />
         ${masterSeriesCheckboxMarkup('mseries-gap-rec-active-input', block.id, gap.recActive, 'attivo')}
       </div>
       <div class="mseries-gap-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
@@ -4670,7 +4675,7 @@ function masterSeriesBuilderMarkup(entry) {
         <div class="mseries-results">
           <div class="mseries-total-row">
             <div class="mseries-total">Volume: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)${usedVolumeSuffix}</div>
-            <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+            <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Ricalcola" title="Ricalcola">${MSERIES_RELOAD_ICON}</button>
           </div>
           ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
         </div>
@@ -4779,9 +4784,11 @@ function masterTestOlderEntryMarkup(testKey, test) {
   const displayValue = masterTestDisplayValue(testKey, test);
   return `
     <div class="mtest-older-entry">
-      <span class="mtest-older-value">${escapeHtml(displayValue)}</span>
+      <div class="mtest-older-row">
+        <span class="mtest-older-value">${escapeHtml(displayValue)}</span>
+        <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
+      </div>
       <span class="mtest-older-date">${escapeHtml(test.date)}</span>
-      <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
     </div>
   `;
 }
