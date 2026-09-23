@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23g';
-console.log('[Lapsi] build', APP_BUILD, '— icona Strava vera, tempi gara più vicini alla città');
+const APP_BUILD = '2026-09-23h';
+console.log('[Lapsi] build', APP_BUILD, '— città di nuovo in fondo alla card, icona Strava più grande, disattivo solo opacità');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4485,7 +4485,7 @@ const MTEST_TROPHY_ICON = '<svg viewBox="0 0 24 24" width="11" height="11" aria-
 // tracciando le due immagini fornite, dato che i file .webp originali non
 // hanno un canale alpha utilizzabile per una maschera CSS (solo lo
 // sfondo a scacchiera "finto trasparente" nell'anteprima).
-const STRAVA_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="currentColor"><path d="M6 13 11 4 15 13 11 9.5Z"/><path d="M11 13 17 13 14 19Z"/></svg>';
+const STRAVA_ICON = '<svg viewBox="5 3 13 17" width="20" height="20" aria-hidden="true" focusable="false" fill="currentColor"><path d="M6 13 11 4 15 13 11 9.5Z"/><path d="M11 13 17 13 14 19Z"/></svg>';
 
 // Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
 // [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si

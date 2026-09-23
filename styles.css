@@ -2965,15 +2965,10 @@ button:active {
    con un bordo tratteggiato — lo stesso linguaggio visivo già usato per i
    pulsanti disabilitati altrove nell'app (es. "Ripeti test" senza dati). */
 .v2-strava-inactive {
-  background: transparent;
-  border: 1.5px dashed var(--card-border);
-  color: #c2c6cd;
-  opacity: 0.7;
+  background: rgba(15, 23, 42, 0.05);
+  color: #9aa0aa;
+  opacity: 0.55;
   cursor: default;
-}
-
-.v2-strava-inactive svg {
-  transform: scale(0.85);
 }
 
 .v2-avatar {
@@ -3185,11 +3180,15 @@ button:active {
   color: var(--text);
 }
 
+/* Torna a spingersi in fondo alla card come prima (flex:1 1 auto invece di
+   una larghezza sul contenuto): il margine fisso di .v2-race-result la
+   tiene comunque vicina al tempo quando il testo è abbastanza lungo da
+   riempire la riga, ma il bordo destro resta ancorato alla card. */
 .v2-race-meta {
   margin-left: 10px;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
-  text-align: left;
+  text-align: right;
   font-size: 0.64rem;
   color: var(--muted);
   overflow: hidden;
