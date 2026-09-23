@@ -2518,7 +2518,7 @@ button:active {
 }
 
 .projection-panel {
-  padding-top: 4px;
+  padding-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2569,7 +2569,7 @@ button:active {
 }
 
 .mtest-section-body {
-  padding: 14px;
+  padding: 14px 9px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2577,19 +2577,38 @@ button:active {
 
 /* ===== "Risultati gare": form per aggiungerne uno + elenco di quelli già
    salvati (i più recenti finiscono anche nella card chiusa, vedi
-   .v2-race-grid). ===== */
+   .v2-race-list). ===== */
+.race-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .race-add-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
+  flex: 1 1 auto;
   padding: 9px;
   border-radius: 999px;
   background: var(--primary);
   color: #fff;
   font-size: 0.82rem;
   font-weight: 700;
+}
+
+.race-cancel-btn {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffe1dc;
+  color: #c53d30;
 }
 
 .race-list {
@@ -2613,6 +2632,10 @@ button:active {
   padding: 8px 10px;
   border-radius: 12px;
   background: var(--bg-strong);
+}
+
+.race-entry-editing {
+  outline: 1.5px solid var(--primary);
 }
 
 .race-entry-main {
@@ -2648,6 +2671,7 @@ button:active {
   white-space: nowrap;
 }
 
+.race-entry-edit,
 .race-entry-del {
   flex-shrink: 0;
   width: 26px;
@@ -2657,6 +2681,14 @@ button:active {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.race-entry-edit {
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--text);
+}
+
+.race-entry-del {
   background: #fdeaea;
   color: #c0392b;
 }
@@ -3059,47 +3091,55 @@ button:active {
 }
 
 /* Card chiusa Master: risultati gara al posto delle vecchie tile VAM/1000
-   (che si ripetevano identiche appena sotto, dentro "Test"). Stesso stile
-   morbido di .v2-tile, in griglia 2 colonne invece che in riga, per stare
-   fino a 6 senza dover scrollare in orizzontale. */
-.v2-race-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 12px;
+   (che si ripetevano identiche appena sotto, dentro "Test"). Una riga per
+   risultato (non più un riquadro dorato a griglia: stessi colori, seconda
+   prova), tutto centrato verticalmente sulla riga. */
+.v2-race-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
 }
 
-.v2-race-tile {
-  min-width: 0;
-  border-radius: 14px;
-  padding: 8px 10px;
-  background: linear-gradient(180deg, #fbf6ec, #f5ecd8);
-  border: 1px solid rgba(184, 134, 11, 0.35);
+.v2-race-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 2px;
+}
+
+.v2-race-row + .v2-race-row {
+  border-top: 1px dashed rgba(184, 134, 11, 0.25);
 }
 
 .v2-race-type {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.6rem;
+  flex: 0 0 auto;
+  min-width: 76px;
+  font-size: 0.62rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #9a6b0c;
 }
 
 .v2-race-result {
-  margin-top: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
   font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
-  font-size: 1.05rem;
+  font-size: 0.96rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 .v2-race-meta {
-  margin-top: 2px;
-  font-size: 0.62rem;
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-size: 0.64rem;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3157,7 +3197,7 @@ button:active {
 .mtest-compact-wrap,
 .mtest-calc-col .mtest-block.mtest-empty-block {
   height: 100%;
-  padding: 10px;
+  padding: 8px;
   border-radius: 12px;
   background: var(--bg-strong);
   box-sizing: border-box;
@@ -3240,11 +3280,11 @@ button:active {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 .mtest-compact-value {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 800;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -3257,7 +3297,7 @@ button:active {
 
 .mtest-compact-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 

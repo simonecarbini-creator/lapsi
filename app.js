@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23d';
-console.log('[Lapsi] build', APP_BUILD, '— sezioni Test/Allenamenti/Risultati gare, risultati gara nella card chiusa');
+const APP_BUILD = '2026-09-23e';
+console.log('[Lapsi] build', APP_BUILD, '— risultati gara: formato per distanza, modifica, righe nella card chiusa, fix wrap box test');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4280,6 +4280,38 @@ const RACE_TYPES = [
 ];
 const RACE_TYPE_LABELS = Object.fromEntries(RACE_TYPES);
 
+// Distanze dove il risultato ha anche le ore (hh'mm'ss"): sotto la mezza si
+// passa dritti a mm'ss" come gli altri tempi dell'app, un 10k/5k/3k/1500/800
+// non arriva mai a un'ora.
+const RACE_LONG_TYPES = new Set(['100k', '50k', 'maratona', 'mezza']);
+
+function raceResultMaxDigits(type) {
+  return RACE_LONG_TYPES.has(type) ? 6 : 4;
+}
+
+// Stesso principio di formatTimeMask (apici automatici mentre si digita,
+// stessi apici dritti ' " usati lì), ma con un formato in più per le
+// distanze lunghe: hh'mm'ss" invece di mm'ss" — "h" dopo le prime due
+// cifre, poi ' e " come al solito.
+function formatRaceResultMask(digits, type) {
+  const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
+  if (RACE_LONG_TYPES.has(type)) {
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, 2)}h${d.slice(2)}`;
+    return `${d.slice(0, 2)}h${d.slice(2, 4)}'${d.slice(4, 6)}"`;
+  }
+  if (d.length <= 2) return d;
+  return `${d.slice(0, -2)}'${d.slice(-2)}"`;
+}
+
+// Il "select" della distanza sta nello stesso .race-form del campo
+// risultato: usato dai listener di input/keydown/change per sapere quale
+// formato applicare senza doverlo passare a mano.
+function masterRaceResultType(input) {
+  const form = input.closest('.race-form');
+  return form ? form.querySelector('.race-type-input').value : RACE_TYPES[0][0];
+}
+
 function normalizeMasterRaceResult(record) {
   if (!record || typeof record !== 'object') {
     return null;
@@ -4419,6 +4451,12 @@ function masterSectionIsOpen(entryId, key, defaultOpen) {
   }
   return masterSectionOpen.get(mapKey);
 }
+
+// Id del risultato gara in modifica per atleta (athleteId -> raceId): il
+// form di "Risultati gare" fa doppio uso, aggiunta e modifica, come i
+// riquadri VAM/1000 — quando c'è un valore qui il form si precompila e
+// "Aggiungi risultato" diventa "Salva modifiche".
+let masterRaceEditing = new Map();
 
 function masterTestDisplayValue(testKey, test) {
   return testKey === 'vam' ? `${test.value} km/h` : test.value;
@@ -5277,17 +5315,17 @@ function masterRaceResultsSummaryMarkup(entry) {
   if (!results.length) {
     return '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato gara</div></div>';
   }
-  const tiles = results.map((race) => {
+  const rows = results.map((race) => {
     const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
     return `
-      <div class="v2-race-tile">
-        <div class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span></div>
-        <div class="v2-race-result">${escapeHtml(race.result)}</div>
-        <div class="v2-race-meta">${meta}</div>
+      <div class="v2-race-row">
+        <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span></span>
+        <span class="v2-race-result">${escapeHtml(race.result)}</span>
+        <span class="v2-race-meta">${meta}</span>
       </div>
     `;
   }).join('');
-  return `<div class="v2-race-grid">${tiles}</div>`;
+  return `<div class="v2-race-list">${rows}</div>`;
 }
 
 // Sezione "Risultati gare": form per aggiungerne uno (distanza da RACE_TYPES,
@@ -5296,27 +5334,37 @@ function masterRaceResultsSummaryMarkup(entry) {
 // già salvati, eliminabili. Quelli più recenti per data finiscono nella
 // card chiusa (vedi masterRaceResultsSummaryMarkup).
 function masterRaceResultsSectionMarkup(entry) {
-  const typeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}">${escapeHtml(label)}</option>`).join('');
   const results = [...(entry.raceResults || [])]
     .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0));
+  const editingId = masterRaceEditing.get(entry.id) || null;
+  const editingRace = editingId ? results.find((race) => race.id === editingId) : null;
+
   const listMarkup = results.length
     ? results.map((race) => {
       const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
       return `
-        <div class="race-entry">
+        <div class="race-entry${race.id === editingId ? ' race-entry-editing' : ''}">
           <div class="race-entry-main">
             <span class="race-entry-type">${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span>
             <span class="race-entry-result">${escapeHtml(race.result)}</span>
           </div>
           <span class="race-entry-meta">${meta || '—'}</span>
+          <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
           <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
         </div>
       `;
     }).join('')
     : '<div class="race-empty">Nessun risultato ancora aggiunto.</div>';
 
+  const defaultType = editingRace ? editingRace.type : RACE_TYPES[0][0];
+  const resultDigits = editingRace ? editingRace.result.replace(/[^0-9]/g, '') : '';
+  const typeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === defaultType ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  const cancelBtn = editingId
+    ? `<button type="button" class="race-cancel-btn" data-id="${entry.id}" aria-label="Annulla modifica" title="Annulla modifica">${MTEST_CLOSE_ICON}</button>`
+    : '';
+
   return `
-    <div class="race-form" data-id="${entry.id}">
+    <div class="race-form" data-id="${entry.id}"${editingId ? ` data-editing-id="${escapeHtml(editingId)}"` : ''}>
       <div class="field-row">
         <div class="field-group">
           <label>Distanza</label>
@@ -5324,20 +5372,23 @@ function masterRaceResultsSectionMarkup(entry) {
         </div>
         <div class="field-group">
           <label>Risultato</label>
-          <input type="text" class="race-result-input" placeholder="es. 42:15" autocomplete="off" />
+          <input type="text" inputmode="numeric" autocomplete="off" class="race-result-input" data-digits="${resultDigits}" value="${escapeHtml(formatRaceResultMask(resultDigits, defaultType))}" placeholder="42'15&quot;" />
         </div>
       </div>
       <div class="field-row">
         <div class="field-group">
           <label>Data</label>
-          <input type="date" class="race-date-input" />
+          <input type="date" class="race-date-input" value="${editingRace ? itDateToIso(editingRace.date) : ''}" />
         </div>
         <div class="field-group">
           <label>Luogo</label>
-          <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" />
+          <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.location : '')}" />
         </div>
       </div>
-      <button type="button" class="race-add-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi risultato</button>
+      <div class="race-form-actions">
+        <button type="button" class="race-add-btn" data-id="${entry.id}">${editingId ? MTEST_CHECK_ICON : MTEST_PLUS_ICON} ${editingId ? 'Salva modifiche' : 'Aggiungi risultato'}</button>
+        ${cancelBtn}
+      </div>
     </div>
     <div class="race-list">${listMarkup}</div>
   `;
@@ -5346,6 +5397,7 @@ function masterRaceResultsSectionMarkup(entry) {
 async function handleMasterRaceAdd(addBtn) {
   const form = addBtn.closest('.race-form');
   const athleteId = form.dataset.id;
+  const editingId = form.dataset.editingId || null;
   const typeInput = form.querySelector('.race-type-input');
   const resultInput = form.querySelector('.race-result-input');
   const dateInput = form.querySelector('.race-date-input');
@@ -5364,18 +5416,25 @@ async function handleMasterRaceAdd(addBtn) {
     return;
   }
 
-  const newRace = {
-    id: `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+  const raceData = {
     type: typeInput.value,
     result,
     date: isoDateToIt(dateIso),
     location: locationInput.value.trim(),
-    createdAt: new Date().toISOString(),
   };
 
   const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
-  entries[index] = { ...entries[index], raceResults: [...currentList, newRace] };
+  const nextList = editingId
+    ? currentList.map((race) => (race.id === editingId ? { ...race, ...raceData } : race))
+    : [...currentList, {
+      id: `race-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      ...raceData,
+      createdAt: new Date().toISOString(),
+    }];
+
+  entries[index] = { ...entries[index], raceResults: nextList };
   await saveMaster(entries);
+  masterRaceEditing.delete(athleteId);
   renderMaster();
   showToast('Salvato!');
 }
@@ -5392,6 +5451,9 @@ async function handleMasterRaceDelete(delBtn) {
   const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
   entries[index] = { ...entries[index], raceResults: currentList.filter((race) => race.id !== raceId) };
   await saveMaster(entries);
+  if (masterRaceEditing.get(athleteId) === raceId) {
+    masterRaceEditing.delete(athleteId);
+  }
   renderMaster();
 }
 
@@ -5813,6 +5875,21 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const raceEditButton = event.target.closest('.race-entry-edit');
+  if (raceEditButton) {
+    const card = raceEditButton.closest('.athlete-item');
+    masterRaceEditing.set(card.dataset.id, raceEditButton.dataset.id);
+    renderMaster();
+    return;
+  }
+
+  const raceCancelButton = event.target.closest('.race-cancel-btn');
+  if (raceCancelButton) {
+    masterRaceEditing.delete(raceCancelButton.dataset.id);
+    renderMaster();
+    return;
+  }
+
   const calcBtn = event.target.closest('.mtest-calc-btn');
   if (calcBtn) {
     handleMasterVamCalc(calcBtn);
@@ -6034,6 +6111,7 @@ async function handleMasterListClick(event) {
   masterSectionOpen.delete(`${entryId}:test`);
   masterSectionOpen.delete(`${entryId}:training`);
   masterSectionOpen.delete(`${entryId}:races`);
+  masterRaceEditing.delete(entryId);
   renderMaster();
   showToast('Eliminato!');
 }
@@ -6103,6 +6181,18 @@ masterListEl.addEventListener('keydown', (event) => {
     masterSeriesInvalidate(recInput);
     return;
   }
+  const raceResultInput = event.target.closest('.race-result-input');
+  if (raceResultInput) {
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      return;
+    }
+    event.preventDefault();
+    raceResultInput.dataset.digits = (raceResultInput.dataset.digits || '').slice(0, -1);
+    raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, masterRaceResultType(raceResultInput));
+    const end = raceResultInput.value.length;
+    raceResultInput.setSelectionRange(end, end);
+    return;
+  }
   const input = event.target.closest('.mtest-input');
   if (!input || (event.key !== 'Backspace' && event.key !== 'Delete')) {
     return;
@@ -6112,11 +6202,34 @@ masterListEl.addEventListener('keydown', (event) => {
   mtestApplyMask(input);
 });
 
+// Formato del risultato gara (con o senza ore) segue la distanza scelta nel
+// menu accanto: cambiandola si riapplica la maschera alle stesse cifre già
+// digitate, invece di dover riscrivere il risultato da capo.
+masterListEl.addEventListener('change', (event) => {
+  const raceTypeInput = event.target.closest('.race-type-input');
+  if (!raceTypeInput) {
+    return;
+  }
+  const form = raceTypeInput.closest('.race-form');
+  const resultInput = form.querySelector('.race-result-input');
+  resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
+  resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
+});
+
 masterListEl.addEventListener('input', (event) => {
   const notesInput = event.target.closest('.mtest-notes .notes-input');
   if (notesInput) {
     const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
     button.disabled = notesInput.value.trim() === '';
+    return;
+  }
+  const raceResultInput = event.target.closest('.race-result-input');
+  if (raceResultInput) {
+    const type = masterRaceResultType(raceResultInput);
+    raceResultInput.dataset.digits = raceResultInput.value.replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
+    raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, type);
+    const end = raceResultInput.value.length;
+    raceResultInput.setSelectionRange(end, end);
     return;
   }
   const metersInput = event.target.closest('.mtest-meters-input');
