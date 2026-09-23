@@ -2647,6 +2647,11 @@ button:active {
 }
 
 .race-entry-type {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -2655,6 +2660,8 @@ button:active {
 }
 
 .race-entry-result {
+  flex-shrink: 0;
+  white-space: nowrap;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--text);
@@ -3258,11 +3265,37 @@ button:active {
    fa riempire alla colonna (già stirata dalla grid) il riquadro al suo interno. */
 .mtest-compact-wrap,
 .mtest-calc-col .mtest-block.mtest-empty-block {
+  position: relative;
   height: 100%;
   padding: 8px;
   border-radius: 12px;
   background: var(--bg-strong);
   box-sizing: border-box;
+}
+
+.mtest-box-info-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--muted);
+}
+
+.mtest-box-info-btn svg {
+  width: 11px;
+  height: 11px;
+}
+
+.mtest-box-info-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
 }
 
 .mtest-calc-col .calc-input-row {
@@ -3283,6 +3316,7 @@ button:active {
 .mtest-block-label {
   display: block;
   margin-bottom: 8px;
+  padding-right: 22px;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--muted);
@@ -3492,36 +3526,6 @@ button:active {
   color: var(--vam-color);
 }
 
-/* Unica icona "i" condivisa da entrambe le colonne (prima era una per
-   pulsante, ridondante): riga a sé, sotto i due "Ripeti test", che copre
-   tutta la larghezza della grid. */
-.mtest-repeat-info-row {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
-.mtest-info-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(245, 245, 245, 0.9);
-  color: var(--muted);
-}
-
-.mtest-info-btn:hover {
-  background: rgba(233, 233, 233, 0.95);
-}
 
 .mtest-meters-row {
   margin-bottom: 12px;

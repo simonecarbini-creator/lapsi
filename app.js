@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23l';
-console.log('[Lapsi] build', APP_BUILD, '— colonna tipo gara a larghezza libera, niente più troncamento');
+const APP_BUILD = '2026-09-23n';
+console.log('[Lapsi] build', APP_BUILD, '— fix riga gara: tipo troncato invece di andare a capo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4430,6 +4430,19 @@ const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
 // a sinistra, Tempo sul 1000 a destra.
 const MASTER_TEST_KEYS = ['vam', 'thousand'];
 
+// Testo dell'icona "i" dentro ciascun riquadro test (cosa consiste il test,
+// cosa se ne ricava, ogni quanto ripeterlo).
+const MASTER_TEST_INFO = {
+  vam: {
+    title: 'Test della VAM',
+    detail: 'Corri più metri possibile in 6 minuti al massimo sforzo. Dal risultato si ricava la Velocità Aerobica Massimale (VAM), usata per calcolare i ritmi di allenamento. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
+  },
+  thousand: {
+    title: 'Test del 1000',
+    detail: 'Corri 1000 metri al massimo sforzo e cronometra il tempo. Dal risultato si ricavano i ritmi di allenamento basati su questo riferimento. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
+  },
+};
+
 // Chiave "athleteId:testKey" -> 'edit' (corregge l'ultima prova) | 'repeat'
 // (ne aggiunge una nuova): stato solo di UI, non persistito.
 let masterTestEditing = new Map();
@@ -4826,6 +4839,13 @@ function masterSeriesBuilderMarkup(entry) {
 // masterTestRepeatFormMarkup. Annulla è una x a icona (non testo, altrimenti
 // non ci sta) presente su entrambe le righe della VAM, così resta
 // raggiungibile anche passando dal risultato ai metri via "Ricalcola".
+// Icona "i" in alto a dx dentro il riquadro (vuoto o compilato) del test:
+// spiega di cosa si tratta, cosa se ne ricava e ogni quanto ripeterlo.
+function masterTestInfoButtonMarkup(testKey) {
+  const info = MASTER_TEST_INFO[testKey];
+  return `<button type="button" class="mtest-box-info-btn" data-test="${testKey}" aria-label="${escapeHtml(info.title)}" title="${escapeHtml(info.title)}">${MTEST_INFO_ICON}</button>`;
+}
+
 function masterVamFormMarkup(prefill, mode) {
   const startWithResult = mode === 'edit';
   const value = startWithResult && prefill ? prefill.value : '';
@@ -4833,6 +4853,7 @@ function masterVamFormMarkup(prefill, mode) {
   const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="vam">
+      ${masterTestInfoButtonMarkup('vam')}
       <span class="mtest-block-label">VAM</span>
       <span class="mtest-meters-label"${startWithResult ? ' hidden' : ''}>Metri in 6 min</span>
       <div class="calc-input-row mtest-meters-row"${startWithResult ? ' hidden' : ''}>
@@ -4864,6 +4885,7 @@ function masterTestFormMarkup(testKey, prefill, mode) {
   const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
   return `
     <div class="mtest-block mtest-empty-block" data-test="${testKey}">
+      ${masterTestInfoButtonMarkup(testKey)}
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       <span class="mtest-meters-label">Min e sec</span>
       <div class="calc-input-row">
@@ -4931,6 +4953,7 @@ function masterTestColumnMarkup(entry, testKey) {
   const olderMarkup = tests.slice(0, -1).reverse().map((t) => masterTestOlderEntryMarkup(testKey, t)).join('');
   return `
     <div class="mtest-compact-wrap" data-test="${testKey}">
+      ${masterTestInfoButtonMarkup(testKey)}
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       ${masterTestLatestEntryMarkup(testKey, latest)}
       ${olderMarkup}
@@ -5518,9 +5541,10 @@ function handleMasterVamRecalc(button) {
   metersInput.focus();
 }
 
-async function handleMasterTestInfo() {
-  await showChoice('Quando ripetere il test', {
-    detail: 'Per vedere un miglioramento reale, ripeti il test dopo 6-8 settimane di allenamento.',
+async function handleMasterTestInfo(testKey) {
+  const info = MASTER_TEST_INFO[testKey] || MASTER_TEST_INFO.vam;
+  await showChoice(info.title, {
+    detail: info.detail,
     options: [{ value: 'ok', label: 'Ho capito', className: 'app-btn-success' }],
   });
 }
@@ -5818,7 +5842,7 @@ function renderMaster() {
     const panel = document.createElement('div');
     panel.className = 'projection-panel';
     panel.hidden = !isExpanded;
-    const testOpen = masterSectionIsOpen(entry.id, 'test', true);
+    const testOpen = masterSectionIsOpen(entry.id, 'test', false);
     const trainingOpen = masterSectionIsOpen(entry.id, 'training', false);
     const racesOpen = masterSectionIsOpen(entry.id, 'races', false);
     panel.innerHTML = `
@@ -5828,10 +5852,6 @@ function renderMaster() {
           <div class="mtest-calc-grid">
             ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
             ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
-            <div class="mtest-repeat-info-row">
-              <button type="button" class="mtest-info-btn" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
-              <span>Quando ripetere un test</span>
-            </div>
           </div>
           ${masterCombinedChartSectionMarkup(entry)}
           ${masterRitmiSectionMarkup(entry)}
@@ -5845,7 +5865,7 @@ function renderMaster() {
         </div>
       </details>
       <details class="mtest-section" data-section-key="races"${racesOpen ? ' open' : ''}>
-        <summary class="mtest-section-summary">Risultati gare</summary>
+        <summary class="mtest-section-summary">Gare</summary>
         <div class="mtest-section-body">
           ${masterRaceResultsSectionMarkup(entry)}
         </div>
@@ -5923,9 +5943,9 @@ async function handleMasterListClick(event) {
     return;
   }
 
-  const infoBtn = event.target.closest('.mtest-info-btn');
+  const infoBtn = event.target.closest('.mtest-box-info-btn');
   if (infoBtn) {
-    await handleMasterTestInfo();
+    await handleMasterTestInfo(infoBtn.dataset.test);
     return;
   }
 
