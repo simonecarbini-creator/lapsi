@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23q';
-console.log('[Lapsi] build', APP_BUILD, '— fix sovrapposizione riga gara: tipo/risultato/data fratelli, priorità al tipo');
+const APP_BUILD = '2026-09-23r';
+console.log('[Lapsi] build', APP_BUILD, '— lista gare: icone modifica/elimina sempre ancorate a dx');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al

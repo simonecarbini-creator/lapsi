@@ -2696,6 +2696,10 @@ button:active {
 }
 
 .race-entry-edit {
+  /* Spinge sé stessa (e il cestino subito dopo) fino al bordo destro della
+     riga: senza, con contenuto corto (es. "10 km") le due icone restavano
+     appiccicate al testo invece di ancorarsi all'estremità come richiesto. */
+  margin-left: auto;
   background: rgba(245, 245, 245, 0.9);
   color: var(--text);
 }
