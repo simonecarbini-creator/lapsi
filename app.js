@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23i';
-console.log('[Lapsi] build', APP_BUILD, '— gap tempo-città gara sempre 10px');
+const APP_BUILD = '2026-09-23j';
+console.log('[Lapsi] build', APP_BUILD, '— icona Strava: vero badge PNG');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4481,11 +4481,7 @@ const MSERIES_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" ari
 const MTEST_TROPHY_ICON = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg>';
 // Freccia a zig-zag: stessa idea del logo Strava (non una riproduzione
 // pixel-perfect del marchio), riconoscibile come icona di collegamento.
-// Il marchio Strava (freccia a doppio cheveron): ricostruito a mano
-// tracciando le due immagini fornite, dato che i file .webp originali non
-// hanno un canale alpha utilizzabile per una maschera CSS (solo lo
-// sfondo a scacchiera "finto trasparente" nell'anteprima).
-const STRAVA_ICON = '<svg viewBox="5 3 13 17" width="20" height="20" aria-hidden="true" focusable="false" fill="currentColor"><path d="M6 13 11 4 15 13 11 9.5Z"/><path d="M11 13 17 13 14 19Z"/></svg>';
+const STRAVA_ICON = '<img class="v2-strava-img" src="strava-logo.png" alt="" aria-hidden="true" />';
 
 // Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
 // [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si

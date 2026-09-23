@@ -2946,29 +2946,30 @@ button:active {
   align-self: flex-start;
   width: 30px;
   height: 30px;
-  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
-.v2-strava-active {
-  background: #fff1eb;
-  color: #fc4c02;
+.v2-strava-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
 }
 
 .v2-strava-active:hover {
-  background: #ffe1d0;
+  opacity: 0.85;
 }
 
-/* "Effetto disattivato": non solo grigio, anche più piccola/trasparente e
-   con un bordo tratteggiato — lo stesso linguaggio visivo già usato per i
-   pulsanti disabilitati altrove nell'app (es. "Ripeti test" senza dati). */
+/* "Effetto disattivato": stesso badge, desaturato e più trasparente. */
 .v2-strava-inactive {
-  background: rgba(15, 23, 42, 0.05);
-  color: #9aa0aa;
-  opacity: 0.55;
   cursor: default;
+}
+
+.v2-strava-inactive .v2-strava-img {
+  filter: grayscale(1);
+  opacity: 0.55;
 }
 
 .v2-avatar {
