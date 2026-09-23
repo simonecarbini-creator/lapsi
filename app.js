@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-22t';
-console.log('[Lapsi] build', APP_BUILD, '— checkbox centrate verticalmente, note allenamenti');
+const APP_BUILD = '2026-09-23a';
+console.log('[Lapsi] build', APP_BUILD, '— box VAM su una riga, grafico unico, ripeti test sempre presente, un solo info');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4707,7 +4707,7 @@ function masterVamFormMarkup(prefill, mode) {
         ${cancelBtn}
       </div>
       <div class="mtest-vam-result-row"${startWithResult ? '' : ' hidden'}>
-        <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
+        <span class="mtest-calc-result"><b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
         <div class="mtest-calc-actions-row">
           <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
           <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
@@ -4815,7 +4815,7 @@ function masterTestRepeatFormMarkup(testKey) {
           <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
         </div>
         <div class="mtest-vam-result-row" hidden>
-          <span class="mtest-calc-result">VAM <b class="mtest-calc-result-val">—</b> km/h</span>
+          <span class="mtest-calc-result"><b class="mtest-calc-result-val">—</b> km/h</span>
           <div class="mtest-calc-actions-row">
             <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
             <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
@@ -4840,11 +4840,13 @@ function masterTestRepeatFormMarkup(testKey) {
 // "Ripeti test" + icona info, fuori dal riquadro grigio, sotto — diventa il
 // form compatto quando mode è 'repeat'; niente durante la modifica (mode
 // 'edit', il form vive già nel riquadro sopra) o se il binario è vuoto.
+// "Ripeti test" c'è sempre per entrambi i binari, anche quando uno dei due
+// non ha ancora nessuna prova — in quel caso resta disabilitato (niente
+// mode 'repeat' possibile senza un valore di partenza da ripetere) invece
+// di lasciare un buco nella colonna, vedi .mtest-repeat-btn in styles.css
+// per il doppio aspetto disabilitato/attivo.
 function masterTestRepeatMarkup(entry, testKey) {
   const tests = entry[`${testKey}Tests`] || [];
-  if (!tests.length) {
-    return '';
-  }
   const mode = masterTestEditing.get(`${entry.id}:${testKey}`);
   if (mode === 'edit') {
     return '';
@@ -4852,12 +4854,10 @@ function masterTestRepeatMarkup(entry, testKey) {
   if (mode === 'repeat') {
     return masterTestRepeatFormMarkup(testKey);
   }
-  return `
-    <div class="mtest-repeat-row">
-      <button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>
-      <button type="button" class="mtest-info-btn" data-test="${testKey}" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
-    </div>
-  `;
+  if (!tests.length) {
+    return `<button type="button" class="mtest-repeat-btn" data-test="${testKey}" disabled>Ripeti test</button>`;
+  }
+  return `<button type="button" class="mtest-repeat-btn" data-test="${testKey}">Ripeti test</button>`;
 }
 
 // Grafico dell'andamento, a piena larghezza sotto le due colonne — niente se
@@ -4865,38 +4865,36 @@ function masterTestRepeatMarkup(entry, testKey) {
 // gestisce, ma evitiamo di aprire il wrapper per nulla). Resta visibile
 // anche mentre si modifica o si ripete un test, perché i dati mostrati non
 // cambiano finché non si salva.
-function masterTestChartSectionMarkup(entry, testKey) {
-  const chart = buildMasterTestChart(entry[`${testKey}Tests`] || [], testKey);
-  return chart ? `<div class="mtest-chart-section" data-test="${testKey}">${chart}</div>` : '';
+function masterCombinedChartSectionMarkup(entry) {
+  const chart = buildMasterCombinedChart(entry);
+  return chart ? `<div class="mtest-chart-section">${chart}</div>` : '';
 }
 
-// Grafico dell'andamento di un binario nel tempo (stesso stile di
-// buildResultsChart, ma un'unica serie): Tempo sul 1000 -> secondi (più
-// basso è meglio, in alto nel grafico), VAM -> km/h (più alto è meglio).
-function buildMasterTestChart(tests, testKey) {
-  const toPoint = (record) => {
-    const t = parseItDate(record.date);
-    const v = testKey === 'thousand' ? RipeteCalc.parseThousand(record.value) : MezzofondoCalc.parseVam(record.value);
-    return { t, v, date: record.date };
-  };
-  const points = tests
-    .map(toPoint)
+// Grafico unico sovrapposto per VAM e Tempo sul 1000, stesso schema (e stessa
+// funzione modello) di buildResultsChart per corsa/salto in alto: due assi Y
+// indipendenti (sinistro = Tempo sul 1000 in secondi, più basso è meglio,
+// quindi in alto nel grafico; destro = VAM in km/h, più alto è meglio),
+// stesso asse X (date) e legenda sotto invece di due grafici separati.
+function buildMasterCombinedChart(entry) {
+  const toPoints = (records, valueFn) => records
+    .map((record) => ({ t: parseItDate(record.date), v: valueFn(record.value), date: record.date }))
     .filter((point) => point.t !== null && Number.isFinite(point.v) && point.v > 0)
     .sort((a, b) => a.t - b.t);
 
-  if (points.length < 2) {
+  const thousandPoints = toPoints(entry.thousandTests || [], (value) => RipeteCalc.parseThousand(value));
+  const vamPoints = toPoints(entry.vamTests || [], (value) => MezzofondoCalc.parseVam(value));
+
+  const hasThousand = thousandPoints.length >= 2;
+  const hasVam = vamPoints.length >= 2;
+  if (!hasThousand && !hasVam) {
     return '';
   }
 
   const uid = Math.random().toString(36).slice(2, 8);
-  const color = testKey === 'thousand' ? CHART_RUN_COLOR : CHART_JUMP_COLOR;
-  const invert = testKey === 'thousand'; // tempo più basso = meglio -> in alto
-  const formatValue = testKey === 'thousand' ? formatChartClock : (v) => v.toFixed(1).replace('.', ',');
-
   const W = 340;
   const H = 146;
-  const mL = 40;
-  const mR = 12;
+  const mL = hasThousand ? 40 : 12;
+  const mR = hasVam ? 36 : 12;
   const mT = 10;
   const mB = 26;
   const plotX = mL;
@@ -4904,55 +4902,85 @@ function buildMasterTestChart(tests, testKey) {
   const plotW = W - mL - mR;
   const plotH = H - mT - mB;
 
-  const times = points.map((p) => p.t);
-  const minT = Math.min(...times);
-  const maxT = Math.max(...times);
+  const allTimes = [...thousandPoints, ...vamPoints].map((point) => point.t);
+  const minT = Math.min(...allTimes);
+  const maxT = Math.max(...allTimes);
   const spanT = maxT - minT;
   const xFor = (t, index, count) => (spanT === 0
     ? plotX + (count > 1 ? index / (count - 1) : 0.5) * plotW
     : plotX + ((t - minT) / spanT) * plotW);
 
-  const values = points.map((p) => p.v);
-  let lo = Math.min(...values);
-  let hi = Math.max(...values);
-  const pad = (hi - lo) * 0.14 || hi * 0.06 || 1;
-  lo -= pad;
-  hi += pad;
-  const span = hi - lo || 1;
-  const yFor = (value) => {
-    const norm = (value - lo) / span;
-    const fraction = invert ? norm : 1 - norm;
-    return plotY + fraction * plotH;
+  const scaleFor = (points, invert) => {
+    const values = points.map((point) => point.v);
+    let lo = Math.min(...values);
+    let hi = Math.max(...values);
+    const pad = (hi - lo) * 0.14 || hi * 0.06 || 1;
+    lo -= pad;
+    hi += pad;
+    const span = hi - lo || 1;
+    return {
+      valueAtFraction: (fraction) => (invert ? lo + span * fraction : hi - span * fraction),
+      yFor: (value) => {
+        const norm = (value - lo) / span;
+        const fraction = invert ? norm : 1 - norm;
+        return plotY + fraction * plotH;
+      },
+    };
   };
-  const valueAtFraction = (fraction) => (invert ? lo + span * fraction : hi - span * fraction);
 
-  const count = points.length;
-  const xs = points.map((p, i) => xFor(p.t, i, count));
-  const minGap = Math.min(16, plotW / Math.max(1, count - 1));
-  for (let i = 1; i < xs.length; i += 1) {
-    if (xs[i] - xs[i - 1] < minGap) {
-      xs[i] = xs[i - 1] + minGap;
+  const seriesXs = (points) => {
+    const count = points.length;
+    const xs = points.map((point, index) => xFor(point.t, index, count));
+    const minGap = Math.min(16, plotW / Math.max(1, count - 1));
+    for (let i = 1; i < xs.length; i += 1) {
+      if (xs[i] - xs[i - 1] < minGap) {
+        xs[i] = xs[i - 1] + minGap;
+      }
     }
-  }
-  if (xs[xs.length - 1] > plotX + plotW || xs[xs.length - 1] - xs[0] < minGap * 0.75) {
     const first = xs[0];
-    const range = xs[xs.length - 1] - first || 1;
-    for (let i = 0; i < xs.length; i += 1) {
-      xs[i] = plotX + ((xs[i] - first) / range) * plotW;
+    const last = xs[xs.length - 1];
+    if (last > plotX + plotW || last - first < minGap * 0.75) {
+      const range = last - first || 1;
+      for (let i = 0; i < xs.length; i += 1) {
+        xs[i] = plotX + ((xs[i] - first) / range) * plotW;
+      }
     }
-  }
+    return xs;
+  };
 
-  const coords = points.map((p, i) => ({ x: xs[i], y: yFor(p.v) }));
-  const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
-  const dots = coords.map((c) => `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3" fill="${color}"/>`).join('');
-  const ticks = [0, 0.5, 1].map((fraction) => {
-    const value = valueAtFraction(fraction);
+  const seriesSvg = (points, scale, color) => {
+    const xs = seriesXs(points);
+    const coords = points.map((point, index) => ({ x: xs[index], y: scale.yFor(point.v) }));
+    const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(1)} ${c.y.toFixed(1)}`).join(' ');
+    const dots = coords.map((c) => `<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3" fill="${color}"/>`).join('');
+    return `<path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${dots}`;
+  };
+
+  const axisTicks = (scale, format, x, anchor, color) => [0, 0.5, 1].map((fraction) => {
+    const value = scale.valueAtFraction(fraction);
     const y = plotY + plotH * fraction + 3;
-    return `<text x="${mL - 5}" y="${y.toFixed(1)}" text-anchor="end" fill="${color}">${escapeHtml(formatValue(value))}</text>`;
+    return `<text x="${x}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${color}">${escapeHtml(format(value))}</text>`;
   }).join('');
 
-  const first = points[0];
-  const last = points[points.length - 1];
+  let thousandLayer = '';
+  let thousandTicks = '';
+  if (hasThousand) {
+    const scale = scaleFor(thousandPoints, true); // tempo più basso = meglio -> in alto
+    thousandLayer = seriesSvg(thousandPoints, scale, CHART_RUN_COLOR);
+    thousandTicks = axisTicks(scale, formatChartClock, mL - 5, 'end', CHART_RUN_COLOR);
+  }
+
+  let vamLayer = '';
+  let vamTicks = '';
+  if (hasVam) {
+    const scale = scaleFor(vamPoints, false);
+    vamLayer = seriesSvg(vamPoints, scale, CHART_JUMP_COLOR);
+    vamTicks = axisTicks(scale, (v) => v.toFixed(1).replace('.', ','), W - mR + 5, 'start', CHART_JUMP_COLOR);
+  }
+
+  const datePoints = [...thousandPoints, ...vamPoints].sort((a, b) => a.t - b.t);
+  const first = datePoints[0];
+  const last = datePoints[datePoints.length - 1];
   const dateLabel = (point, anchor, x) => `<text x="${x}" y="${H - 15}" text-anchor="${anchor}" class="chart-axis-label">${escapeHtml(shortYearDate(point.date))}</text>`;
   const xLabels = first.date === last.date
     ? dateLabel(first, 'middle', plotX + plotW / 2)
@@ -4960,7 +4988,7 @@ function buildMasterTestChart(tests, testKey) {
 
   return `
     <div class="results-chart">
-      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Andamento del test nel tempo">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Andamento di VAM e Tempo sul 1000 nel tempo">
         <defs>
           <pattern id="grid-min-${uid}" width="8" height="8" patternUnits="userSpaceOnUse">
             <path d="M8 0H0V8" fill="none" stroke="#e9edf3" stroke-width="1" />
@@ -4971,11 +4999,17 @@ function buildMasterTestChart(tests, testKey) {
           </pattern>
         </defs>
         <rect x="${plotX}" y="${plotY}" width="${plotW}" height="${plotH}" fill="url(#grid-maj-${uid})" stroke="#d3dae4" stroke-width="1" />
-        <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        ${dots}
-        ${ticks}
+        ${thousandLayer}
+        ${vamLayer}
+        ${thousandTicks}
+        ${vamTicks}
         ${xLabels}
+        <text x="${plotX + plotW / 2}" y="${H - 2}" text-anchor="middle" class="chart-axis-label">tempo</text>
       </svg>
+      <div class="results-chart-legend">
+        ${hasThousand ? `<span><i style="background:${CHART_RUN_COLOR}"></i>Tempo sul 1000</span>` : ''}
+        ${hasVam ? `<span><i style="background:${CHART_JUMP_COLOR}"></i>VAM</span>` : ''}
+      </div>
     </div>
   `;
 }
@@ -5503,8 +5537,12 @@ function renderMaster() {
       <div class="mtest-calc-grid">
         ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
         ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
+        <div class="mtest-repeat-info-row">
+          <button type="button" class="mtest-info-btn" aria-label="Quando ripetere il test" title="Quando ripetere il test">${MTEST_INFO_ICON}</button>
+          <span>Quando ripetere un test</span>
+        </div>
       </div>
-      ${MASTER_TEST_KEYS.map((key) => masterTestChartSectionMarkup(entry, key)).join('')}
+      ${masterCombinedChartSectionMarkup(entry)}
       ${masterCombinedProjectionsMarkup(entry)}
       ${buildMasterNotesBlock(entry)}
     `;

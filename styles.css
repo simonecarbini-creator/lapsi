@@ -3167,12 +3167,6 @@ button:active {
   border-top: 1px dashed var(--card-border);
 }
 
-.mtest-repeat-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* Form compatto di "Ripeti test" (fuori dal riquadro grigio, al posto del
    pulsante): stessa struttura in colonna della VAM dentro il riquadro, ma
    senza etichetta — il riquadro sopra dice già di che test si tratta. */
@@ -3182,8 +3176,13 @@ button:active {
   gap: 8px;
 }
 
+/* "Ripeti test" c'è sempre in entrambe le colonne (niente più buco quando
+   solo un binario ha una prova): la versione "senza dati ancora" resta
+   con la grafica tratteggiata/muta di sempre e non è cliccabile (disabled);
+   appena esiste almeno una prova diventa cliccabile e si colora del tema
+   del binario (arancio/viola), per segnalare a colpo d'occhio che è attiva. */
 .mtest-repeat-btn {
-  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
   display: block;
   padding: 8px;
@@ -3195,8 +3194,40 @@ button:active {
   font-weight: 700;
 }
 
-.mtest-repeat-btn:hover {
+.mtest-repeat-btn:not(:disabled) {
+  border-style: solid;
+}
+
+.mtest-repeat-btn:not(:disabled):hover {
   background: var(--bg-strong);
+}
+
+.mtest-repeat-btn:disabled {
+  cursor: default;
+}
+
+.mtest-repeat-btn[data-test="thousand"]:not(:disabled) {
+  border-color: var(--thousand-color);
+  color: var(--thousand-color);
+}
+
+.mtest-repeat-btn[data-test="vam"]:not(:disabled) {
+  border-color: var(--vam-color);
+  color: var(--vam-color);
+}
+
+/* Unica icona "i" condivisa da entrambe le colonne (prima era una per
+   pulsante, ridondante): riga a sé, sotto i due "Ripeti test", che copre
+   tutta la larghezza della grid. */
+.mtest-repeat-info-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 .mtest-info-btn {
@@ -3227,10 +3258,30 @@ button:active {
   color: var(--muted);
 }
 
+/* Sulla stessa riga come il box del Tempo sul 1000 (valore + icone), non
+   più impilata: tolto il prefisso "VAM" ridondante (il box è già intitolato
+   "VAM" sopra) e ridotte leggermente font/icone qui dentro, altrimenti con
+   due o tre icone insieme (Salva/Ricalcola/Annulla) non ci stava. */
 .mtest-vam-result-row {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.mtest-vam-result-row .mtest-calc-result {
+  font-size: 0.8rem;
+  min-width: 0;
+}
+
+.mtest-vam-result-row .mtest-icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.mtest-vam-result-row .mtest-calc-actions-row {
+  flex-shrink: 0;
+  gap: 6px;
 }
 
 /* .calc-input-row (riga metri) fissa il proprio display, sovrascrivendo
