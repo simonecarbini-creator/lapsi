@@ -3149,14 +3149,11 @@ button:active {
   display: flex;
   align-items: center;
   gap: 4px;
-  /* Larghezza fissa (non solo min-width) apposta: il tipo di gara ha
-     lunghezze diverse ("10 km" vs "Mezza maratona"), se la colonna si
-     adattasse al contenuto il risultato dopo si sposterebbe riga per riga
-     invece di restare allineato. white-space:nowrap invece di andare a
-     capo su due righe per "Mezza maratona" (la più lunga della lista). */
-  flex: 0 0 98px;
+  /* Larghezza libera sul contenuto: il gruppo tempo+città (.v2-race-time-block)
+     è ancorato a destra per conto suo, quindi qui non serve più forzare una
+     colonna fissa — anzi la forzava a troncare "Mezza maratona". */
+  flex: 0 1 auto;
   margin-right: 10px;
-  overflow: hidden;
   white-space: nowrap;
   font-size: 0.56rem;
   font-weight: 700;
@@ -3165,15 +3162,34 @@ button:active {
   color: #9a6b0c;
 }
 
+.v2-race-type svg {
+  /* Senza questo, la label lunga ("Mezza maratona") fa restringere anche
+     l'icona nel calcolo del flex-shrink e finisce quasi invisibile. */
+  flex-shrink: 0;
+}
+
+.v2-race-type span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Risultato + luogo/data vivono in un unico gruppo spinto in fondo alla riga
+   (margin-left:auto qui, non sui singoli figli): il gap fisso tra i due
+   garantisce SEMPRE 10px tra tempo e città, e siccome il gruppo è ancorato
+   a destra la città resta comunque al bordo della card, qualunque sia la
+   sua lunghezza. */
+.v2-race-time-block {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-left: auto;
+  min-width: 0;
+}
+
 .v2-race-result {
-  /* Larghezza fissa + testo allineato a destra, così i tempi restano tutti
-     in colonna invece di scivolare a seconda di quanto è largo il tipo di
-     gara sulla stessa riga. Non più spinto in fondo alla riga con
-     margin-left:auto: segue subito dopo, luogo/data a un margine fisso
-     (~10px, .v2-race-meta) invece che appesi all'estremità destra della
-     card con uno spazio che cambiava a seconda di quanto testo c'era. */
-  flex: 0 0 88px;
-  text-align: right;
+  flex: 0 0 auto;
+  white-space: nowrap;
   font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
   font-size: 0.92rem;
   font-weight: 700;
@@ -3181,15 +3197,10 @@ button:active {
   color: var(--text);
 }
 
-/* Torna a spingersi in fondo alla card come prima (flex:1 1 auto invece di
-   una larghezza sul contenuto): il margine fisso di .v2-race-result la
-   tiene comunque vicina al tempo quando il testo è abbastanza lungo da
-   riempire la riga, ma il bordo destro resta ancorato alla card. */
 .v2-race-meta {
-  margin-left: 10px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
-  text-align: left;
+  text-align: right;
   font-size: 0.64rem;
   color: var(--muted);
   overflow: hidden;

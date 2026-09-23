@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23j';
-console.log('[Lapsi] build', APP_BUILD, '— icona Strava: vero badge PNG');
+const APP_BUILD = '2026-09-23l';
+console.log('[Lapsi] build', APP_BUILD, '— colonna tipo gara a larghezza libera, niente più troncamento');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5324,8 +5324,10 @@ function masterRaceResultsSummaryMarkup(entry) {
     return `
       <div class="v2-race-row">
         <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span></span>
-        <span class="v2-race-result">${escapeHtml(race.result)}</span>
-        <span class="v2-race-meta">${meta}</span>
+        <span class="v2-race-time-block">
+          <span class="v2-race-result">${escapeHtml(race.result)}</span>
+          <span class="v2-race-meta">${meta}</span>
+        </span>
       </div>
     `;
   }).join('');
