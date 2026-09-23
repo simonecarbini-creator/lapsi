@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23n';
-console.log('[Lapsi] build', APP_BUILD, '— fix riga gara: tipo troncato invece di andare a capo');
+const APP_BUILD = '2026-09-23o';
+console.log('[Lapsi] build', APP_BUILD, '— icona info più grande, testi con riferimento colore viola/arancio');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1661,7 +1661,7 @@ function showConfirm(message, { detail = '', confirmText = 'Conferma', cancelTex
 // ok/annulla). Risolve con il "value" del pulsante scelto, oppure null se
 // chiuso senza scegliere (backdrop/Escape) — usata per l'esito del concorso
 // (Superato/Non superato/Riabilita) e per il popup automatico del giorno-dopo.
-function showChoice(message, { detail = '', options = [] } = {}) {
+function showChoice(message, { detail = '', detailHtml = '', options = [] } = {}) {
   document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
 
   return new Promise((resolve) => {
@@ -1678,7 +1678,7 @@ function showChoice(message, { detail = '', options = [] } = {}) {
           <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>
         </button>
         <div class="app-confirm-text">${escapeHtml(message)}</div>
-        ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
+        ${detailHtml ? `<div class="app-confirm-sub">${detailHtml}</div>` : detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
         <div class="app-confirm-actions app-confirm-actions-col">
           ${buttonsHtml}
         </div>
@@ -4435,11 +4435,11 @@ const MASTER_TEST_KEYS = ['vam', 'thousand'];
 const MASTER_TEST_INFO = {
   vam: {
     title: 'Test della VAM',
-    detail: 'Corri più metri possibile in 6 minuti al massimo sforzo. Dal risultato si ricava la Velocità Aerobica Massimale (VAM), usata per calcolare i ritmi di allenamento. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
+    detail: 'Corri più metri possibile in 6 minuti al massimo sforzo. Dal risultato si ricava la Velocità Aerobica Massimale (VAM), usata per calcolare i ritmi di allenamento <span style="color:var(--vam-color)">(in viola)</span>. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
   },
   thousand: {
     title: 'Test del 1000',
-    detail: 'Corri 1000 metri al massimo sforzo e cronometra il tempo. Dal risultato si ricavano i ritmi di allenamento basati su questo riferimento. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
+    detail: 'Corri 1000 metri al massimo sforzo e cronometra il tempo. Dal risultato si ricavano i ritmi delle ripetute brevi <span style="color:var(--thousand-color)">(in arancio)</span>. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
   },
 };
 
@@ -5544,7 +5544,7 @@ function handleMasterVamRecalc(button) {
 async function handleMasterTestInfo(testKey) {
   const info = MASTER_TEST_INFO[testKey] || MASTER_TEST_INFO.vam;
   await showChoice(info.title, {
-    detail: info.detail,
+    detailHtml: info.detail,
     options: [{ value: 'ok', label: 'Ho capito', className: 'app-btn-success' }],
   });
 }
