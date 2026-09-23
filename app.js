@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23e';
-console.log('[Lapsi] build', APP_BUILD, '— risultati gara: formato per distanza, modifica, righe nella card chiusa, fix wrap box test');
+const APP_BUILD = '2026-09-23f';
+console.log('[Lapsi] build', APP_BUILD, '— tempi gara allineati a dx, icona Strava in card');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4340,6 +4340,7 @@ function normalizeMasterAthlete(entry) {
     name: entry.name || '',
     surname: entry.surname || '',
     avatar: entry.avatar || null,
+    strava: String(entry.strava || '').trim(),
     createdAt: entry.createdAt || new Date(0).toISOString(),
     vamTests: Array.isArray(entry.vamTests) ? entry.vamTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
@@ -4478,6 +4479,9 @@ const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hi
 const MSERIES_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 15-6.7L21 7"/><polyline points="21 3 21 7 17 7"/><path d="M21 13a9 9 0 0 1-15 6.7L3 17"/><polyline points="3 21 3 17 7 17"/></svg>';
 // Coppa/trofeo per le tile dei risultati gara nella card chiusa.
 const MTEST_TROPHY_ICON = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg>';
+// Freccia a zig-zag: stessa idea del logo Strava (non una riproduzione
+// pixel-perfect del marchio), riconoscibile come icona di collegamento.
+const STRAVA_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="currentColor"><path d="M14.5 2 8 14.5h3.6L9.8 18h3.7L20 6h-3.7l1.9-4z"/></svg>';
 
 // Blocchi del simulatore "serie di ripetute" per atleta: id -> { blocks:
 // [{id, reps, dist, recDigits}], showResults }. Solo UI, non persistito (si
@@ -5649,6 +5653,10 @@ function createMasterEditForm(entry) {
         </div>
       </div>
     </div>
+    <div class="field-group">
+      <label>Strava</label>
+      <input name="edit-master-strava" type="url" inputmode="url" placeholder="https://www.strava.com/athletes/..." autocomplete="off" value="${escapeHtml(entry.strava || '')}" />
+    </div>
     <div class="edit-actions">
       <button type="submit" class="primary-btn save-edit-btn">Salva</button>
       <button type="button" class="secondary-btn cancel-edit-btn">Annulla</button>
@@ -5713,6 +5721,7 @@ async function handleMasterEditSubmit(event) {
   const updatedEntry = { ...entries[targetIndex] };
   updatedEntry.name = updatedName;
   updatedEntry.surname = updatedSurname;
+  updatedEntry.strava = editForm.querySelector('[name="edit-master-strava"]').value.trim();
 
   const editAvatarData = editForm.dataset.editAvatarData || '';
   if (editAvatarData) {
@@ -5755,6 +5764,9 @@ function renderMaster() {
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
 
     const tilesMarkup = masterRaceResultsSummaryMarkup(entry);
+    const stravaMarkup = entry.strava
+      ? `<a class="v2-strava v2-strava-active" href="${escapeHtml(entry.strava)}" target="_blank" rel="noopener noreferrer" aria-label="Apri il profilo Strava" title="Apri il profilo Strava">${STRAVA_ICON}</a>`
+      : `<span class="v2-strava v2-strava-inactive" aria-hidden="true" title="Nessun collegamento Strava">${STRAVA_ICON}</span>`;
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
@@ -5763,6 +5775,7 @@ function renderMaster() {
         <div class="v2-id">
           <div class="v2-name">${highlightMatch(entry.name, searchQuery)} ${highlightMatch(entry.surname, searchQuery)}</div>
         </div>
+        ${stravaMarkup}
       </div>
       ${tilesMarkup}
       <div class="v2-actions"></div>

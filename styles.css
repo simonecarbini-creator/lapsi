@@ -2937,6 +2937,36 @@ button:active {
   min-width: 0;
 }
 
+/* Collegamento Strava, in alto a destra della card (allineato in cima alla
+   riga anche se avatar/nome sono centrati verticalmente): colorato se
+   l'anagrafica ha un link salvato (aperto in una scheda nuova), grigetto e
+   non cliccabile altrimenti. */
+.v2-strava {
+  flex-shrink: 0;
+  align-self: flex-start;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v2-strava-active {
+  background: #fff1eb;
+  color: #fc4c02;
+}
+
+.v2-strava-active:hover {
+  background: #ffe1d0;
+}
+
+.v2-strava-inactive {
+  background: rgba(15, 23, 42, 0.05);
+  color: #c2c6cd;
+  cursor: default;
+}
+
 .v2-avatar {
   width: 54px;
   height: 54px;
@@ -3115,28 +3145,37 @@ button:active {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 0 0 auto;
-  min-width: 76px;
-  font-size: 0.62rem;
+  /* Larghezza fissa (non solo min-width) apposta: il tipo di gara ha
+     lunghezze diverse ("10 km" vs "Mezza maratona"), se la colonna si
+     adattasse al contenuto il risultato dopo si sposterebbe riga per riga
+     invece di restare allineato. white-space:nowrap invece di andare a
+     capo su due righe per "Mezza maratona" (la più lunga della lista). */
+  flex: 0 0 98px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 0.56rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
   color: #9a6b0c;
 }
 
 .v2-race-result {
-  flex: 0 1 auto;
-  min-width: 0;
+  /* Stessa idea: larghezza fissa + testo allineato a destra, così i tempi
+     restano tutti in colonna invece di scivolare a seconda di quanto è
+     largo il tipo di gara sulla stessa riga. */
+  flex: 0 0 88px;
+  text-align: right;
   font-family: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
-  font-size: 0.96rem;
+  font-size: 0.92rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
 .v2-race-meta {
-  margin-left: auto;
-  flex: 0 1 auto;
+  margin-left: 4px;
+  flex: 1 1 auto;
   min-width: 0;
   text-align: right;
   font-size: 0.64rem;
