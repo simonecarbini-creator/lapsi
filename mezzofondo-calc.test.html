@@ -68,6 +68,13 @@ che si ritocca una percentuale in <code>mezzofondo-calc.js</code>. Dipende anche
   assertEqual(MezzofondoCalc.isValidVam(14), true, 'isValidVam(14) === true');
   assertEqual(MezzofondoCalc.isValidVam(25), false, 'isValidVam(25) === false');
 
+  // --- Test soglia: 5000 m negli ultimi 20' -> 15 km/h -> 4'00"/km ---
+  const soglia = MezzofondoCalc.sogliaFromMeters(5000);
+  assertEqual(soglia.vSoglia, 15, 'sogliaFromMeters(5000).vSoglia === 15');
+  assertEqual(MezzofondoCalc.formatPace(soglia.paceMin), '4′00″', 'sogliaFromMeters(5000) passo === "4′00″"');
+  assertEqual(MezzofondoCalc.sogliaFromMeters(0), null, 'sogliaFromMeters(0) === null');
+  assertEqual(MezzofondoCalc.sogliaFromMeters(NaN), null, 'sogliaFromMeters(NaN) === null');
+
   // --- zone nell'ordine della spec ---
   assertEqual(MezzofondoCalc.ZONES.map((z) => z[0]).join(','), 'Rigen.,Lenta,Lungo,Medio,Soglia,2000,1000', 'ordine zone ZONES');
 

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-23r';
-console.log('[Lapsi] build', APP_BUILD, '— lista gare: icone modifica/elimina sempre ancorate a dx');
+const APP_BUILD = '2026-09-24a';
+console.log('[Lapsi] build', APP_BUILD, '— Test soglia, test a tutta larghezza con storico, ritmi in Allenamenti');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4257,9 +4257,11 @@ function normalizeMasterTestEntry(record) {
   if (!value) {
     return null;
   }
+  const meters = parseInt(record.meters, 10);
   return {
     id: record.id || `mt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     value,
+    ...(Number.isFinite(meters) && meters > 0 ? { meters } : {}),
     date: String(record.date || ''),
     createdAt: record.createdAt || new Date(0).toISOString(),
   };
@@ -4343,6 +4345,7 @@ function normalizeMasterAthlete(entry) {
     strava: String(entry.strava || '').trim(),
     createdAt: entry.createdAt || new Date(0).toISOString(),
     vamTests: Array.isArray(entry.vamTests) ? entry.vamTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
+    sogliaTests: Array.isArray(entry.sogliaTests) ? entry.sogliaTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     raceResults: Array.isArray(entry.raceResults) ? entry.raceResults.map(normalizeMasterRaceResult).filter(Boolean) : [],
     notes: normalizeNotes(entry.notes),
@@ -4425,10 +4428,29 @@ function renderMasterPagination(total) {
 // l'ultima, per un errore di battitura; il cestino elimina una prova
 // specifica, anche fino a svuotare il binario). Le zone di ritmo leggono
 // l'ultima prova di entrambi i binari — vedi masterRitmiSectionMarkup.
-const MASTER_TEST_TITLES = { vam: 'VAM', thousand: 'Tempo sul 1000' };
-// Ordine di visualizzazione (tile riassuntive + colonne nel pannello): VAM
-// a sinistra, Tempo sul 1000 a destra.
-const MASTER_TEST_KEYS = ['vam', 'thousand'];
+const MASTER_TEST_TITLES = { vam: 'VAM', soglia: 'Soglia', thousand: 'Tempo sul 1000' };
+// Ordine di visualizzazione dei riquadri nella sezione "Test": VAM, Soglia,
+// Tempo sul 1000, uno sotto l'altro a tutta larghezza.
+const MASTER_TEST_KEYS = ['vam', 'soglia', 'thousand'];
+
+// Test che si inseriscono passando dai metri percorsi (poi calcolati in
+// km/h): VAM (metri in 6 minuti) e Soglia (metri negli ultimi 20 minuti).
+// digitsFromMeters ritorna le cifre del valore in km/h con un decimale
+// (150 -> "15,0"), stessa maschera per entrambi.
+const MASTER_METERS_TESTS = {
+  vam: {
+    metersLabel: 'Metri in 6 min',
+    calcLabel: 'Calcola VAM',
+    emptyAlert: 'Inserisci i metri percorsi in 6 minuti.',
+    digitsFromMeters: (meters) => String(Math.round((meters / 100) * 10)),
+  },
+  soglia: {
+    metersLabel: 'Metri negli ultimi 20 min',
+    calcLabel: 'Calcola soglia',
+    emptyAlert: 'Inserisci i metri percorsi negli ultimi 20 minuti.',
+    digitsFromMeters: (meters) => String(Math.round(MezzofondoCalc.sogliaFromMeters(meters).vSoglia * 10)),
+  },
+};
 
 // Testo dell'icona "i" dentro ciascun riquadro test (cosa consiste il test,
 // cosa se ne ricava, ogni quanto ripeterlo).
@@ -4436,6 +4458,10 @@ const MASTER_TEST_INFO = {
   vam: {
     title: 'Test della VAM',
     detail: 'Corri più metri possibile in 6 minuti al massimo sforzo. Dal risultato si ricava la Velocità Aerobica Massimale (VAM), usata per calcolare i ritmi di allenamento <span style="color:var(--vam-color)">(in viola)</span>. Ripeti il test dopo 6-8 settimane di allenamento per aggiornarli.',
+  },
+  soglia: {
+    title: 'Test soglia',
+    detail: 'Corri 30 minuti a tutta e inserisci i metri percorsi negli ultimi 20: ne escono la velocità di soglia (km/h) e il passo al km. È il test sul campo più affidabile per la soglia, perché la misuri invece di stimarla. La VAM ti dà un valore da cui derivare una percentuale, e quella percentuale varia troppo da persona a persona: c\'è chi ha la soglia all\'85% della VAM e chi al 92%.<br><br><b>Perché funziona.</b> La soglia anaerobica coincide, grosso modo, con l\'intensità massima che si riesce a mantenere per 30-60 minuti: una prova di 30 minuti a tutta ci cade dentro quasi per definizione, senza bisogno di modelli intermedi. Derivarla dalla VAM significa applicare una percentuale tra l\'85 e il 92% a seconda dell\'atleta: su un passo di 4\'30" al km sono quasi 25 secondi di incertezza, abbastanza da trasformare un medio in una soglia.<br><br>Ripeti il test dopo 6-8 settimane di allenamento.',
   },
   thousand: {
     title: 'Test del 1000',
@@ -4473,7 +4499,15 @@ function masterSectionIsOpen(entryId, key, defaultOpen) {
 let masterRaceEditing = new Map();
 
 function masterTestDisplayValue(testKey, test) {
-  return testKey === 'vam' ? `${test.value} km/h` : test.value;
+  return MASTER_METERS_TESTS[testKey] ? `${test.value} km/h` : test.value;
+}
+
+// Passo al km della soglia (min/km): dai metri se ci sono (formula esatta,
+// 20 / (metri/1000)), altrimenti dal valore in km/h già arrotondato.
+function masterSogliaPaceLabel(test) {
+  const calc = test.meters ? MezzofondoCalc.sogliaFromMeters(test.meters) : null;
+  const paceMin = calc ? calc.paceMin : (MezzofondoCalc.parseVam(test.value) ? 60 / MezzofondoCalc.parseVam(test.value) : null);
+  return paceMin ? `${MezzofondoCalc.formatPace(paceMin)}/km` : '';
 }
 
 // Icone dei pulsanti di calcolo/conferma dei due binari — riquadri stretti e
@@ -4846,30 +4880,32 @@ function masterTestInfoButtonMarkup(testKey) {
   return `<button type="button" class="mtest-box-info-btn" data-test="${testKey}" aria-label="${escapeHtml(info.title)}" title="${escapeHtml(info.title)}">${MTEST_INFO_ICON}</button>`;
 }
 
-function masterVamFormMarkup(prefill, mode) {
+function masterMetersFormMarkup(testKey, prefill, mode) {
+  const config = MASTER_METERS_TESTS[testKey];
   const startWithResult = mode === 'edit';
   const value = startWithResult && prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
-  const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
+  const meters = startWithResult && prefill && prefill.meters ? prefill.meters : '';
+  const cancelBtn = mode ? `<button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>` : '';
   return `
-    <div class="mtest-block mtest-empty-block" data-test="vam">
-      ${masterTestInfoButtonMarkup('vam')}
-      <span class="mtest-block-label">VAM</span>
-      <span class="mtest-meters-label"${startWithResult ? ' hidden' : ''}>Metri in 6 min</span>
+    <div class="mtest-block mtest-empty-block" data-test="${testKey}">
+      ${masterTestInfoButtonMarkup(testKey)}
+      <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
+      <span class="mtest-meters-label"${startWithResult ? ' hidden' : ''}>${config.metersLabel}</span>
       <div class="calc-input-row mtest-meters-row"${startWithResult ? ' hidden' : ''}>
         <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
-        <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
+        <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="${testKey}" aria-label="${config.calcLabel}" title="${config.calcLabel}">${MTEST_CALC_ICON}</button>
         ${cancelBtn}
       </div>
       <div class="mtest-vam-result-row"${startWithResult ? '' : ' hidden'}>
         <span class="mtest-calc-result"><b class="mtest-calc-result-val">${escapeHtml(value || '—')}</b> km/h</span>
         <div class="mtest-calc-actions-row">
-          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
-          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="${testKey}" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="${testKey}" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
           ${cancelBtn}
         </div>
       </div>
-      <input type="text" hidden class="mtest-input" data-test="vam" data-digits="${digits}" value="${escapeHtml(value)}" />
+      <input type="text" hidden class="mtest-input" data-test="${testKey}" data-digits="${digits}" data-meters="${meters}" value="${escapeHtml(value)}" />
     </div>
   `;
 }
@@ -4877,8 +4913,8 @@ function masterVamFormMarkup(prefill, mode) {
 // "Min e sec" sotto al titolo fa occupare al riquadro del Tempo sul 1000 lo
 // stesso spazio (etichetta + riga input) del riquadro della VAM.
 function masterTestFormMarkup(testKey, prefill, mode) {
-  if (testKey === 'vam') {
-    return masterVamFormMarkup(prefill, mode);
+  if (MASTER_METERS_TESTS[testKey]) {
+    return masterMetersFormMarkup(testKey, prefill, mode);
   }
   const value = prefill ? prefill.value : '';
   const digits = value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -4910,7 +4946,7 @@ function masterTestLatestEntryMarkup(testKey, test) {
           <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
         </div>
       </div>
-      <span class="mtest-compact-date">${escapeHtml(test.date)}</span>
+      <span class="mtest-compact-date">${testKey === 'soglia' && masterSogliaPaceLabel(test) ? `${escapeHtml(masterSogliaPaceLabel(test))} · ` : ''}${escapeHtml(test.date)}</span>
     </div>
   `;
 }
@@ -4925,7 +4961,7 @@ function masterTestOlderEntryMarkup(testKey, test) {
         <span class="mtest-older-value">${escapeHtml(displayValue)}</span>
         <button type="button" class="mtest-entry-del" data-test="${testKey}" data-id="${escapeHtml(test.id)}" aria-label="Elimina questa prova">${MTEST_DEL_ICON}</button>
       </div>
-      <span class="mtest-older-date">${escapeHtml(test.date)}</span>
+      <span class="mtest-older-date">${testKey === 'soglia' && masterSogliaPaceLabel(test) ? `${escapeHtml(masterSogliaPaceLabel(test))} · ` : ''}${escapeHtml(test.date)}</span>
     </div>
   `;
 }
@@ -4950,13 +4986,21 @@ function masterTestColumnMarkup(entry, testKey) {
     return masterTestFormMarkup(testKey, null, null);
   }
   const latest = tests[tests.length - 1];
-  const olderMarkup = tests.slice(0, -1).reverse().map((t) => masterTestOlderEntryMarkup(testKey, t)).join('');
+  const older = tests.slice(0, -1).reverse();
+  const historyKey = `hist-${testKey}`;
+  const historyMarkup = older.length
+    ? `
+      <details class="mtest-history" data-section-key="${historyKey}"${masterSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
+        <summary class="mtest-history-summary">Storico (${older.length})</summary>
+        ${older.map((t) => masterTestOlderEntryMarkup(testKey, t)).join('')}
+      </details>`
+    : '';
   return `
     <div class="mtest-compact-wrap" data-test="${testKey}">
       ${masterTestInfoButtonMarkup(testKey)}
       <span class="mtest-block-label">${escapeHtml(MASTER_TEST_TITLES[testKey])}</span>
       ${masterTestLatestEntryMarkup(testKey, latest)}
-      ${olderMarkup}
+      ${historyMarkup}
     </div>
   `;
 }
@@ -4965,23 +5009,24 @@ function masterTestColumnMarkup(entry, testKey) {
 // mostra già): stesse due fasi della VAM (metri+calcolatrice, poi
 // risultato+salva/ricalcola), riga sola per il Tempo sul 1000.
 function masterTestRepeatFormMarkup(testKey) {
-  if (testKey === 'vam') {
+  const metersConfig = MASTER_METERS_TESTS[testKey];
+  if (metersConfig) {
     return `
-      <div class="mtest-repeat-form" data-test="vam">
+      <div class="mtest-repeat-form" data-test="${testKey}">
         <div class="calc-input-row mtest-meters-row">
           <input type="text" inputmode="numeric" autocomplete="off" class="calc-input mtest-meters-input" placeholder="1500" />
-          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="vam" aria-label="Calcola VAM" title="Calcola VAM">${MTEST_CALC_ICON}</button>
-          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-calc-btn" data-test="${testKey}" aria-label="${metersConfig.calcLabel}" title="${metersConfig.calcLabel}">${MTEST_CALC_ICON}</button>
+          <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
         </div>
         <div class="mtest-vam-result-row" hidden>
           <span class="mtest-calc-result"><b class="mtest-calc-result-val">—</b> km/h</span>
           <div class="mtest-calc-actions-row">
-            <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="vam" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
-            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="vam" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
-            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="vam" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-primary mtest-save-btn" data-test="${testKey}" aria-label="Salva" title="Salva">${MTEST_CHECK_ICON}</button>
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-calc-reset-btn" data-test="${testKey}" aria-label="Ricalcola" title="Ricalcola">${MTEST_RELOAD_ICON}</button>
+            <button type="button" class="mtest-icon-btn mtest-icon-btn-ghost mtest-cancel-btn" data-test="${testKey}" aria-label="Annulla" title="Annulla">${MTEST_CLOSE_ICON}</button>
           </div>
         </div>
-        <input type="text" hidden class="mtest-input" data-test="vam" data-digits="" value="" />
+        <input type="text" hidden class="mtest-input" data-test="${testKey}" data-digits="" data-meters="" value="" />
       </div>
     `;
   }
@@ -5323,10 +5368,45 @@ function masterRitmiSectionMarkup(entry) {
     : '';
 
   return `
-    <div class="mtest-combined mtest-proj-group">
+    <div class="mtest-proj-group mtest-ritmi-group">
       <span class="mtest-proj-group-label mtest-proj-group-label-vam">Ritmi</span>
       <div class="calc-output">${zoneTiles}</div>
       ${vamHint}
+    </div>
+  `;
+}
+
+// Rapporto vSoglia / VAM (solo se ci sono entrambi i test, la VAM misurata
+// e non quella stimata dal 1000): sotto 0,85 poca resistenza specifica, sopra
+// 0,92 molto allenato alla soglia ma con poco tetto aerobico — indica dove
+// intervenire. Tra i due valori è nella norma.
+function masterSogliaRatioMarkup(entry) {
+  const latestSoglia = entry.sogliaTests && entry.sogliaTests.length ? entry.sogliaTests[entry.sogliaTests.length - 1] : null;
+  const latestVam = entry.vamTests && entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
+  const vSoglia = latestSoglia ? MezzofondoCalc.parseVam(latestSoglia.value) : null;
+  const vam = latestVam ? MezzofondoCalc.parseVam(latestVam.value) : null;
+  if (!vSoglia || !vam) {
+    return '';
+  }
+  const ratio = vSoglia / vam;
+  const ratioLabel = ratio.toFixed(2).replace('.', ',');
+  let status = 'Nella norma (tra 0,85 e 0,92).';
+  let statusClass = 'ok';
+  if (ratio < 0.85) {
+    status = 'Sotto 0,85: poca resistenza specifica.';
+    statusClass = 'low';
+  } else if (ratio > 0.92) {
+    status = 'Sopra 0,92: molto allenato alla soglia ma con poco tetto aerobico.';
+    statusClass = 'high';
+  }
+  return `
+    <div class="mtest-ratio mtest-ratio-${statusClass}">
+      <div class="mtest-ratio-head">
+        <span class="mtest-ratio-label">Rapporto Soglia / VAM</span>
+        <b class="mtest-ratio-value">${ratioLabel}</b>
+      </div>
+      <div class="mtest-ratio-status">${escapeHtml(status)}</div>
+      <div class="mtest-ratio-note">Sotto 0,85 poca resistenza specifica, sopra 0,92 molto allenato alla soglia ma con poco tetto aerobico: è un dato che ti dice dove intervenire.</div>
     </div>
   `;
 }
@@ -5501,18 +5581,20 @@ function mtestApplyMask(input) {
 // mostra già "VAM").
 function handleMasterVamCalc(button) {
   const block = button.closest('.mtest-block, .mtest-repeat-form');
+  const config = MASTER_METERS_TESTS[button.dataset.test];
   const metersInput = block.querySelector('.mtest-meters-input');
   const meters = parseInt(metersInput.value, 10);
   if (!Number.isFinite(meters) || meters <= 0) {
-    alert('Inserisci i metri percorsi in 6 minuti.');
+    alert(config.emptyAlert);
     return;
   }
-  const digits = String(Math.round((meters / 100) * 10));
+  const digits = config.digitsFromMeters(meters);
   const vamValue = formatVamMask(digits);
 
-  const vamInput = block.querySelector('.mtest-input[data-test="vam"]');
+  const vamInput = block.querySelector('.mtest-input');
   vamInput.value = vamValue;
   vamInput.dataset.digits = digits;
+  vamInput.dataset.meters = String(meters);
   block.querySelector('.mtest-calc-result-val').textContent = vamValue;
 
   const metersLabel = block.querySelector('.mtest-meters-label');
@@ -5557,6 +5639,7 @@ async function handleMasterTestSave(saveBtn) {
   const parsedOk = testKey === 'thousand'
     ? !!RipeteCalc.parseThousand(rawValue)
     : !!MezzofondoCalc.parseVam(rawValue);
+  const meters = parseInt(input.dataset.meters, 10);
 
   if (!rawValue || !parsedOk) {
     alert('Inserisci un valore valido.');
@@ -5573,6 +5656,7 @@ async function handleMasterTestSave(saveBtn) {
   const newEntry = {
     id: `mt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     value: rawValue,
+    ...(testKey === 'soglia' && Number.isFinite(meters) && meters > 0 ? { meters } : {}),
     date: shortYearDate(now.date),
     createdAt: now.iso,
   };
@@ -5848,16 +5932,20 @@ function renderMaster() {
         <summary class="mtest-section-summary">Test</summary>
         <div class="mtest-section-body">
           <div class="mtest-calc-grid">
-            ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>`).join('')}
-            ${MASTER_TEST_KEYS.map((key) => `<div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>`).join('')}
+            ${MASTER_TEST_KEYS.map((key) => `
+              <div class="mtest-test-item">
+                <div class="mtest-calc-col">${masterTestColumnMarkup(entry, key)}</div>
+                <div class="mtest-calc-col mtest-calc-col-repeat">${masterTestRepeatMarkup(entry, key)}</div>
+              </div>`).join('')}
           </div>
+          ${masterSogliaRatioMarkup(entry)}
           ${masterCombinedChartSectionMarkup(entry)}
-          ${masterRitmiSectionMarkup(entry)}
         </div>
       </details>
       <details class="mtest-section" data-section-key="training"${trainingOpen ? ' open' : ''}>
         <summary class="mtest-section-summary">Allenamenti</summary>
         <div class="mtest-section-body">
+          ${masterRitmiSectionMarkup(entry)}
           ${masterSeriesBuilderMarkup(entry)}
           ${buildMasterNotesBlock(entry)}
         </div>
@@ -6144,6 +6232,7 @@ async function handleMasterListClick(event) {
   masterSectionOpen.delete(`${entryId}:test`);
   masterSectionOpen.delete(`${entryId}:training`);
   masterSectionOpen.delete(`${entryId}:races`);
+  MASTER_TEST_KEYS.forEach((key) => masterSectionOpen.delete(`${entryId}:hist-${key}`));
   masterRaceEditing.delete(entryId);
   renderMaster();
   showToast('Eliminato!');

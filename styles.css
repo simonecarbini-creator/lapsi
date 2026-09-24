@@ -17,6 +17,7 @@
      per legare visivamente un dato alla sua fonte (VAM o Tempo sul 1000). */
   --vam-color: #8b5cf6;
   --thousand-color: #FF5C3A;
+  --soglia-color: #0891b2;
 }
 
 * {
@@ -3251,19 +3252,21 @@ button:active {
    .mtest-chart-section). Le proiezioni sui lavori sono raggruppate a parte,
    vedi .mtest-combined. */
 .mtest-calc-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-items: stretch;
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-top: 16px;
+}
+
+/* Un test = riquadro a tutta larghezza + "Ripeti test" subito sotto. */
+.mtest-test-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .mtest-calc-col {
   min-width: 0;
-}
-
-.mtest-calc-col-repeat {
-  margin-top: 10px;
 }
 
 /* I riquadri grigi sono nella prima riga della grid, "Ripeti test" nella
@@ -3339,6 +3342,11 @@ button:active {
 .mtest-block[data-test="thousand"] > .mtest-block-label,
 .mtest-compact-wrap[data-test="thousand"] > .mtest-block-label {
   color: var(--thousand-color);
+}
+
+.mtest-block[data-test="soglia"] > .mtest-block-label,
+.mtest-compact-wrap[data-test="soglia"] > .mtest-block-label {
+  color: var(--soglia-color);
 }
 
 /* Pulsanti a sola icona (calcolatrice/spunta/reload): niente spazio per il
@@ -3535,6 +3543,99 @@ button:active {
   color: var(--vam-color);
 }
 
+.mtest-repeat-btn[data-test="soglia"]:not(:disabled) {
+  border-color: var(--soglia-color);
+  color: var(--soglia-color);
+}
+
+/* Storico di un test: accordion dentro il riquadro, chiuso di default (nel
+   riquadro resta solo l'ultimo risultato). */
+.mtest-history {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dotted var(--card-border);
+}
+
+.mtest-history-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mtest-history-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mtest-history-summary::before {
+  content: '›';
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+
+.mtest-history[open] > .mtest-history-summary::before {
+  transform: rotate(90deg);
+}
+
+/* Rapporto Soglia / VAM sotto i riquadri dei test. */
+.mtest-ratio {
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-strong);
+}
+
+.mtest-ratio-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mtest-ratio-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mtest-ratio-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.mtest-ratio-status {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mtest-ratio-low .mtest-ratio-status {
+  color: #c0392b;
+}
+
+.mtest-ratio-high .mtest-ratio-status {
+  color: #b7791f;
+}
+
+.mtest-ratio-ok .mtest-ratio-status {
+  color: #1a6f52;
+}
+
+.mtest-ratio-note {
+  margin-top: 6px;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
 
 .mtest-meters-row {
   margin-bottom: 12px;
@@ -3615,6 +3716,10 @@ button:active {
 
 .mtest-block[data-test="thousand"] > .mtest-block-label {
   color: var(--thousand-color);
+}
+
+.mtest-block[data-test="soglia"] > .mtest-block-label {
+  color: var(--soglia-color);
 }
 
 .mtest-proj-group + .mtest-proj-group {

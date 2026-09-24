@@ -67,6 +67,16 @@
     return T === null ? null : vamFromThousand(T);
   }
 
+  // Test soglia: metri percorsi negli ultimi 20 minuti di una prova
+  // massimale. vSoglia (km/h) = metri * 0.06 / 20; passo (min/km) =
+  // 20 / (metri / 1000). null se i metri non sono un numero positivo.
+  function sogliaFromMeters(meters) {
+    if (typeof meters !== 'number' || !Number.isFinite(meters) || meters <= 0) {
+      return null;
+    }
+    return { vSoglia: meters * 0.06 / 20, paceMin: 20 / (meters / 1000) };
+  }
+
   function isValidVam(v) {
     return typeof v === 'number' && Number.isFinite(v) && v >= VAM_MIN && v <= VAM_MAX;
   }
@@ -82,6 +92,7 @@
     vamFromThousand,
     parseVam,
     parseThousandToVam,
+    sogliaFromMeters,
     isValidVam,
   };
 });
