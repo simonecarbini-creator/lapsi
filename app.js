@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-24c';
-console.log('[Lapsi] build', APP_BUILD, '— nota su come organizzare i test');
+const APP_BUILD = '2026-09-24d';
+console.log('[Lapsi] build', APP_BUILD, '— correzione frasi stima VAM/soglia nella nota test');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5399,8 +5399,8 @@ function masterTestsNoteMarkup() {
       <div class="mtest-note-title">Come organizzare i test</div>
       <p>Non occorre fare tutti e tre i test, possiamo anche limitarci a due:</p>
       <ul>
-        <li><b>Fondista o maratoneta</b> → <span class="mtest-note-soglia">soglia</span> + <span class="mtest-note-thousand">1000</span> (la VAM la stimi dalla soglia)</li>
-        <li><b>Mezzofondista</b> → <span class="mtest-note-vam">VAM</span> + <span class="mtest-note-thousand">1000</span></li>
+        <li><b>Fondista o maratoneta</b> → <span class="mtest-note-soglia">soglia</span> + <span class="mtest-note-thousand">1000</span> (la VAM la stimi dal 1000)</li>
+        <li><b>Mezzofondista</b> → <span class="mtest-note-vam">VAM</span> + <span class="mtest-note-thousand">1000</span> (la soglia la stimi dalla VAM)</li>
       </ul>
       <p>Se proprio ti servono tutti e tre, spalmali su due settimane invece che su una:</p>
       <div class="mtest-note-schedule">
