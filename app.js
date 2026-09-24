@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-24b';
-console.log('[Lapsi] build', APP_BUILD, '— ritmo soglia misurato in verde, colonne fisse nella lista gare');
+const APP_BUILD = '2026-09-24c';
+console.log('[Lapsi] build', APP_BUILD, '— nota su come organizzare i test');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5391,6 +5391,30 @@ function masterRitmiSectionMarkup(entry) {
   `;
 }
 
+// Nota fissa in fondo alla sezione "Test": quali test fare, in che ordine e
+// come distribuirli nella settimana.
+function masterTestsNoteMarkup() {
+  return `
+    <div class="mtest-note">
+      <div class="mtest-note-title">Come organizzare i test</div>
+      <p>Non occorre fare tutti e tre i test, possiamo anche limitarci a due:</p>
+      <ul>
+        <li><b>Fondista o maratoneta</b> → <span class="mtest-note-soglia">soglia</span> + <span class="mtest-note-thousand">1000</span> (la VAM la stimi dalla soglia)</li>
+        <li><b>Mezzofondista</b> → <span class="mtest-note-vam">VAM</span> + <span class="mtest-note-thousand">1000</span></li>
+      </ul>
+      <p>Se proprio ti servono tutti e tre, spalmali su due settimane invece che su una:</p>
+      <div class="mtest-note-schedule">
+        <span>Settimana 1, martedì</span><b class="mtest-note-thousand">1000 massimale</b>
+        <span>Settimana 1, sabato</span><b class="mtest-note-vam">VAM (6 minuti)</b>
+        <span>Settimana 2, mercoledì</span><b class="mtest-note-soglia">soglia (30 minuti)</b>
+      </div>
+      <p>Il test sui 1000 va per primo perché è quello che più risente della stanchezza residua e delle gambe non fresche: se lo fai per ultimo lo sottostimi, e siccome è il riferimento delle ripetute ti sbagli tutta la tabella. La VAM tollera meglio qualche scoria. La soglia è quella meno sensibile alla freschezza in assoluto — dipende da un sistema che si esaurisce poco — ma lascia più stanchezza dietro di sé, quindi sta bene in fondo.</p>
+      <p>La settimana dei test va trattata come una settimana di scarico, non aggiunta a un carico normale. Niente lavori duri oltre ai test, chilometraggio ridotto del 20-30%. Altrimenti misuri la fatica, non la forma.</p>
+      <p>Quando si replica un test, cerca di ricreare le stesse condizioni e non cambiare i giorni: martedì con martedì, sabato con sabato etc.</p>
+    </div>
+  `;
+}
+
 // Rapporto vSoglia / VAM (solo se ci sono entrambi i test, la VAM misurata
 // e non quella stimata dal 1000): sotto 0,85 poca resistenza specifica, sopra
 // 0,92 molto allenato alla soglia ma con poco tetto aerobico — indica dove
@@ -5955,6 +5979,7 @@ function renderMaster() {
           </div>
           ${masterSogliaRatioMarkup(entry)}
           ${masterCombinedChartSectionMarkup(entry)}
+          ${masterTestsNoteMarkup()}
         </div>
       </details>
       <details class="mtest-section" data-section-key="training"${trainingOpen ? ' open' : ''}>

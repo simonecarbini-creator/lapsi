@@ -3593,6 +3593,56 @@ button:active {
   transform: rotate(90deg);
 }
 
+/* Nota "Come organizzare i test", in fondo alla sezione Test. */
+.mtest-note {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--card-border);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.mtest-note-title {
+  margin-bottom: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.mtest-note p {
+  margin: 0 0 8px;
+}
+
+.mtest-note ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.mtest-note b {
+  color: var(--text);
+}
+
+.mtest-note-schedule {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-strong);
+}
+
+.mtest-note-schedule span {
+  color: var(--muted);
+}
+
+.mtest-note .mtest-note-vam { color: var(--vam-color); font-weight: 700; }
+.mtest-note .mtest-note-soglia { color: var(--soglia-color); font-weight: 700; }
+.mtest-note .mtest-note-thousand { color: var(--thousand-color); font-weight: 700; }
+
 /* Rapporto Soglia / VAM sotto i riquadri dei test. */
 .mtest-ratio {
   margin-top: 16px;
