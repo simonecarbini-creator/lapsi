@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-24a';
-console.log('[Lapsi] build', APP_BUILD, '— Test soglia, test a tutta larghezza con storico, ritmi in Allenamenti');
+const APP_BUILD = '2026-09-24b';
+console.log('[Lapsi] build', APP_BUILD, '— ritmo soglia misurato in verde, colonne fisse nella lista gare');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -4461,7 +4461,7 @@ const MASTER_TEST_INFO = {
   },
   soglia: {
     title: 'Test soglia',
-    detail: 'Corri 30 minuti a tutta e inserisci i metri percorsi negli ultimi 20: ne escono la velocità di soglia (km/h) e il passo al km. È il test sul campo più affidabile per la soglia, perché la misuri invece di stimarla. La VAM ti dà un valore da cui derivare una percentuale, e quella percentuale varia troppo da persona a persona: c\'è chi ha la soglia all\'85% della VAM e chi al 92%.<br><br><b>Perché funziona.</b> La soglia anaerobica coincide, grosso modo, con l\'intensità massima che si riesce a mantenere per 30-60 minuti: una prova di 30 minuti a tutta ci cade dentro quasi per definizione, senza bisogno di modelli intermedi. Derivarla dalla VAM significa applicare una percentuale tra l\'85 e il 92% a seconda dell\'atleta: su un passo di 4\'30" al km sono quasi 25 secondi di incertezza, abbastanza da trasformare un medio in una soglia.<br><br>Ripeti il test dopo 6-8 settimane di allenamento.',
+    detail: 'Corri 30 minuti a tutta e inserisci i metri percorsi negli ultimi 20: ne escono la velocità di soglia (km/h) e il passo al km. È il test sul campo più affidabile per la soglia, perché la misuri invece di stimarla. La VAM ti dà un valore da cui derivare una percentuale, ma che varia troppo da persona a persona: c\'è chi ha la soglia all\'85% della VAM e chi al 92%: su un passo di 4\'30" al km sono quasi 25 secondi di incertezza, abbastanza da trasformare un medio in una soglia.<br><br><b>Perché funziona.</b> La soglia anaerobica coincide, grosso modo, con l\'intensità massima che si riesce a mantenere per 30-60 minuti: una prova di 30 minuti a tutta ci cade dentro quasi per definizione, senza bisogno di modelli intermedi. Derivarla dalla VAM significa applicare una percentuale tra l\'85 e il 92% a seconda dell\'atleta.<br><br>Ripeti il test dopo 6-8 settimane di allenamento.',
   },
   thousand: {
     title: 'Test del 1000',
@@ -4504,9 +4504,17 @@ function masterTestDisplayValue(testKey, test) {
 
 // Passo al km della soglia (min/km): dai metri se ci sono (formula esatta,
 // 20 / (metri/1000)), altrimenti dal valore in km/h già arrotondato.
-function masterSogliaPaceLabel(test) {
+function masterSogliaPaceMin(test) {
   const calc = test.meters ? MezzofondoCalc.sogliaFromMeters(test.meters) : null;
-  const paceMin = calc ? calc.paceMin : (MezzofondoCalc.parseVam(test.value) ? 60 / MezzofondoCalc.parseVam(test.value) : null);
+  if (calc) {
+    return calc.paceMin;
+  }
+  const v = MezzofondoCalc.parseVam(test.value);
+  return v ? 60 / v : null;
+}
+
+function masterSogliaPaceLabel(test) {
+  const paceMin = masterSogliaPaceMin(test);
   return paceMin ? `${MezzofondoCalc.formatPace(paceMin)}/km` : '';
 }
 
@@ -5360,8 +5368,15 @@ function masterRitmiSectionMarkup(entry) {
   if (!vam) {
     return '';
   }
+  // Se c'è il test soglia, il suo passo (misurato) prende il posto di quello
+  // stimato dalla VAM, con il bordo verde per distinguerlo.
+  const latestSoglia = entry.sogliaTests && entry.sogliaTests.length ? entry.sogliaTests[entry.sogliaTests.length - 1] : null;
+  const sogliaPaceMin = latestSoglia ? masterSogliaPaceMin(latestSoglia) : null;
   const zoneTiles = MezzofondoCalc.pacesForVam(vam)
-    .map(({ label, minutes }) => `<div class="calc-out-tile calc-out-tile-vam"><b>${escapeHtml(MezzofondoCalc.formatPace(minutes))}</b><span>${escapeHtml(label)}</span></div>`)
+    .map(({ label, minutes }) => {
+      const measured = label === 'Soglia' && sogliaPaceMin;
+      return `<div class="calc-out-tile ${measured ? 'calc-out-tile-soglia' : 'calc-out-tile-vam'}"><b>${escapeHtml(MezzofondoCalc.formatPace(measured ? sogliaPaceMin : minutes))}</b><span>${escapeHtml(label)}</span></div>`;
+    })
     .join('');
   const vamHint = !latestVam
     ? '<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.</div>'

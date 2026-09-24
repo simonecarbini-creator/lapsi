@@ -499,6 +499,11 @@ button, input {
   border-color: rgba(139, 92, 246, 0.45);
 }
 
+/* Ritmo di soglia misurato dal test soglia (sostituisce quello stimato). */
+.calc-out-tile-soglia {
+  border-color: rgba(34, 160, 107, 0.7);
+}
+
 .calc-out-tile b {
   display: block;
   font-size: clamp(0.78rem, 4vw, 1rem);
@@ -2629,7 +2634,7 @@ button:active {
 .race-entry {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 8px 10px;
   border-radius: 12px;
   background: var(--bg-strong);
@@ -2647,7 +2652,7 @@ button:active {
    proprio SOTTO il testo di luogo/data — sovrapposizione illeggibile. */
 .race-entry-type {
   flex-shrink: 999;
-  flex-grow: 0;
+  flex-grow: 1;
   flex-basis: auto;
   min-width: 22px;
   overflow: hidden;
@@ -2661,7 +2666,10 @@ button:active {
 }
 
 .race-entry-result {
-  flex: 0 0 auto;
+  /* Colonna fissa con il testo allineato a destra: tutti i tempi finiscono
+     nello stesso punto, subito prima della colonna luogo/data. */
+  flex: 0 0 80px;
+  text-align: right;
   white-space: nowrap;
   font-size: 0.9rem;
   font-weight: 700;
@@ -2675,8 +2683,12 @@ button:active {
      basso (1, contro i 999 del tipo): cede solo se il tipo, ridotto già al
      minimo, ancora non basta — nel caso normale prende solo lo spazio di
      cui ha bisogno, senza crescere oltre (niente flex-grow). */
-  flex: 0 1 auto;
-  min-width: 20px;
+  /* Larghezza fissa (cede solo su schermi molto stretti, dopo il tipo):
+     luogo/data partono tutti dallo stesso punto a sinistra e finiscono coi
+     puntini se non entrano, anche quando la riga avrebbe spazio. */
+  flex: 0 1 92px;
+  min-width: 40px;
+  text-align: left;
   font-size: 0.68rem;
   color: var(--muted);
   overflow: hidden;
