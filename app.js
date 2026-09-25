@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25f';
-console.log('[Lapsi] build', APP_BUILD, '— icona vento nelle gare velocisti, storico test sprint leggibile');
+const APP_BUILD = '2026-09-25g';
+console.log('[Lapsi] build', APP_BUILD, '— vento: unità m/s più icona nella card chiusa');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3278,13 +3278,13 @@ function velRaceSeconds(result) {
   return (match[1] ? Number(match[1]) * 60 : 0) + Number(match[2]) + Number(match[3]) / 100;
 }
 
-// Icona vento (tre raffiche), messa dopo il valore nella card chiusa al posto
-// di "m/s"; negli elenchi resta il testo.
+// Icona vento (tre raffiche), messa dopo valore e unità nella card chiusa;
+// negli elenchi solo il testo.
 const VEL_WIND_ICON = '<svg class="vel-wind-icon" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/><path d="M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2"/></svg>';
 
 function velRaceMeta(race, { windIcon = false } = {}) {
   const wind = race.wind
-    ? (windIcon ? `${escapeHtml(race.wind)}${VEL_WIND_ICON}` : `${escapeHtml(race.wind)} m/s`)
+    ? `${escapeHtml(race.wind)} m/s${windIcon ? VEL_WIND_ICON : ''}`
     : '';
   return [escapeHtml(race.location), escapeHtml(shortYearDate(race.date)), wind]
     .filter(Boolean).join(' · ');
