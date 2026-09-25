@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26f';
-console.log('[Lapsi] build', APP_BUILD, '— Salva risultati chiude il confronto, riquadri a tutta larghezza');
+const APP_BUILD = '2026-09-26g';
+console.log('[Lapsi] build', APP_BUILD, '— nome dell\'allenamento e storico collassato');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1698,6 +1698,65 @@ function showConfirm(message, { detail = '', confirmText = 'Conferma', cancelTex
 
     document.body.appendChild(overlay);
     requestAnimationFrame(() => overlay.classList.add('is-open'));
+  });
+}
+
+// Variante di showConfirm con un campo di testo: risolve con il testo scritto
+// (oppure il valore predefinito se lasciato vuoto), null se si annulla.
+function showPrompt(message, { detail = '', placeholder = '', defaultValue = '', confirmText = 'Salva', cancelText = 'Annulla', maxLength = 60 } = {}) {
+  document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'app-overlay app-confirm';
+    overlay.innerHTML = `
+      <div class="app-confirm-box" role="dialog" aria-modal="true">
+        <div class="app-confirm-text">${escapeHtml(message)}</div>
+        ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
+        <input type="text" class="app-prompt-input" maxlength="${maxLength}" autocomplete="off" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(defaultValue)}" />
+        <div class="app-confirm-actions">
+          <button type="button" class="app-btn app-btn-success" data-choice="ok">${escapeHtml(confirmText)}</button>
+          <button type="button" class="app-btn app-btn-ghost" data-choice="cancel">${escapeHtml(cancelText)}</button>
+        </div>
+      </div>
+    `;
+    const input = overlay.querySelector('.app-prompt-input');
+
+    let settled = false;
+    const close = (accepted) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      document.removeEventListener('keydown', onKey);
+      const text = input.value.trim() || defaultValue.trim();
+      dismissOverlay(overlay, () => resolve(accepted ? text : null));
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        close(false);
+      } else if (event.key === 'Enter') {
+        close(true);
+      }
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close(false);
+      }
+      const choiceButton = event.target.closest('[data-choice]');
+      if (choiceButton) {
+        close(choiceButton.dataset.choice === 'ok');
+      }
+    });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-open');
+      input.focus();
+      input.select();
+    });
   });
 }
 
@@ -5806,6 +5865,7 @@ function normalizeMasterTraining(record) {
     id: record.id || `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     date: String(record.date || ''),
     createdAt: record.createdAt || new Date(0).toISOString(),
+    name: String(record.name || '').trim().slice(0, 80),
     thousand: String(record.thousand || ''),
     totalKm: Number(record.totalKm) || 0,
     blocks,
@@ -5827,9 +5887,12 @@ function masterTrainingBlockLabel(block) {
   return `${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`;
 }
 
-// Card di uno storico: stima sopra e tempo fatto sotto, in formato ridotto.
-function masterTrainingCardMarkup(training) {
+// Card di uno storico: chiusa mostra solo data, nome (una riga, troncato) e
+// cestino; aperta i dettagli, con stima sopra e tempo fatto sotto in formato
+// ridotto.
+function masterTrainingCardMarkup(training, open) {
   const summary = training.blocks.map(masterTrainingBlockLabel).join(' + ');
+  const displayName = training.name || summary;
   const blocksMarkup = training.blocks.map((block) => {
     const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${block.recActive ? ' (attivo)' : ''}`;
     const cells = block.estimates.map((estimate, di) => `
@@ -5846,16 +5909,17 @@ function masterTrainingCardMarkup(training) {
     ? ` · rec ${escapeHtml(seriesFormatRecMask(training.blocks[0].recDigits))}${training.blocks[0].recActive ? ' (attivo)' : ''}`
     : '';
   return `
-    <div class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}">
-      <div class="mtrain-head">
-        <div>
-          <b>${escapeHtml(training.date)}</b> · ${escapeHtml(summary)}
-          <div class="mtrain-sub">Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>
-        </div>
+    <details class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}" data-section-key="train-${escapeHtml(training.id)}"${open ? ' open' : ''}>
+      <summary class="mtrain-summary">
+        <span class="mtrain-date">${escapeHtml(training.date)}</span>
+        <span class="mtrain-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
         <button type="button" class="mtrain-del" data-train="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
+      </summary>
+      <div class="mtrain-body">
+        <div class="mtrain-sub">${escapeHtml(summary)} · Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>
+        ${blocksMarkup}
       </div>
-      ${blocksMarkup}
-    </div>`;
+    </details>`;
 }
 
 // Solo lo storico (accordion chiuso): l'allenamento appena salvato si
@@ -5870,7 +5934,7 @@ function masterTrainingsMarkup(entry) {
   return `
     <details class="mtest-history mtrain-history" data-section-key="${historyKey}"${masterSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
       <summary class="mtest-history-summary">Storico allenamenti (${trainings.length})</summary>
-      ${trainings.map(masterTrainingCardMarkup).join('')}
+      ${trainings.map((training) => masterTrainingCardMarkup(training, masterSectionIsOpen(entry.id, `train-${training.id}`, false))).join('')}
     </details>
   `;
 }
@@ -5893,6 +5957,19 @@ async function handleMasterTrainingSave(button) {
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
   const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+
+  const defaultName = state.blocks
+    .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
+    .join(' + ');
+  const name = await showPrompt('Nome dell\'allenamento', {
+    detail: 'Lo ritroverai nello storico allenamenti.',
+    placeholder: 'es. Ripetute soglia',
+    defaultValue: defaultName,
+    confirmText: 'Salva',
+  });
+  if (name === null) {
+    return;
+  }
 
   const blocks = [];
   for (const block of state.blocks) {
@@ -5919,6 +5996,7 @@ async function handleMasterTrainingSave(button) {
     id: `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     date: shortYearDate(now.date),
     createdAt: now.iso,
+    name,
     thousand: latestThousand.value,
     totalKm,
     blocks,
@@ -7275,6 +7353,7 @@ async function handleMasterListClick(event) {
 
   const trainingDelBtn = event.target.closest('.mtrain-del');
   if (trainingDelBtn) {
+    event.preventDefault();
     await handleMasterTrainingDelete(trainingDelBtn);
     return;
   }
@@ -7525,7 +7604,7 @@ async function handleMasterListClick(event) {
   masterSectionOpen.delete(`${entryId}:training`);
   masterSectionOpen.delete(`${entryId}:races`);
   MASTER_TEST_KEYS.forEach((key) => masterSectionOpen.delete(`${entryId}:hist-${key}`));
-  masterSectionOpen.delete(`${entryId}:train-hist`);
+  [...masterSectionOpen.keys()].filter((key) => key.startsWith(`${entryId}:train-`)).forEach((key) => masterSectionOpen.delete(key));
   masterRaceEditing.delete(entryId);
   renderMaster();
   showToast('Eliminato!');

@@ -5530,22 +5530,57 @@ button:active {
 
 .mtrain-card {
   margin-top: 8px;
-  padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid var(--card-border);
 }
 
-.mtrain-head {
+/* Chiuso: data, nome (una riga, troncato) e cestino. */
+.mtrain-summary {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
+  padding: 8px 10px;
+  list-style: none;
+  cursor: pointer;
   font-size: 0.8rem;
 }
 
+.mtrain-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mtrain-summary::before {
+  content: '›';
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.mtrain-card[open] > .mtrain-summary::before {
+  transform: rotate(90deg);
+}
+
+.mtrain-date {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mtrain-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.mtrain-body {
+  padding: 0 10px 10px;
+}
+
 .mtrain-sub {
-  margin-top: 2px;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   color: var(--muted);
 }
 
@@ -5610,4 +5645,14 @@ button:active {
 .mtrain-card-sm .mtrain-done-input {
   padding: 4px 2px;
   font-size: 0.7rem;
+}
+
+.app-prompt-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0 14px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1.5px solid var(--card-border);
+  font-size: 0.95rem;
 }
