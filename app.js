@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26e';
-console.log('[Lapsi] build', APP_BUILD, '— simulatore: Confronta nel simulatore, campi colorati, storico compatto');
+const APP_BUILD = '2026-09-26f';
+console.log('[Lapsi] build', APP_BUILD, '— Salva risultati chiude il confronto, riquadri a tutta larghezza');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -6059,7 +6059,9 @@ function masterSeriesBuilderMarkup(entry) {
             return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare)}`;
           }).join('')}
           ${savedTraining
-            ? `<button type="button" class="mseries-compare-btn" data-id="${entry.id}">${compareOn ? 'Nascondi confronto' : 'Confronta'}</button>`
+            ? (compareOn
+              ? `<button type="button" class="mseries-finish-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva risultati</button>`
+              : `<button type="button" class="mseries-compare-btn" data-id="${entry.id}">Confronta</button>`)
             : `<button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva allenamento</button>`}
         </div>
       </div>
@@ -7349,8 +7351,22 @@ async function handleMasterListClick(event) {
   const seriesCompareBtn = event.target.closest('.mseries-compare-btn');
   if (seriesCompareBtn) {
     const state = masterSeriesGetState(seriesCompareBtn.dataset.id);
-    state.compare = !state.compare;
+    state.compare = true;
     renderMaster();
+    return;
+  }
+
+  // "Salva risultati": l'allenamento è già nello storico con i tempi scritti;
+  // si chiude il confronto e il simulatore riparte da un form nuovo.
+  const seriesFinishBtn = event.target.closest('.mseries-finish-btn');
+  if (seriesFinishBtn) {
+    const state = masterSeriesGetState(seriesFinishBtn.dataset.id);
+    state.blocks = [masterSeriesDefaultBlock()];
+    state.showResults = false;
+    state.savedTrainingId = null;
+    state.compare = false;
+    renderMaster();
+    showToast('Risultati salvati!');
     return;
   }
 

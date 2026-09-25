@@ -5457,6 +5457,22 @@ button:active {
   color: #fff;
 }
 
+.mseries-finish-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 999px;
+  border: none;
+  background: #22a06b;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* Matita di "Modifica allenamento" (stessa grafica delle altre matite). */
 .mseries-reload-btn {
   font-size: 0.92rem;
@@ -5464,12 +5480,14 @@ button:active {
   color: var(--text);
 }
 
-/* Riquadro stimato + campi dei tempi fatti sotto, in colonna. */
+/* Riquadro stimato + campi dei tempi fatti sotto. Le colonne (una per
+   distanza) si dividono tutta la larghezza, senza lasciare vuoto a destra. */
 .mtrain-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  width: 76px;
+  flex: 1 1 84px;
+  min-width: 0;
 }
 
 .mtrain-cell .calc-out-tile {
@@ -5478,8 +5496,8 @@ button:active {
 }
 
 .mtrain-cell-inputs {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(62px, 1fr));
   gap: 4px;
 }
 
@@ -5568,7 +5586,12 @@ button:active {
 }
 
 .mtrain-card-sm .mtrain-cell {
-  width: 58px;
+  flex-basis: 64px;
+  gap: 3px;
+}
+
+.mtrain-card-sm .mtrain-cell-inputs {
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
   gap: 3px;
 }
 
