@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26c';
-console.log('[Lapsi] build', APP_BUILD, '— nuova sezione Mezzofondo (istanza del modulo Master)');
+const APP_BUILD = '2026-09-26d';
+console.log('[Lapsi] build', APP_BUILD, '— esporta/importa con Master e Mezzofondo, Assoluti fuori dal settore giovanile');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -2564,24 +2564,78 @@ async function handleEditSubmit(event) {
   renderEntries();
 }
 
-// Esporta/Importa sono unici per tutta l'app (atleti militari + velocisti
-// insieme in un solo file), non per singola sezione — coerente con l'averli
-// spostati nel menu principale invece che nelle rispettive schermate.
-function exportEntriesAsJson() {
-  const athletes = getAthletes();
-  const velocisti = getVelocisti();
+// Esporta/Importa sono unici per tutta l'app (militari, velocisti, master e
+// mezzofondo insieme in un solo file), non per singola sezione — coerente
+// con l'averli spostati nel menu principale invece che nelle rispettive
+// schermate. Ogni "dominio" dice come leggere, normalizzare e salvare i suoi
+// dati; Master e Mezzofondo passano dall'istanza giusta del modulo Master e
+// poi rimettono quella che era attiva.
+const DATA_DOMAINS = [
+  {
+    key: 'athletes',
+    label: (n) => `${n} ${n === 1 ? 'atleta militare' : 'atleti militari'}`,
+    get: () => getAthletes(),
+    normalize: normalizeAthlete,
+    save: async (list) => {
+      await saveEntries(list);
+      currentPage = 1;
+      renderEntries();
+    },
+  },
+  {
+    key: 'velocisti',
+    label: (n) => `${n} ${n === 1 ? 'velocista' : 'velocisti'}`,
+    get: () => getVelocisti(),
+    normalize: normalizeVelocista,
+    save: async (list) => {
+      await saveVelocisti(list);
+      velCurrentPage = 1;
+      renderVelocisti();
+    },
+  },
+  ...['master', 'mezzofondo'].map((key) => ({
+    key,
+    label: key === 'master'
+      ? (n) => `${n} ${n === 1 ? 'atleta master' : 'atleti master'}`
+      : (n) => `${n} ${n === 1 ? 'atleta di mezzofondo' : 'atleti di mezzofondo'}`,
+    get: () => withMasterInstance(key, () => getMaster()),
+    normalize: normalizeMasterAthlete,
+    save: (list) => withMasterInstance(key, async () => {
+      await saveMaster(list);
+      masterCurrentPage = 1;
+      renderMaster();
+    }),
+  })),
+];
 
-  if (!athletes.length && !velocisti.length) {
+function withMasterInstance(key, fn) {
+  const previous = masterActiveKey;
+  masterUse(key);
+  const restore = () => masterUse(previous);
+  const result = fn();
+  if (result && typeof result.then === 'function') {
+    return result.finally(restore);
+  }
+  restore();
+  return result;
+}
+
+function joinItalianList(parts) {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} e ${parts[parts.length - 1]}` : parts.join('');
+}
+
+function exportEntriesAsJson() {
+  const payload = { lapsi: true, exportedAt: new Date().toISOString() };
+  let total = 0;
+  DATA_DOMAINS.forEach((domain) => {
+    payload[domain.key] = domain.get();
+    total += payload[domain.key].length;
+  });
+
+  if (!total) {
     alert('Nessun dato da esportare.');
     return;
   }
-
-  const payload = {
-    lapsi: true,
-    exportedAt: new Date().toISOString(),
-    athletes,
-    velocisti,
-  };
 
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json',
@@ -2613,16 +2667,21 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  // Formato unico { athletes, velocisti } (esportato da questa build), ma
-  // resta leggibile anche un vecchio export "solo atleti" (un array nudo).
-  const athletesList = Array.isArray(parsed)
-    ? parsed
-    : (parsed && Array.isArray(parsed.athletes)) ? parsed.athletes : null;
-  const velocistiList = (parsed && !Array.isArray(parsed) && Array.isArray(parsed.velocisti))
-    ? parsed.velocisti
-    : null;
+  // Formato unico { athletes, velocisti, master, mezzofondo } (le chiavi
+  // possono mancare: un export di una build precedente non ha master e
+  // mezzofondo, e resta leggibile anche un vecchio export "solo atleti", un
+  // array nudo). Una chiave assente lascia intatti i dati di quel dominio.
+  const listFor = (domain) => {
+    if (Array.isArray(parsed)) {
+      return domain.key === 'athletes' ? parsed : null;
+    }
+    return parsed && Array.isArray(parsed[domain.key]) ? parsed[domain.key] : null;
+  };
+  const found = DATA_DOMAINS
+    .map((domain) => ({ domain, list: listFor(domain) }))
+    .filter((item) => item.list);
 
-  if (!athletesList && !velocistiList) {
+  if (!found.length) {
     await showConfirm('File non valido', {
       detail: 'Il JSON non contiene dati di Lapsi riconoscibili.',
       confirmText: 'Ok',
@@ -2631,10 +2690,10 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  const normalizedAthletes = athletesList ? athletesList.map(normalizeAthlete).filter(Boolean) : null;
-  const normalizedVelocisti = velocistiList ? velocistiList.map(normalizeVelocista).filter(Boolean) : null;
+  const normalized = found
+    .map(({ domain, list }) => ({ domain, items: list.map(domain.normalize).filter(Boolean) }));
 
-  if (!(normalizedAthletes && normalizedAthletes.length) && !(normalizedVelocisti && normalizedVelocisti.length)) {
+  if (!normalized.some((item) => item.items.length)) {
     await showConfirm('Nessun dato valido nel file', {
       confirmText: 'Ok',
       cancelText: 'Chiudi',
@@ -2642,15 +2701,13 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  const importParts = [];
-  if (normalizedAthletes) importParts.push(`${normalizedAthletes.length} atleti`);
-  if (normalizedVelocisti) importParts.push(`${normalizedVelocisti.length} velocisti`);
+  const importParts = normalized.map(({ domain, items }) => domain.label(items.length));
+  const currentParts = normalized
+    .map(({ domain }) => ({ domain, count: domain.get().length }))
+    .filter((item) => item.count)
+    .map((item) => item.domain.label(item.count));
 
-  const currentParts = [];
-  if (normalizedAthletes && getAthletes().length) currentParts.push(`${getAthletes().length} atleti`);
-  if (normalizedVelocisti && getVelocisti().length) currentParts.push(`${getVelocisti().length} velocisti`);
-
-  const confirmed = await showConfirm(`Importare ${importParts.join(' e ')}?`, {
+  const confirmed = await showConfirm(`Importare ${joinItalianList(importParts)}?`, {
     detail: currentParts.length
       ? `Sostituiranno i dati attualmente presenti su questo dispositivo (${currentParts.join(', ')}).`
       : 'Verranno caricati su questo dispositivo.',
@@ -2661,15 +2718,8 @@ async function importEntriesFromJson(file) {
     return;
   }
 
-  if (normalizedAthletes) {
-    await saveEntries(normalizedAthletes);
-    currentPage = 1;
-    renderEntries();
-  }
-  if (normalizedVelocisti) {
-    await saveVelocisti(normalizedVelocisti);
-    velCurrentPage = 1;
-    renderVelocisti();
+  for (const { domain, items } of normalized) {
+    await domain.save(items);
   }
   showToast('Import completato!');
 }
