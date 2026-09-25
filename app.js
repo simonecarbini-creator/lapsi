@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26d';
-console.log('[Lapsi] build', APP_BUILD, '— esporta/importa con Master e Mezzofondo, Assoluti fuori dal settore giovanile');
+const APP_BUILD = '2026-09-26e';
+console.log('[Lapsi] build', APP_BUILD, '— simulatore: Confronta nel simulatore, campi colorati, storico compatto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5417,11 +5417,6 @@ const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hid
 const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
 const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
-// Doppia freccia circolare (refresh "a due punte") invece della singola di
-// MTEST_RELOAD_ICON, usata solo per tornare a modificare la serie del
-// simulatore: più equilibrata/riconoscibile a icona isolata, senza toccare
-// l'icona "Ricalcola" della VAM che usa ancora MTEST_RELOAD_ICON.
-const MSERIES_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11a9 9 0 0 1 15-6.7L21 7"/><polyline points="21 3 21 7 17 7"/><path d="M21 13a9 9 0 0 1-15 6.7L3 17"/><polyline points="3 21 3 17 7 17"/></svg>';
 // Coppa/trofeo per le tile dei risultati gara nella card chiusa.
 const MTEST_TROPHY_ICON = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M7 5H4a1 1 0 0 0-1 1v1a4 4 0 0 0 4 4M17 5h3a1 1 0 0 1 1 1v1a4 4 0 0 1-4 4"/></svg>';
 // Freccia a zig-zag: stessa idea del logo Strava (non una riproduzione
@@ -5455,7 +5450,7 @@ function masterSeriesDefaultBlock() {
 
 function masterSeriesGetState(athleteId) {
   if (!masterSeriesState.has(athleteId)) {
-    masterSeriesState.set(athleteId, { blocks: [masterSeriesDefaultBlock()], showResults: false });
+    masterSeriesState.set(athleteId, { blocks: [masterSeriesDefaultBlock()], showResults: false, savedTrainingId: null, compare: false });
   }
   return masterSeriesState.get(athleteId);
 }
@@ -5666,7 +5661,7 @@ function masterSeriesResultGapMarkup(block) {
   return `<div class="mseries-result-gap">${escapeHtml(`${skipNote}rec ${label}${activeNote} tra le serie · ${impact}`)}</div>`;
 }
 
-function masterSeriesResultBlockMarkup(block, T, totalKm) {
+function masterSeriesResultBlockMarkup(block, T, totalKm, compare = null) {
   const reps = Math.max(1, parseInt(block.reps, 10) || 1);
   const distances = masterSeriesParseDistances(block.dist);
   const rec = seriesParseRecSeconds(block.recDigits);
@@ -5675,9 +5670,15 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   }
   const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
   const tiles = distances
-    .map((dist) => {
+    .map((dist, di) => {
       const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
-      return `<div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
+      const tile = `<div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(seconds))}</b><span>${dist} m</span></div>`;
+      const estimate = compare && compare.savedBlock ? compare.savedBlock.estimates[di] : null;
+      if (!estimate) {
+        return tile;
+      }
+      // Confronto attivo: sotto il riquadro stimato, i campi dei tempi fatti.
+      return `<div class="mtrain-cell">${tile}<div class="mtrain-cell-inputs">${mtrainInputsMarkup(compare.training, compare.savedBlock, estimate, di)}</div></div>`;
     })
     .join('');
   const header = `${reps > 1 ? `${reps} × ` : ''}${distances.join('-')} m`;
@@ -5693,12 +5694,14 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   `;
 }
 
-// ----- Allenamenti salvati dal simulatore (con verifica dei tempi fatti) -----
+// ----- Allenamenti salvati dal simulatore (con confronto dei tempi fatti) -----
 // Una serie configurata nel simulatore si può salvare: si "congelano" i tempi
-// stimati di quel momento (non cambiano se poi cambia il 1000) e sotto ogni
-// distanza si inseriscono i tempi fatti, uno per ripetuta. Il riquadro diventa
-// verde se sono tutti uguali o migliori della stima, rosso se anche solo uno è
-// peggiore. Gli allenamenti restano in uno storico (l'ultimo in evidenza).
+// stimati di quel momento (non cambiano se poi cambia il 1000). Il pulsante
+// diventa "Confronta" e sotto ogni riquadro stimato compare un campo per
+// ripetuta dove scrivere il tempo fatto: il campo stesso diventa verde se il
+// tempo è uguale o migliore della stima, rosso se è peggiore. Gli allenamenti
+// salvati restano in uno storico (accordion) con la stessa disposizione,
+// stima sopra e tempo fatto sotto, in formato ridotto.
 
 // Stessa approssimazione mostrata da RipeteCalc.formatSeconds (mezzo secondo
 // sotto 59,75 s, secondo intero sopra): il confronto è con il tempo che il
@@ -5707,36 +5710,63 @@ function mtrainShownSeconds(seconds) {
   return seconds < 59.75 ? Math.round(seconds * 2) / 2 : Math.round(seconds);
 }
 
-// Tempo fatto: 1-2 cifre = secondi interi, dalla terza in poi l'ultima cifra
-// è il decimo (324 -> 32,4″; 1204 -> 1′20,4″).
-function mtrainFormatDone(digits) {
-  const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, 5);
-  if (!d) return '';
-  if (d.length <= 2) return `${d}″`;
-  const minutes = d.slice(0, -3);
-  return `${minutes ? `${minutes}′` : ''}${d.slice(-3, -1)},${d.slice(-1)}″`;
+// Il formato del campo segue quello della stima: da 1′ in su m′ss″ (si
+// scrive 123 per 1′23″), sotto il minuto ss″ con il decimo facoltativo (si
+// scrive 445 per 44″5, 39 per 39″). Gli apici li aggiunge la maschera.
+function mtrainMinutesFormat(shown) {
+  return shown >= 60;
 }
 
-function mtrainParseDone(digits) {
+function mtrainMaxDigits(shown) {
+  if (!mtrainMinutesFormat(shown)) return 3;
+  return shown >= 600 ? 4 : 3;
+}
+
+function mtrainFormatDone(digits, shown) {
+  const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, mtrainMaxDigits(shown));
+  if (!d) return '';
+  if (mtrainMinutesFormat(shown)) {
+    const minLen = shown >= 600 ? 2 : 1;
+    if (d.length <= minLen) return `${d}′`;
+    const rest = d.slice(minLen);
+    return `${d.slice(0, minLen)}′${rest}${rest.length >= 2 ? '″' : ''}`;
+  }
+  if (d.length === 1) return d;
+  if (d.length === 2) return `${d}″`;
+  return `${d.slice(0, 2)}″${d.slice(2)}`;
+}
+
+// Secondi del tempo digitato, o null finché il valore non è completo.
+function mtrainParseDone(digits, shown) {
   const d = String(digits || '').replace(/[^0-9]/g, '');
   if (!d) return null;
-  if (d.length <= 2) {
-    const s = parseInt(d, 10);
-    return s > 0 ? s : null;
+  if (mtrainMinutesFormat(shown)) {
+    const minLen = shown >= 600 ? 2 : 1;
+    if (d.length < minLen + 2) return null;
+    const seconds = parseInt(d.slice(minLen), 10);
+    if (seconds > 59) return null;
+    return parseInt(d.slice(0, minLen), 10) * 60 + seconds;
   }
-  const seconds = parseInt(d.slice(-3, -1), 10);
-  if (seconds > 59) return null;
-  const minutes = d.length > 3 ? parseInt(d.slice(0, -3), 10) : 0;
-  const total = minutes * 60 + seconds + parseInt(d.slice(-1), 10) / 10;
+  if (d.length < 2) return null;
+  const total = parseInt(d.slice(0, 2), 10) + (d.length === 3 ? parseInt(d[2], 10) / 10 : 0);
   return total > 0 ? total : null;
 }
 
-// 'ok' se tutti i tempi inseriti sono <= stima e sono completi, 'bad' se
-// almeno uno è peggiore (subito, anche a serie incompleta), '' altrimenti.
-function mtrainBoxStatus(estimate, doneList, reps) {
-  const times = (doneList || []).filter((t) => Number.isFinite(t));
-  if (times.some((t) => t > estimate.shown + 1e-9)) return 'bad';
-  return times.length >= reps ? 'ok' : '';
+// Cifre "digitate" per ricostruire il campo da un valore in secondi.
+function mtrainDigitsFromSeconds(value, shown) {
+  if (mtrainMinutesFormat(shown)) {
+    const total = Math.round(value);
+    const m = Math.floor(total / 60);
+    return `${m}${String(total % 60).padStart(2, '0')}`;
+  }
+  const tenths = Math.round(value * 10);
+  const seconds = Math.floor(tenths / 10);
+  return tenths % 10 ? `${seconds}${tenths % 10}` : String(seconds);
+}
+
+function mtrainInputStatus(value, shown) {
+  if (!Number.isFinite(value)) return '';
+  return value <= shown + 1e-9 ? 'ok' : 'bad';
 }
 
 function normalizeMasterTraining(record) {
@@ -5782,41 +5812,45 @@ function normalizeMasterTraining(record) {
   };
 }
 
+// Campi dei tempi fatti per una distanza (uno per ripetuta, in colonna).
+function mtrainInputsMarkup(training, block, estimate, di) {
+  const doneList = block.done[di] || [];
+  return Array.from({ length: block.reps }, (_, r) => {
+    const value = doneList[r];
+    const digits = Number.isFinite(value) ? mtrainDigitsFromSeconds(value, estimate.shown) : '';
+    const status = mtrainInputStatus(value, estimate.shown);
+    return `<input type="text" inputmode="numeric" autocomplete="off" class="mtrain-done-input${status ? ` is-${status}` : ''}" data-train="${escapeHtml(training.id)}" data-block="${escapeHtml(block.id)}" data-di="${di}" data-rep="${r}" data-shown="${estimate.shown}" data-digits="${digits}" value="${escapeHtml(mtrainFormatDone(digits, estimate.shown))}" placeholder="${block.reps > 1 ? `R${r + 1}` : 'fatto'}" aria-label="Tempo fatto ${estimate.dist} m, ripetuta ${r + 1}" />`;
+  }).join('');
+}
+
+function masterTrainingBlockLabel(block) {
+  return `${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`;
+}
+
+// Card di uno storico: stima sopra e tempo fatto sotto, in formato ridotto.
 function masterTrainingCardMarkup(training) {
-  const summary = training.blocks
-    .map((block) => `${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`)
-    .join(' + ');
+  const summary = training.blocks.map(masterTrainingBlockLabel).join(' + ');
   const blocksMarkup = training.blocks.map((block) => {
     const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${block.recActive ? ' (attivo)' : ''}`;
-    const boxes = block.estimates.map((estimate, di) => {
-      const doneList = block.done[di] || [];
-      const status = mtrainBoxStatus(estimate, doneList, block.reps);
-      const inputs = Array.from({ length: block.reps }, (_, r) => {
-        const value = doneList[r];
-        const digits = Number.isFinite(value) ? mtrainDigitsFromSeconds(value) : '';
-        return `<input type="text" inputmode="numeric" autocomplete="off" class="mtrain-done-input" data-train="${escapeHtml(training.id)}" data-block="${escapeHtml(block.id)}" data-di="${di}" data-rep="${r}" data-digits="${digits}" value="${escapeHtml(mtrainFormatDone(digits))}" placeholder="${block.reps > 1 ? `R${r + 1}` : 'fatto'}" aria-label="Tempo fatto ${estimate.dist} m, ripetuta ${r + 1}" />`;
-      }).join('');
-      return `
-        <div class="mtrain-box${status ? ` mtrain-box-${status}` : ''}" data-shown="${estimate.shown}" data-reps="${block.reps}">
-          <div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(estimate.seconds))}</b><span>${estimate.dist} m</span></div>
-          <div class="mtrain-done"><span class="mtrain-done-label">tempi fatti</span><div class="mtrain-done-inputs">${inputs}</div></div>
-        </div>`;
-    }).join('');
+    const cells = block.estimates.map((estimate, di) => `
+      <div class="mtrain-cell">
+        <div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(estimate.seconds))}</b><span>${estimate.dist} m</span></div>
+        <div class="mtrain-cell-inputs">${mtrainInputsMarkup(training, block, estimate, di)}</div>
+      </div>`).join('');
     const header = training.blocks.length > 1
-      ? `<div class="mseries-result-header"><b>${escapeHtml(`${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`)}</b><span>${escapeHtml(recLabel)}</span></div>`
+      ? `<div class="mtrain-block-head"><b>${escapeHtml(masterTrainingBlockLabel(block))}</b><span>${escapeHtml(recLabel)}</span></div>`
       : '';
-    return `
-      <div class="mseries-result-block">
-        ${header}
-        <div class="mtrain-boxes">${boxes}</div>
-      </div>`;
+    return `<div class="mtrain-block">${header}<div class="mtrain-cells">${cells}</div></div>`;
   }).join('');
+  const single = training.blocks.length === 1
+    ? ` · rec ${escapeHtml(seriesFormatRecMask(training.blocks[0].recDigits))}${training.blocks[0].recActive ? ' (attivo)' : ''}`
+    : '';
   return `
-    <div class="mtrain-card" data-train="${escapeHtml(training.id)}">
+    <div class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}">
       <div class="mtrain-head">
         <div>
           <b>${escapeHtml(training.date)}</b> · ${escapeHtml(summary)}
-          <div class="mtrain-sub">Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${training.blocks.length === 1 ? ` · rec ${escapeHtml(seriesFormatRecMask(training.blocks[0].recDigits))}${training.blocks[0].recActive ? ' (attivo)' : ''}` : ''}${training.thousand ? ` · 1000: ${escapeHtml(training.thousand)}` : ''}</div>
+          <div class="mtrain-sub">Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>
         </div>
         <button type="button" class="mtrain-del" data-train="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
       </div>
@@ -5824,38 +5858,20 @@ function masterTrainingCardMarkup(training) {
     </div>`;
 }
 
-// Cifre "digitate" per ricostruire il campo da un valore in secondi
-// (32,4 -> "324"; 80,4 -> "1204").
-function mtrainDigitsFromSeconds(value) {
-  const tenths = Math.round(value * 10);
-  const minutes = Math.floor(tenths / 600);
-  const rest = tenths - minutes * 600;
-  const seconds = Math.floor(rest / 10);
-  const t = rest % 10;
-  return minutes ? `${minutes}${String(seconds).padStart(2, '0')}${t}` : `${seconds}${t}`;
-}
-
+// Solo lo storico (accordion chiuso): l'allenamento appena salvato si
+// confronta direttamente nel simulatore, senza allungare la pagina.
 function masterTrainingsMarkup(entry) {
   const trainings = [...(entry.trainings || [])]
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
   if (!trainings.length) {
     return '';
   }
-  const [latest, ...older] = trainings;
   const historyKey = 'train-hist';
-  const historyMarkup = older.length
-    ? `
-      <details class="mtest-history" data-section-key="${historyKey}"${masterSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
-        <summary class="mtest-history-summary">Storico allenamenti (${older.length})</summary>
-        ${older.map(masterTrainingCardMarkup).join('')}
-      </details>`
-    : '';
   return `
-    <div class="mtest-proj-group mtrain-group">
-      <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Allenamenti salvati</span>
-      ${masterTrainingCardMarkup(latest)}
-      ${historyMarkup}
-    </div>
+    <details class="mtest-history mtrain-history" data-section-key="${historyKey}"${masterSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
+      <summary class="mtest-history-summary">Storico allenamenti (${trainings.length})</summary>
+      ${trainings.map(masterTrainingCardMarkup).join('')}
+    </details>
   `;
 }
 
@@ -5894,7 +5910,9 @@ async function handleMasterTrainingSave(button) {
     });
     const done = {};
     estimates.forEach((_, di) => { done[di] = Array.from({ length: reps }, () => null); });
-    blocks.push({ id: `mtb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, reps, dist: block.dist, recDigits: block.recDigits, recActive: !!block.recActive, estimates, done });
+    // Stesso id del blocco del simulatore: serve a ritrovare i campi del
+    // confronto sotto i riquadri giusti.
+    blocks.push({ id: block.id, reps, dist: block.dist, recDigits: block.recDigits, recActive: !!block.recActive, estimates, done });
   }
   const now = getNowParts();
   const training = {
@@ -5907,6 +5925,8 @@ async function handleMasterTrainingSave(button) {
   };
   entries[index] = { ...entry, trainings: [...(entry.trainings || []), training] };
   await saveMaster(entries);
+  state.savedTrainingId = training.id;
+  state.compare = false;
   renderMaster();
   showToast('Allenamento salvato!');
 }
@@ -5932,23 +5952,25 @@ async function handleMasterTrainingDelete(button) {
 }
 
 // Tempo fatto digitato: aggiorna la maschera, salva il valore (senza rifare
-// il render, altrimenti si perde il focus a ogni tasto) e ricolora il riquadro.
+// il render, altrimenti si perde il focus a ogni tasto) e colora il campo.
 function handleMasterTrainingDoneInput(input) {
-  input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, 5);
-  input.value = mtrainFormatDone(input.dataset.digits);
+  const shown = Number(input.dataset.shown);
+  input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, mtrainMaxDigits(shown));
+  input.value = mtrainFormatDone(input.dataset.digits, shown);
   const end = input.value.length;
   input.setSelectionRange(end, end);
   mtrainStoreDone(input);
 }
 
 function mtrainStoreDone(input) {
+  const shown = Number(input.dataset.shown);
   const card = input.closest('.athlete-item');
-  const box = input.closest('.mtrain-box');
   const entries = getMaster();
   const index = entries.findIndex((entry) => entry.id === card.dataset.id);
   if (index === -1) {
     return;
   }
+  const parsed = mtrainParseDone(input.dataset.digits, shown);
   const trainings = (entries[index].trainings || []).map((training) => {
     if (training.id !== input.dataset.train) {
       return training;
@@ -5960,7 +5982,6 @@ function mtrainStoreDone(input) {
           return block;
         }
         const list = [...(block.done[input.dataset.di] || [])];
-        const parsed = mtrainParseDone(input.dataset.digits);
         list[Number(input.dataset.rep)] = parsed === null ? null : parsed;
         return { ...block, done: { ...block.done, [input.dataset.di]: list } };
       }),
@@ -5969,11 +5990,20 @@ function mtrainStoreDone(input) {
   entries[index] = { ...entries[index], trainings };
   saveMaster(entries);
 
-  const training = trainings.find((t) => t.id === input.dataset.train);
-  const block = training.blocks.find((b) => b.id === input.dataset.block);
-  const status = mtrainBoxStatus(block.estimates[Number(input.dataset.di)], block.done[input.dataset.di], block.reps);
-  box.classList.toggle('mtrain-box-ok', status === 'ok');
-  box.classList.toggle('mtrain-box-bad', status === 'bad');
+  const status = mtrainInputStatus(parsed, shown);
+  input.classList.toggle('is-ok', status === 'ok');
+  input.classList.toggle('is-bad', status === 'bad');
+  // Lo stesso tempo può comparire anche nello storico (o nel simulatore):
+  // si tengono allineati senza rifare il render.
+  card.querySelectorAll(`.mtrain-done-input[data-train="${input.dataset.train}"][data-block="${input.dataset.block}"][data-di="${input.dataset.di}"][data-rep="${input.dataset.rep}"]`).forEach((other) => {
+    if (other === input) {
+      return;
+    }
+    other.dataset.digits = input.dataset.digits;
+    other.value = input.value;
+    other.classList.toggle('is-ok', status === 'ok');
+    other.classList.toggle('is-bad', status === 'bad');
+  });
 }
 
 // Simulatore ripetute (sezione "Allenamenti"): non più le 5 tile a
@@ -6009,6 +6039,10 @@ function masterSeriesBuilderMarkup(entry) {
   // per tornare a modificare la serie invece di tenere tutto sempre visibile
   // — altrimenti con più blocchi il riepilogo si perdeva in mezzo agli input.
   if (state.showResults) {
+    const savedTraining = state.savedTrainingId
+      ? (entry.trainings || []).find((training) => training.id === state.savedTrainingId) || null
+      : null;
+    const compareOn = !!(savedTraining && state.compare);
     const usedVolumeSuffix = gapDeductionKm > 0
       ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (pause lunghe)`
       : '';
@@ -6018,10 +6052,15 @@ function masterSeriesBuilderMarkup(entry) {
         <div class="mseries-results">
           <div class="mseries-total-row">
             <div class="mseries-total">Volume: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)${usedVolumeSuffix}</div>
-            <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Ricalcola" title="Ricalcola">${MSERIES_RELOAD_ICON}</button>
+            <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Modifica allenamento" title="Modifica allenamento">✎</button>
           </div>
-          ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
-          <button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva allenamento</button>
+          ${state.blocks.map((block, index) => {
+            const compare = compareOn ? { training: savedTraining, savedBlock: savedTraining.blocks.find((b) => b.id === block.id) } : null;
+            return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare)}`;
+          }).join('')}
+          ${savedTraining
+            ? `<button type="button" class="mseries-compare-btn" data-id="${entry.id}">${compareOn ? 'Nascondi confronto' : 'Confronta'}</button>`
+            : `<button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva allenamento</button>`}
         </div>
       </div>
     `;
@@ -7301,6 +7340,16 @@ async function handleMasterListClick(event) {
   if (seriesCalcBtn) {
     const state = masterSeriesGetState(seriesCalcBtn.dataset.id);
     state.showResults = true;
+    state.savedTrainingId = null;
+    state.compare = false;
+    renderMaster();
+    return;
+  }
+
+  const seriesCompareBtn = event.target.closest('.mseries-compare-btn');
+  if (seriesCompareBtn) {
+    const state = masterSeriesGetState(seriesCompareBtn.dataset.id);
+    state.compare = !state.compare;
     renderMaster();
     return;
   }
@@ -7543,7 +7592,7 @@ function masterWire(key) {
       }
       event.preventDefault();
       trainingDoneInput.dataset.digits = (trainingDoneInput.dataset.digits || '').slice(0, -1);
-      trainingDoneInput.value = mtrainFormatDone(trainingDoneInput.dataset.digits);
+      trainingDoneInput.value = mtrainFormatDone(trainingDoneInput.dataset.digits, Number(trainingDoneInput.dataset.shown));
       const end = trainingDoneInput.value.length;
       trainingDoneInput.setSelectionRange(end, end);
       mtrainStoreDone(trainingDoneInput);
