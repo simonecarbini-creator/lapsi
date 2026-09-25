@@ -848,6 +848,31 @@ button, input {
   cursor: not-allowed;
 }
 
+.menu-group-chevron {
+  display: inline-flex;
+  opacity: 0.55;
+  transition: transform 0.15s ease;
+}
+
+.menu-group-toggle.is-open .menu-group-chevron {
+  transform: rotate(90deg);
+}
+
+.menu-group-sub {
+  display: flex;
+  flex-direction: column;
+  padding-left: 14px;
+}
+
+.menu-group-sub[hidden] {
+  display: none;
+}
+
+.menu-item-sub {
+  padding: 9px 12px;
+  font-size: 0.86rem;
+}
+
 .menu-item-tag {
   flex-shrink: 0;
   font-size: 0.56rem;
@@ -1272,6 +1297,40 @@ body.register-open {
 .home-btn:disabled .home-btn-ic {
   background: rgba(15, 23, 42, 0.05);
   color: var(--muted);
+}
+
+.home-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-group-chevron {
+  transition: transform 0.15s ease;
+}
+
+.home-group-toggle.is-open .home-group-chevron {
+  transform: rotate(90deg);
+}
+
+.home-group-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 22px;
+}
+
+.home-group-sub[hidden] {
+  display: none;
+}
+
+.home-btn-sub {
+  padding: 9px 14px;
+  border-radius: 12px;
+}
+
+.home-btn-sub .home-btn-title {
+  font-size: 0.85rem;
 }
 
 .eyebrow {

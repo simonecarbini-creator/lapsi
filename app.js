@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25g';
-console.log('[Lapsi] build', APP_BUILD, '— vento: unità m/s più icona nella card chiusa');
+const APP_BUILD = '2026-09-26a';
+console.log('[Lapsi] build', APP_BUILD, '— menù: Velocità, Settore giovanile con voci di secondo livello');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -184,6 +184,22 @@ function switchSection(section) {
   }
   window.scrollTo(0, 0);
 }
+
+// "Settore giovanile": voce con le categorie ancora non attive come secondo
+// livello, sia nella home sia nel menu a tendina.
+[['home-group-toggle', 'home-group-sub'], ['menu-group-toggle', 'menu-group-sub']].forEach(([toggleId, subId]) => {
+  const toggle = document.getElementById(toggleId);
+  const sub = document.getElementById(subId);
+  if (!toggle || !sub) {
+    return;
+  }
+  toggle.addEventListener('click', () => {
+    const open = sub.hidden;
+    sub.hidden = !open;
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.classList.toggle('is-open', open);
+  });
+});
 
 if (enterMilitariButton) {
   enterMilitariButton.addEventListener('click', () => switchSection('militari'));

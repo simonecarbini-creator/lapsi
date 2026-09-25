@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-09-25g">
+<html lang="it" data-build="2026-09-26a">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -30,60 +30,52 @@
       <div class="home-inner">
         <img src="brand/lapsi-logo-dark.svg" alt="Lapsi" class="home-logo" />
         <div class="home-buttons">
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Esordienti</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Ragazzi</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Cadetti</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Allievi</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Juniores</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Promesse</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
-          <button type="button" class="home-btn" disabled>
-            <span class="home-btn-ic" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-            </span>
-            <span class="home-btn-title">Assoluti</span>
-            <span class="home-btn-tag">Presto</span>
-          </button>
+          <div class="home-group">
+            <button type="button" class="home-btn home-group-toggle" id="home-group-toggle" aria-expanded="false" aria-controls="home-group-sub">
+              <span class="home-btn-ic" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              </span>
+              <span class="home-btn-title">Settore giovanile</span>
+              <span class="home-btn-arrow home-group-chevron" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+              </span>
+            </button>
+            <div class="home-group-sub" id="home-group-sub" hidden>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Esordienti</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Ragazzi</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Cadetti</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Allievi</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Juniores</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Promesse</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            <button type="button" class="home-btn home-btn-sub" disabled>
+              <span class="home-btn-title">Assoluti</span>
+              <span class="home-btn-tag">Presto</span>
+            </button>
+            </div>
+          </div>
           <button type="button" class="home-btn" id="enter-velocisti">
             <span class="home-btn-ic" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" /></svg>
             </span>
-            <span class="home-btn-title">Velocisti Ass./Master</span>
+            <span class="home-btn-title">Velocità</span>
             <span class="home-btn-arrow" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
             </span>
@@ -120,14 +112,22 @@
       </header>
 
       <nav class="main-menu" id="main-menu" hidden aria-label="Menu principale">
-        <button type="button" class="menu-item" disabled>Esordienti<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Ragazzi<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Cadetti<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Allievi<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Juniores<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Promesse<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" disabled>Assoluti<span class="menu-item-tag">Presto</span></button>
-        <button type="button" class="menu-item" data-section="velocisti">Velocisti Ass./Master</button>
+        <button type="button" class="menu-item menu-group-toggle" id="menu-group-toggle" aria-expanded="false" aria-controls="menu-group-sub">
+          <span class="menu-item-grow">Settore giovanile</span>
+          <span class="menu-group-chevron" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7" /></svg>
+          </span>
+        </button>
+        <div class="menu-group-sub" id="menu-group-sub" hidden>
+          <button type="button" class="menu-item menu-item-sub" disabled>Esordienti<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Ragazzi<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Cadetti<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Allievi<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Juniores<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Promesse<span class="menu-item-tag">Presto</span></button>
+          <button type="button" class="menu-item menu-item-sub" disabled>Assoluti<span class="menu-item-tag">Presto</span></button>
+        </div>
+        <button type="button" class="menu-item" data-section="velocisti">Velocità</button>
         <button type="button" class="menu-item" data-section="master">Master</button>
         <button type="button" class="menu-item" data-section="militari">C. Militari</button>
         <div class="menu-divider" role="separator"></div>
