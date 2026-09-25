@@ -5301,25 +5301,34 @@ button:active {
   color: var(--muted);
 }
 
-.vsp-hist-row {
+.vsp-hist-entry {
+  padding: 10px 0;
+  border-top: 1px dotted var(--card-border);
+}
+
+.vsp-hist-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 0;
-  border-top: 1px dotted var(--card-border);
-}
-
-.vsp-hist-main {
-  font-size: 0.8rem;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.vsp-hist-sub {
-  margin-top: 2px;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   color: var(--muted);
+}
+
+.vsp-hist-head b {
+  color: var(--text);
+}
+
+/* Riga degli indici: stesso chip dei tempi ma più leggero, per distinguerli. */
+.vsp-times-indices .vsp-time {
+  background: transparent;
+  border: 1px solid var(--card-border);
+}
+
+.vel-wind-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin-left: 2px;
 }
 
 .vsp-principles {

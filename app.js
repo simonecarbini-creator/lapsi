@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25e';
-console.log('[Lapsi] build', APP_BUILD, '— Velocisti: gare in card chiusa (discipline di velocità), tolto "nessun risultato"');
+const APP_BUILD = '2026-09-25f';
+console.log('[Lapsi] build', APP_BUILD, '— icona vento nelle gare velocisti, storico test sprint leggibile');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3278,9 +3278,16 @@ function velRaceSeconds(result) {
   return (match[1] ? Number(match[1]) * 60 : 0) + Number(match[2]) + Number(match[3]) / 100;
 }
 
-function velRaceMeta(race) {
-  return [race.location, shortYearDate(race.date), race.wind ? `${race.wind} m/s` : '']
-    .filter(Boolean).map(escapeHtml).join(' · ');
+// Icona vento (tre raffiche), messa dopo il valore nella card chiusa al posto
+// di "m/s"; negli elenchi resta il testo.
+const VEL_WIND_ICON = '<svg class="vel-wind-icon" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/><path d="M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2"/></svg>';
+
+function velRaceMeta(race, { windIcon = false } = {}) {
+  const wind = race.wind
+    ? (windIcon ? `${escapeHtml(race.wind)}${VEL_WIND_ICON}` : `${escapeHtml(race.wind)} m/s`)
+    : '';
+  return [escapeHtml(race.location), escapeHtml(shortYearDate(race.date)), wind]
+    .filter(Boolean).join(' · ');
 }
 
 // Card chiusa: per ogni disciplina il miglior tempo (a parità il più
@@ -3311,7 +3318,7 @@ function velRaceSummaryMarkup(entry) {
         <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(VEL_RACE_LABELS[race.type])}</span></span>
         <span class="v2-race-time-block">
           <span class="v2-race-result">${escapeHtml(race.result)}</span>
-          <span class="v2-race-meta">${velRaceMeta(race)}</span>
+          <span class="v2-race-meta">${velRaceMeta(race, { windIcon: true })}</span>
         </span>
       </div>
     `).join('');
@@ -4081,17 +4088,21 @@ function velSprintSectionMarkup(entry) {
         <summary class="mtest-history-summary">Storico (${older.length})</summary>
         ${older.map((test) => {
           const i = velSprintIndices(test);
-          const summary = test.mode === 'fotocellule'
-            ? `accel. ${velFormatIndex(i.accel)} · resist. ${velFormatIndex(i.resist)} · ${i.vmax.toFixed(2).replace('.', ',')} m/s`
-            : `${i.v60.toFixed(2).replace('.', ',')} / ${i.v150.toFixed(2).replace('.', ',')} m/s`;
+          const chip = (label, value) => `<span class="vsp-time"><span>${escapeHtml(label)}</span><b>${value}</b></span>`;
+          const ms = (v) => `${v.toFixed(2).replace('.', ',')} m/s`;
+          const timesRow = VEL_SPRINT_KEYS[test.mode].map((key) => chip(VEL_SPRINT_TESTS[key].label, velFormatSec(test[key]))).join('');
+          const indicesRow = test.mode === 'fotocellule'
+            ? [chip('Accelerazione', velFormatIndex(i.accel)), chip('Resistenza', velFormatIndex(i.resist)), chip('Vel. max', ms(i.vmax))].join('')
+            : [chip('Vel. 60 m', ms(i.v60)), chip('Vel. 150 m', ms(i.v150)), chip('Rapporto 150÷60', velFormatIndex(i.ratio))].join('');
           const modeLabel = test.mode === 'fotocellule' ? 'Fotocellule' : 'Cronometro';
           return `
-            <div class="vsp-hist-row">
-              <div>
-                <div class="vsp-hist-main">${VEL_SPRINT_KEYS[test.mode].map((key) => `${escapeHtml(VEL_SPRINT_TESTS[key].label)} ${velFormatSec(test[key])}`).join(' · ')}</div>
-                <div class="vsp-hist-sub">${escapeHtml(summary)} · ${modeLabel} · ${escapeHtml(test.date)}</div>
+            <div class="vsp-hist-entry">
+              <div class="vsp-hist-head">
+                <span><b>${escapeHtml(test.date)}</b> · ${modeLabel}</span>
+                <button type="button" class="vsp-del" data-id="${escapeHtml(test.id)}" aria-label="Elimina questo test">${MTEST_DEL_ICON}</button>
               </div>
-              <button type="button" class="vsp-del" data-id="${escapeHtml(test.id)}" aria-label="Elimina questo test">${MTEST_DEL_ICON}</button>
+              <div class="vsp-times">${timesRow}</div>
+              <div class="vsp-times vsp-times-indices">${indicesRow}</div>
             </div>`;
         }).join('')}
       </details>`
