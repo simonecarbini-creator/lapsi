@@ -78,10 +78,13 @@ che si ritocca un coefficiente in <code>velocisti-calc.js</code>.</p>
   assertEqual(r2(VelocistiCalc.speedRatio(8, 18)), 1.111, 'speedRatio(8 ; 18) = 1,111');
   assertEqual(VelocistiCalc.accelStatus(0.72), 'good', 'accelStatus(0,72) = good (limite incluso)');
   assertEqual(VelocistiCalc.accelStatus(0.73), 'poor', 'accelStatus(0,73) = poor');
-  assertEqual(VelocistiCalc.resistanceStatus(0.87), 'low', 'resistanceStatus(0,87) = low');
-  assertEqual(VelocistiCalc.resistanceStatus(0.9), 'ok', 'resistanceStatus(0,90) = ok');
-  assertEqual(VelocistiCalc.resistanceStatus(0.95), 'high', 'resistanceStatus(0,95) = high');
-  assertEqual(VelocistiCalc.profileReading(0.65, 0.85), 'Accelerazione buona, resistenza alla velocità da migliorare (serve special endurance).', 'profileReading accel buona / resistenza bassa');
+  assertEqual(VelocistiCalc.RESIST_BAND.join('-'), '0.8-0.86', 'fascia resistenza = 0,80-0,86');
+  assertEqual(VelocistiCalc.resistanceStatus(0.79), 'low', 'resistanceStatus(0,79) = low');
+  assertEqual(VelocistiCalc.resistanceStatus(0.8), 'ok', 'resistanceStatus(0,80) = ok (limite incluso)');
+  assertEqual(VelocistiCalc.resistanceStatus(0.83), 'ok', 'resistanceStatus(0,83) = ok');
+  assertEqual(VelocistiCalc.resistanceStatus(0.86), 'ok', 'resistanceStatus(0,86) = ok (limite incluso)');
+  assertEqual(VelocistiCalc.resistanceStatus(0.87), 'high', 'resistanceStatus(0,87) = high');
+  assertEqual(VelocistiCalc.profileReading(0.65, 0.78), 'Accelerazione buona, resistenza alla velocità da migliorare (serve special endurance).', 'profileReading accel buona / resistenza bassa');
   assertEqual(VelocistiCalc.parseSprintTime('4,05', 't30f'), 4.05, 'parseSprintTime("4,05","t30f") = 4,05');
   assertEqual(VelocistiCalc.parseSprintTime('1.5', 't30l'), null, 'parseSprintTime("1.5","t30l") = null (sotto range)');
   assertEqual(VelocistiCalc.parseSprintTime('', 't150'), null, 'parseSprintTime("","t150") = null');

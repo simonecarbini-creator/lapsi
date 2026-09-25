@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25b';
-console.log('[Lapsi] build', APP_BUILD, '— Velocisti: test sprint e profilo (fotocellule/cronometro, indici, andamento)');
+const APP_BUILD = '2026-09-25c';
+console.log('[Lapsi] build', APP_BUILD, '— fascia resistenza alla velocità 0,80-0,86');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al

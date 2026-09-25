@@ -74,9 +74,12 @@
     t60: [4.5, 14],
     t150: [12, 35],
   };
-  // Fasce tipiche degli indici di profilo.
+  // Fasce tipiche degli indici di profilo. La resistenza alla velocità sta
+  // più in basso di quanto sembrerebbe perché la velocità media sui 150
+  // include la partenza da fermo, quindi non può avvicinarsi alla velocità
+  // massima dei 30 lanciati.
   const ACCEL_BAND = [0.60, 0.72];
-  const RESIST_BAND = [0.88, 0.94];
+  const RESIST_BAND = [0.80, 0.86];
 
   // Tempo di un test sprint (secondi, virgola o punto), null se fuori dal
   // range plausibile della prova "key".
