@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25c';
-console.log('[Lapsi] build', APP_BUILD, '— fascia resistenza alla velocità 0,80-0,86');
+const APP_BUILD = '2026-09-25d';
+console.log('[Lapsi] build', APP_BUILD, '— placeholder diversi per ogni test sprint');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3648,19 +3648,23 @@ function velSectionIsOpen(entryId, key, defaultOpen) {
 const VEL_SPRINT_TESTS = {
   t30f: {
     label: '30 m da fermo',
+    placeholder: '4,60',
     desc: "Misura l'accelerazione, la capacità di mettere forza a terra nei primi appoggi. Dipende molto dalla forza massima e dalla tecnica di partenza.",
   },
   t30l: {
     label: '30 m lanciati',
+    placeholder: '3,20',
     hint: '(con 20-30 m di rincorsa)',
     desc: "Misura la velocità massima pura, senza la componente di partenza. È il dato che l'accelerazione da sola non ti dà.",
   },
   t60: {
     label: '60 m',
+    placeholder: '7,70',
     desc: "Da fermo: accelerazione e velocità insieme, in una prova abbastanza lunga da ridurre il peso dell'errore della mano.",
   },
   t150: {
     label: '150 m',
+    placeholder: '19,00',
     desc: 'Misura la resistenza alla velocità, cioè quanto tiene la velocità massima quando la distanza si allunga.',
   },
 };
@@ -3858,7 +3862,7 @@ function velSprintSectionMarkup(entry) {
       <div class="vsp-field">
         <label class="vsp-field-label">${escapeHtml(info.label)}${info.hint ? ` <small>${escapeHtml(info.hint)}</small>` : ''}</label>
         <p class="vsp-field-desc">${escapeHtml(info.desc)}</p>
-        <input type="text" class="vsp-time-input" data-key="${key}" inputmode="decimal" autocomplete="off" placeholder="es. 4,05" />
+        <input type="text" class="vsp-time-input" data-key="${key}" inputmode="decimal" autocomplete="off" placeholder="es. ${info.placeholder}" />
       </div>
     `;
   }).join('');
