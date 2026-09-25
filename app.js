@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26b';
-console.log('[Lapsi] build', APP_BUILD, '— simulatore: salva allenamento e verifica dei tempi fatti');
+const APP_BUILD = '2026-09-26c';
+console.log('[Lapsi] build', APP_BUILD, '— nuova sezione Mezzofondo (istanza del modulo Master)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -94,10 +94,31 @@ const homeScreen = document.getElementById('home-screen');
 const appHeaderWrap = document.getElementById('app-header-wrap');
 const militariShell = document.getElementById('militari-shell');
 const velocistiShell = document.getElementById('velocisti-shell');
+// "Mezzofondo" usa le stesse card, lo stesso codice e lo stesso markup di
+// "Master", con dati e DOM separati: la pagina statica contiene solo la
+// versione Master, quella di Mezzofondo se ne ricava una copia con gli id
+// cambiati (master-* -> mezzofondo-*) e le diciture adattate.
+(function cloneMasterSectionForMezzofondo() {
+  const shell = document.getElementById('master-shell');
+  const register = document.getElementById('master-register-screen');
+  if (!shell || !register) {
+    return;
+  }
+  const retarget = (html) => html
+    .replace(/(id|for|aria-controls)="master-/g, '$1="mezzofondo-')
+    .replace(/atleta master/g, 'atleta di mezzofondo')
+    .replace(/Paginazione master/g, 'Paginazione mezzofondo')
+    .replace(/(\s)Master(\s*<\/h2>)/g, '$1Mezzofondo$2');
+  shell.insertAdjacentHTML('afterend', retarget(shell.outerHTML));
+  register.insertAdjacentHTML('afterend', retarget(register.outerHTML));
+})();
+
 const masterShell = document.getElementById('master-shell');
+const mezzofondoShell = document.getElementById('mezzofondo-shell');
 const enterMilitariButton = document.getElementById('enter-militari');
 const enterVelocistiButton = document.getElementById('enter-velocisti');
 const enterMasterButton = document.getElementById('enter-master');
+const enterMezzofondoButton = document.getElementById('enter-mezzofondo');
 const menuToggleButton = document.getElementById('menu-toggle');
 const mainMenu = document.getElementById('main-menu');
 const menuBackdrop = document.getElementById('menu-backdrop');
@@ -151,7 +172,7 @@ function setMenuOpen(open) {
 // pulsanti della home permettono di passare da una all'altra senza tornare
 // alla home. "master" non ha ancora una gestione atleti propria: ospita solo
 // il calcolatore "Mezzofondo e fondo".
-const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell, master: masterShell };
+const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell, mezzofondo: mezzofondoShell, master: masterShell };
 
 function switchSection(section) {
   if (!SECTION_SHELLS[section]) {
@@ -162,6 +183,10 @@ function switchSection(section) {
   Object.entries(SECTION_SHELLS).forEach(([key, shell]) => {
     if (shell) shell.hidden = key !== section;
   });
+  // Master e Mezzofondo condividono il codice: si passa all'istanza giusta.
+  if (section === 'master' || section === 'mezzofondo') {
+    masterUse(section);
+  }
   setMenuOpen(false);
   document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
     item.classList.toggle('is-active', item.dataset.section === section);
@@ -174,13 +199,13 @@ function switchSection(section) {
     trainingNotesFab.hidden = section !== 'militari';
   }
   if (ripetuteFab) {
-    ripetuteFab.hidden = section !== 'militari' && section !== 'master';
+    ripetuteFab.hidden = section !== 'militari' && section !== 'master' && section !== 'mezzofondo';
   }
   if (sprintFab) {
     sprintFab.hidden = section !== 'velocisti';
   }
   if (fondoFab) {
-    fondoFab.hidden = section !== 'master';
+    fondoFab.hidden = section !== 'master' && section !== 'mezzofondo';
   }
   window.scrollTo(0, 0);
 }
@@ -209,6 +234,9 @@ if (enterVelocistiButton) {
 }
 if (enterMasterButton) {
   enterMasterButton.addEventListener('click', () => switchSection('master'));
+}
+if (enterMezzofondoButton) {
+  enterMezzofondoButton.addEventListener('click', () => switchSection('mezzofondo'));
 }
 document.querySelectorAll('.menu-item[data-section]').forEach((item) => {
   item.addEventListener('click', () => switchSection(item.dataset.section));
@@ -4945,36 +4973,97 @@ velForm.addEventListener('submit', async (event) => {
 // atleti/velocisti. Solo scaffolding: aggiunta/ricerca/ordinamento/
 // eliminazione — il resto del modello (risultati, note, ecc.) arriva in un
 // secondo momento.
-const STORAGE_KEY_MASTER = 'lapsi-master';
 const MASTER_PAGE_SIZE = 5;
 const MASTER_FILTER_DEFAULTS = { sort: 'az' };
 
-const masterOpenRegisterButton = document.getElementById('master-open-register');
-const masterCloseRegisterButton = document.getElementById('master-close-register');
-const masterRegisterScreen = document.getElementById('master-register-screen');
-const masterForm = document.getElementById('master-form');
-const masterNameInput = document.getElementById('master-name');
-const masterSurnameInput = document.getElementById('master-surname');
-const masterAvatarInput = document.getElementById('master-avatar');
-const masterAvatarPreview = document.getElementById('master-avatar-preview');
-const masterListEl = document.getElementById('master-list');
-const masterEmptyState = document.getElementById('master-empty-state');
-const masterCountEl = document.getElementById('master-count');
-const masterSearchInput = document.getElementById('master-search');
-const masterToggleSearchButton = document.getElementById('master-toggle-search');
-const masterSearchPanel = document.getElementById('master-search-panel');
-const masterToggleFiltersButton = document.getElementById('master-toggle-filters');
-const masterFiltersPanel = document.getElementById('master-filters');
-const masterSortChips = document.getElementById('master-sort-chips');
-const masterFiltersApplyButton = document.getElementById('master-filters-apply');
-const masterFiltersResetButton = document.getElementById('master-filters-reset');
-const masterPaginationNav = document.getElementById('master-pagination');
+// Il modulo Master gira su due istanze (Master e Mezzofondo): stesso codice,
+// dati (localStorage) e DOM separati. Le variabili "per istanza" qui sotto
+// sono dichiarate una volta sola e puntano sempre all'istanza attiva;
+// masterUse() salva quelle correnti e carica quelle dell'altra istanza
+// (chiamata all'ingresso di ogni evento e al cambio sezione). Le mappe di
+// stato interne (test in modifica, sezioni aperte, simulatore...) sono
+// indicizzate per id atleta, univoco fra le due istanze, quindi condivise.
+function masterBuildVars(prefix, storageKey) {
+  const el = (id) => document.getElementById(`${prefix}-${id}`);
+  return {
+    STORAGE_KEY_MASTER: storageKey,
+    masterOpenRegisterButton: el('open-register'),
+    masterCloseRegisterButton: el('close-register'),
+    masterRegisterScreen: el('register-screen'),
+    masterForm: el('form'),
+    masterNameInput: el('name'),
+    masterSurnameInput: el('surname'),
+    masterAvatarInput: el('avatar'),
+    masterAvatarPreview: el('avatar-preview'),
+    masterListEl: el('list'),
+    masterEmptyState: el('empty-state'),
+    masterCountEl: el('count'),
+    masterSearchInput: el('search'),
+    masterToggleSearchButton: el('toggle-search'),
+    masterSearchPanel: el('search-panel'),
+    masterToggleFiltersButton: el('toggle-filters'),
+    masterFiltersPanel: el('filters'),
+    masterSortChips: el('sort-chips'),
+    masterFiltersApplyButton: el('filters-apply'),
+    masterFiltersResetButton: el('filters-reset'),
+    masterPaginationNav: el('pagination'),
+    cachedMaster: [],
+    masterActiveSort: MASTER_FILTER_DEFAULTS.sort,
+    masterFilterSnapshot: null,
+    masterCurrentPage: 1,
+    currentMasterAvatarData: null,
+  };
+}
 
-let cachedMaster = [];
-let masterActiveSort = MASTER_FILTER_DEFAULTS.sort;
-let masterFilterSnapshot = null;
-let masterCurrentPage = 1;
-let currentMasterAvatarData = null;
+const MASTER_INSTANCES = {
+  master: { prefix: 'master', vars: masterBuildVars('master', 'lapsi-master') },
+  mezzofondo: { prefix: 'mezzofondo', vars: masterBuildVars('mezzofondo', 'lapsi-mezzofondo') },
+};
+let masterActiveKey = 'master';
+
+let {
+  STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
+  masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
+  masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+  masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
+  masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
+  cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
+} = MASTER_INSTANCES.master.vars;
+
+function masterUse(key) {
+  if (key === masterActiveKey || !MASTER_INSTANCES[key]) {
+    return;
+  }
+  MASTER_INSTANCES[masterActiveKey].vars = {
+    STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
+    masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
+    masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+    masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
+    masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
+    cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
+  };
+  masterActiveKey = key;
+  ({
+    STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
+    masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
+    masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+    masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
+    masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
+    cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
+  } = MASTER_INSTANCES[key].vars);
+}
+
+// Registra un listener che, prima di girare, attiva l'istanza a cui
+// appartiene l'elemento.
+function masterOn(key, target, type, handler, options) {
+  if (!target) {
+    return;
+  }
+  target.addEventListener(type, (event) => {
+    masterUse(key);
+    return handler(event);
+  }, options);
+}
 
 function getMaster() {
   return [...cachedMaster];
@@ -7327,389 +7416,399 @@ async function handleMasterListClick(event) {
   showToast('Eliminato!');
 }
 
-masterListEl.addEventListener('click', handleMasterListClick);
-masterListEl.addEventListener('submit', handleMasterEditSubmit);
+// Collega tutti i listener dell'istanza indicata (Master o Mezzofondo): gli
+// elementi e le variabili sono quelli dell'istanza attiva al momento della
+// chiamata, e ogni handler riattiva la sua istanza quando scatta.
+function masterWire(key) {
+  masterUse(key);
+  masterOn(key, masterListEl, 'click', handleMasterListClick);
+  masterOn(key, masterListEl, 'submit', handleMasterEditSubmit);
 
-// Ricorda quale delle tre <details> (Test/Allenamenti/Risultati gare) resta
-// aperta/chiusa tra un renderMaster() e l'altro. Capture (terzo parametro
-// true) invece di lasciar risalire l'evento: "toggle" non garantisce il
-// bubbling su tutti i motori, la cattura funziona comunque perché scende
-// sempre fino al target.
-masterListEl.addEventListener('toggle', (event) => {
-  const details = event.target;
-  if (!(details instanceof HTMLDetailsElement) || !details.dataset.sectionKey) {
-    return;
-  }
-  const card = details.closest('.athlete-item');
-  if (!card) {
-    return;
-  }
-  masterSectionOpen.set(`${card.dataset.id}:${details.dataset.sectionKey}`, details.open);
-}, true);
-
-// Simulatore ripetute: entrando in un campo ripetute/recupero il contenuto
-// è già selezionato, così la prima cifra digitata sostituisce il vecchio
-// valore invece di accodarsi (comodo per correggere un blocco già
-// compilato senza doverlo prima svuotare a mano). 'focusin' invece di
-// 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
-masterListEl.addEventListener('focusin', (event) => {
-  const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
-  if (input) {
-    input.select();
-  }
-});
-
-// Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
-// generalizzato per più input contemporaneamente sulla stessa pagina).
-masterListEl.addEventListener('keydown', (event) => {
-  const gapRecInput = event.target.closest('.mseries-gap-rec-input');
-  if (gapRecInput) {
-    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+  // Ricorda quale delle tre <details> (Test/Allenamenti/Risultati gare) resta
+  // aperta/chiusa tra un renderMaster() e l'altro. Capture (terzo parametro
+  // true) invece di lasciar risalire l'evento: "toggle" non garantisce il
+  // bubbling su tutti i motori, la cattura funziona comunque perché scende
+  // sempre fino al target.
+  masterOn(key, masterListEl, 'toggle', (event) => {
+    const details = event.target;
+    if (!(details instanceof HTMLDetailsElement) || !details.dataset.sectionKey) {
       return;
     }
-    event.preventDefault();
-    gapRecInput.dataset.digits = (gapRecInput.dataset.digits || '').slice(0, -1);
-    gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
-    const end = gapRecInput.value.length;
-    gapRecInput.setSelectionRange(end, end);
-    const gapBlock = masterSeriesFindBlock(gapRecInput);
-    gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
-    masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
-    masterSeriesInvalidate(gapRecInput);
-    return;
-  }
-  const recInput = event.target.closest('.mseries-rec-input');
-  if (recInput) {
-    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+    const card = details.closest('.athlete-item');
+    if (!card) {
       return;
     }
-    event.preventDefault();
-    recInput.dataset.digits = (recInput.dataset.digits || '').slice(0, -1);
-    recInput.value = seriesFormatRecMask(recInput.dataset.digits);
-    const end = recInput.value.length;
-    recInput.setSelectionRange(end, end);
-    masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
-    masterSeriesInvalidate(recInput);
-    return;
-  }
-  const trainingDoneInput = event.target.closest('.mtrain-done-input');
-  if (trainingDoneInput) {
-    if (event.key !== 'Backspace' && event.key !== 'Delete') {
-      return;
-    }
-    event.preventDefault();
-    trainingDoneInput.dataset.digits = (trainingDoneInput.dataset.digits || '').slice(0, -1);
-    trainingDoneInput.value = mtrainFormatDone(trainingDoneInput.dataset.digits);
-    const end = trainingDoneInput.value.length;
-    trainingDoneInput.setSelectionRange(end, end);
-    mtrainStoreDone(trainingDoneInput);
-    return;
-  }
-  const raceResultInput = event.target.closest('.race-result-input');
-  if (raceResultInput) {
-    if (event.key !== 'Backspace' && event.key !== 'Delete') {
-      return;
-    }
-    event.preventDefault();
-    raceResultInput.dataset.digits = (raceResultInput.dataset.digits || '').slice(0, -1);
-    raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, masterRaceResultType(raceResultInput));
-    const end = raceResultInput.value.length;
-    raceResultInput.setSelectionRange(end, end);
-    return;
-  }
-  const input = event.target.closest('.mtest-input');
-  if (!input || (event.key !== 'Backspace' && event.key !== 'Delete')) {
-    return;
-  }
-  event.preventDefault();
-  input.dataset.digits = (input.dataset.digits || '').slice(0, -1);
-  mtestApplyMask(input);
-});
+    masterSectionOpen.set(`${card.dataset.id}:${details.dataset.sectionKey}`, details.open);
+  }, true);
 
-// Formato del risultato gara (con o senza ore) segue la distanza scelta nel
-// menu accanto: cambiandola si riapplica la maschera alle stesse cifre già
-// digitate, invece di dover riscrivere il risultato da capo.
-masterListEl.addEventListener('change', (event) => {
-  const raceTypeInput = event.target.closest('.race-type-input');
-  if (!raceTypeInput) {
-    return;
-  }
-  const form = raceTypeInput.closest('.race-form');
-  const resultInput = form.querySelector('.race-result-input');
-  resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
-  resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
-});
-
-masterListEl.addEventListener('input', (event) => {
-  const notesInput = event.target.closest('.mtest-notes .notes-input');
-  if (notesInput) {
-    const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
-    button.disabled = notesInput.value.trim() === '';
-    return;
-  }
-  const trainingDoneInput = event.target.closest('.mtrain-done-input');
-  if (trainingDoneInput) {
-    handleMasterTrainingDoneInput(trainingDoneInput);
-    return;
-  }
-  const raceResultInput = event.target.closest('.race-result-input');
-  if (raceResultInput) {
-    const type = masterRaceResultType(raceResultInput);
-    raceResultInput.dataset.digits = raceResultInput.value.replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
-    raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, type);
-    const end = raceResultInput.value.length;
-    raceResultInput.setSelectionRange(end, end);
-    return;
-  }
-  const metersInput = event.target.closest('.mtest-meters-input');
-  if (metersInput) {
-    metersInput.value = metersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
-    return;
-  }
-  const repsInput = event.target.closest('.mseries-reps-input');
-  if (repsInput) {
-    repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
-    masterSeriesFindBlock(repsInput).reps = repsInput.value;
-    masterSeriesInvalidate(repsInput);
-    return;
-  }
-  const distInput = event.target.closest('.mseries-dist-input');
-  if (distInput) {
-    distInput.value = distInput.value.replace(/[^0-9/]/g, '');
-    masterSeriesFindBlock(distInput).dist = distInput.value;
-    masterSeriesInvalidate(distInput);
-    return;
-  }
-  const gapRecInput = event.target.closest('.mseries-gap-rec-input');
-  if (gapRecInput) {
-    gapRecInput.dataset.digits = gapRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-    gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
-    const end = gapRecInput.value.length;
-    gapRecInput.setSelectionRange(end, end);
-    const gapBlock = masterSeriesFindBlock(gapRecInput);
-    gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
-    masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
-    masterSeriesInvalidate(gapRecInput);
-    return;
-  }
-  const recInput = event.target.closest('.mseries-rec-input');
-  if (recInput) {
-    recInput.dataset.digits = recInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-    recInput.value = seriesFormatRecMask(recInput.dataset.digits);
-    const end = recInput.value.length;
-    recInput.setSelectionRange(end, end);
-    masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
-    masterSeriesInvalidate(recInput);
-    return;
-  }
-  const input = event.target.closest('.mtest-input');
-  if (!input) {
-    return;
-  }
-  input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, 4);
-  mtestApplyMask(input);
-});
-
-function masterSyncFilterChips() {
-  setChipGroupSelection(masterSortChips, masterActiveSort);
-}
-
-function masterRevertFiltersDraft() {
-  if (!masterFilterSnapshot) {
-    return;
-  }
-  masterActiveSort = masterFilterSnapshot.sort;
-  masterFilterSnapshot = null;
-  masterCurrentPage = 1;
-  masterSyncFilterChips();
-  renderMaster();
-}
-
-function masterCloseToolPanels(except) {
-  if (except !== 'search') {
-    setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, false);
-    masterToggleSearchButton.setAttribute('aria-label', 'Cerca atleta');
-  }
-  if (except !== 'filters') {
-    if (!masterFiltersPanel.hidden) {
-      masterRevertFiltersDraft();
-    }
-    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
-    masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
-  }
-}
-
-masterToggleSearchButton.addEventListener('click', () => {
-  const open = masterSearchPanel.hidden;
-  masterCloseToolPanels('search');
-  setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, open);
-  masterToggleSearchButton.setAttribute('aria-label', open ? 'Nascondi ricerca' : 'Cerca atleta');
-  if (open) {
-    masterSearchInput.focus();
-  }
-});
-
-masterToggleFiltersButton.addEventListener('click', () => {
-  const open = masterFiltersPanel.hidden;
-  masterCloseToolPanels('filters');
-  if (open) {
-    masterFilterSnapshot = { sort: masterActiveSort };
-    masterSyncFilterChips();
-    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, true);
-    masterToggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
-  } else {
-    masterRevertFiltersDraft();
-    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
-    masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
-  }
-});
-
-masterSortChips.addEventListener('click', (event) => {
-  const chip = event.target.closest('.fchip');
-  if (!chip || !masterSortChips.contains(chip)) {
-    return;
-  }
-  setChipGroupSelection(masterSortChips, chip.dataset.value);
-  masterActiveSort = chip.dataset.value;
-  masterCurrentPage = 1;
-  renderMaster();
-});
-
-masterFiltersApplyButton.addEventListener('click', () => {
-  masterFilterSnapshot = null;
-  setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
-  masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
-});
-
-masterFiltersResetButton.addEventListener('click', () => {
-  masterActiveSort = MASTER_FILTER_DEFAULTS.sort;
-  masterCurrentPage = 1;
-  masterSyncFilterChips();
-  renderMaster();
-});
-
-masterSyncFilterChips();
-
-masterSearchInput.addEventListener('input', () => {
-  masterCurrentPage = 1;
-  renderMaster();
-});
-wireSearchClear(masterSearchInput, document.getElementById('master-search-clear'));
-
-if (masterPaginationNav) {
-  masterPaginationNav.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-page]');
-    if (!button || button.disabled) {
-      return;
-    }
-    const page = Number(button.dataset.page);
-    if (!Number.isFinite(page) || page === masterCurrentPage) {
-      return;
-    }
-    masterCurrentPage = page;
-    renderMaster();
-    const head = masterListEl.closest('.list-section')?.querySelector('.list-head');
-    if (head) {
-      head.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  // Simulatore ripetute: entrando in un campo ripetute/recupero il contenuto
+  // è già selezionato, così la prima cifra digitata sostituisce il vecchio
+  // valore invece di accodarsi (comodo per correggere un blocco già
+  // compilato senza doverlo prima svuotare a mano). 'focusin' invece di
+  // 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
+  masterOn(key, masterListEl, 'focusin', (event) => {
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
+    if (input) {
+      input.select();
     }
   });
-}
 
-// ----- Form di registrazione atleta master -----
-function updateMasterAvatarPreview() {
-  if (currentMasterAvatarData) {
-    masterAvatarPreview.style.backgroundImage = `url('${currentMasterAvatarData}')`;
-    masterAvatarPreview.classList.remove('avatar-empty');
-    masterAvatarPreview.innerHTML = '';
-  } else {
-    const name = masterNameInput.value.trim();
-    const surname = masterSurnameInput.value.trim();
-    if (name || surname) {
-      masterAvatarPreview.classList.remove('avatar-empty');
-      masterAvatarPreview.innerHTML = `<span class="avatar-initials">${getInitials(name, surname)}</span>`;
-      masterAvatarPreview.style.backgroundImage = '';
-    } else {
-      masterAvatarPreview.classList.add('avatar-empty');
-      masterAvatarPreview.innerHTML = '<span class="avatar-placeholder">+</span>';
-      masterAvatarPreview.style.backgroundImage = '';
+  // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
+  // generalizzato per più input contemporaneamente sulla stessa pagina).
+  masterOn(key, masterListEl, 'keydown', (event) => {
+    const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+    if (gapRecInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      gapRecInput.dataset.digits = (gapRecInput.dataset.digits || '').slice(0, -1);
+      gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+      const end = gapRecInput.value.length;
+      gapRecInput.setSelectionRange(end, end);
+      const gapBlock = masterSeriesFindBlock(gapRecInput);
+      gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+      masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+      masterSeriesInvalidate(gapRecInput);
+      return;
+    }
+    const recInput = event.target.closest('.mseries-rec-input');
+    if (recInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      recInput.dataset.digits = (recInput.dataset.digits || '').slice(0, -1);
+      recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+      const end = recInput.value.length;
+      recInput.setSelectionRange(end, end);
+      masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+      masterSeriesInvalidate(recInput);
+      return;
+    }
+    const trainingDoneInput = event.target.closest('.mtrain-done-input');
+    if (trainingDoneInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      trainingDoneInput.dataset.digits = (trainingDoneInput.dataset.digits || '').slice(0, -1);
+      trainingDoneInput.value = mtrainFormatDone(trainingDoneInput.dataset.digits);
+      const end = trainingDoneInput.value.length;
+      trainingDoneInput.setSelectionRange(end, end);
+      mtrainStoreDone(trainingDoneInput);
+      return;
+    }
+    const raceResultInput = event.target.closest('.race-result-input');
+    if (raceResultInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      raceResultInput.dataset.digits = (raceResultInput.dataset.digits || '').slice(0, -1);
+      raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, masterRaceResultType(raceResultInput));
+      const end = raceResultInput.value.length;
+      raceResultInput.setSelectionRange(end, end);
+      return;
+    }
+    const input = event.target.closest('.mtest-input');
+    if (!input || (event.key !== 'Backspace' && event.key !== 'Delete')) {
+      return;
+    }
+    event.preventDefault();
+    input.dataset.digits = (input.dataset.digits || '').slice(0, -1);
+    mtestApplyMask(input);
+  });
+
+  // Formato del risultato gara (con o senza ore) segue la distanza scelta nel
+  // menu accanto: cambiandola si riapplica la maschera alle stesse cifre già
+  // digitate, invece di dover riscrivere il risultato da capo.
+  masterOn(key, masterListEl, 'change', (event) => {
+    const raceTypeInput = event.target.closest('.race-type-input');
+    if (!raceTypeInput) {
+      return;
+    }
+    const form = raceTypeInput.closest('.race-form');
+    const resultInput = form.querySelector('.race-result-input');
+    resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
+    resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
+  });
+
+  masterOn(key, masterListEl, 'input', (event) => {
+    const notesInput = event.target.closest('.mtest-notes .notes-input');
+    if (notesInput) {
+      const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
+      button.disabled = notesInput.value.trim() === '';
+      return;
+    }
+    const trainingDoneInput = event.target.closest('.mtrain-done-input');
+    if (trainingDoneInput) {
+      handleMasterTrainingDoneInput(trainingDoneInput);
+      return;
+    }
+    const raceResultInput = event.target.closest('.race-result-input');
+    if (raceResultInput) {
+      const type = masterRaceResultType(raceResultInput);
+      raceResultInput.dataset.digits = raceResultInput.value.replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
+      raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, type);
+      const end = raceResultInput.value.length;
+      raceResultInput.setSelectionRange(end, end);
+      return;
+    }
+    const metersInput = event.target.closest('.mtest-meters-input');
+    if (metersInput) {
+      metersInput.value = metersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+      return;
+    }
+    const repsInput = event.target.closest('.mseries-reps-input');
+    if (repsInput) {
+      repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      masterSeriesFindBlock(repsInput).reps = repsInput.value;
+      masterSeriesInvalidate(repsInput);
+      return;
+    }
+    const distInput = event.target.closest('.mseries-dist-input');
+    if (distInput) {
+      distInput.value = distInput.value.replace(/[^0-9/]/g, '');
+      masterSeriesFindBlock(distInput).dist = distInput.value;
+      masterSeriesInvalidate(distInput);
+      return;
+    }
+    const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+    if (gapRecInput) {
+      gapRecInput.dataset.digits = gapRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+      const end = gapRecInput.value.length;
+      gapRecInput.setSelectionRange(end, end);
+      const gapBlock = masterSeriesFindBlock(gapRecInput);
+      gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+      masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+      masterSeriesInvalidate(gapRecInput);
+      return;
+    }
+    const recInput = event.target.closest('.mseries-rec-input');
+    if (recInput) {
+      recInput.dataset.digits = recInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+      const end = recInput.value.length;
+      recInput.setSelectionRange(end, end);
+      masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+      masterSeriesInvalidate(recInput);
+      return;
+    }
+    const input = event.target.closest('.mtest-input');
+    if (!input) {
+      return;
+    }
+    input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, 4);
+    mtestApplyMask(input);
+  });
+
+  function masterSyncFilterChips() {
+    setChipGroupSelection(masterSortChips, masterActiveSort);
+  }
+
+  function masterRevertFiltersDraft() {
+    if (!masterFilterSnapshot) {
+      return;
+    }
+    masterActiveSort = masterFilterSnapshot.sort;
+    masterFilterSnapshot = null;
+    masterCurrentPage = 1;
+    masterSyncFilterChips();
+    renderMaster();
+  }
+
+  function masterCloseToolPanels(except) {
+    if (except !== 'search') {
+      setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, false);
+      masterToggleSearchButton.setAttribute('aria-label', 'Cerca atleta');
+    }
+    if (except !== 'filters') {
+      if (!masterFiltersPanel.hidden) {
+        masterRevertFiltersDraft();
+      }
+      setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+      masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
     }
   }
-}
 
-masterAvatarInput.addEventListener('change', async (event) => {
-  const file = event.target.files?.[0];
-  if (file) {
-    try {
-      currentMasterAvatarData = await fileToBase64(file);
-      updateMasterAvatarPreview();
-    } catch (error) {
-      console.error('Errore nel caricamento dell\'avatar:', error);
-      alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
-      masterAvatarInput.value = '';
+  masterOn(key, masterToggleSearchButton, 'click', () => {
+    const open = masterSearchPanel.hidden;
+    masterCloseToolPanels('search');
+    setCollapsibleOpen(masterToggleSearchButton, masterSearchPanel, open);
+    masterToggleSearchButton.setAttribute('aria-label', open ? 'Nascondi ricerca' : 'Cerca atleta');
+    if (open) {
+      masterSearchInput.focus();
+    }
+  });
+
+  masterOn(key, masterToggleFiltersButton, 'click', () => {
+    const open = masterFiltersPanel.hidden;
+    masterCloseToolPanels('filters');
+    if (open) {
+      masterFilterSnapshot = { sort: masterActiveSort };
+      masterSyncFilterChips();
+      setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, true);
+      masterToggleFiltersButton.setAttribute('aria-label', 'Chiudi filtri');
+    } else {
+      masterRevertFiltersDraft();
+      setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+      masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+    }
+  });
+
+  masterOn(key, masterSortChips, 'click', (event) => {
+    const chip = event.target.closest('.fchip');
+    if (!chip || !masterSortChips.contains(chip)) {
+      return;
+    }
+    setChipGroupSelection(masterSortChips, chip.dataset.value);
+    masterActiveSort = chip.dataset.value;
+    masterCurrentPage = 1;
+    renderMaster();
+  });
+
+  masterOn(key, masterFiltersApplyButton, 'click', () => {
+    masterFilterSnapshot = null;
+    setCollapsibleOpen(masterToggleFiltersButton, masterFiltersPanel, false);
+    masterToggleFiltersButton.setAttribute('aria-label', 'Mostra filtri');
+  });
+
+  masterOn(key, masterFiltersResetButton, 'click', () => {
+    masterActiveSort = MASTER_FILTER_DEFAULTS.sort;
+    masterCurrentPage = 1;
+    masterSyncFilterChips();
+    renderMaster();
+  });
+
+  masterSyncFilterChips();
+
+  masterOn(key, masterSearchInput, 'input', () => {
+    masterCurrentPage = 1;
+    renderMaster();
+  });
+  wireSearchClear(masterSearchInput, document.getElementById(`${MASTER_INSTANCES[key].prefix}-search-clear`));
+
+  if (masterPaginationNav) {
+    masterOn(key, masterPaginationNav, 'click', (event) => {
+      const button = event.target.closest('[data-page]');
+      if (!button || button.disabled) {
+        return;
+      }
+      const page = Number(button.dataset.page);
+      if (!Number.isFinite(page) || page === masterCurrentPage) {
+        return;
+      }
+      masterCurrentPage = page;
+      renderMaster();
+      const head = masterListEl.closest('.list-section')?.querySelector('.list-head');
+      if (head) {
+        head.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+    });
+  }
+
+  // ----- Form di registrazione atleta master -----
+  function updateMasterAvatarPreview() {
+    if (currentMasterAvatarData) {
+      masterAvatarPreview.style.backgroundImage = `url('${currentMasterAvatarData}')`;
+      masterAvatarPreview.classList.remove('avatar-empty');
+      masterAvatarPreview.innerHTML = '';
+    } else {
+      const name = masterNameInput.value.trim();
+      const surname = masterSurnameInput.value.trim();
+      if (name || surname) {
+        masterAvatarPreview.classList.remove('avatar-empty');
+        masterAvatarPreview.innerHTML = `<span class="avatar-initials">${getInitials(name, surname)}</span>`;
+        masterAvatarPreview.style.backgroundImage = '';
+      } else {
+        masterAvatarPreview.classList.add('avatar-empty');
+        masterAvatarPreview.innerHTML = '<span class="avatar-placeholder">+</span>';
+        masterAvatarPreview.style.backgroundImage = '';
+      }
+    }
+  }
+
+  masterOn(key, masterAvatarInput, 'change', async (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      try {
+        currentMasterAvatarData = await fileToBase64(file);
+        updateMasterAvatarPreview();
+      } catch (error) {
+        console.error('Errore nel caricamento dell\'avatar:', error);
+        alert('Errore nel caricamento dell\'immagine. Prova un file più piccolo.');
+        masterAvatarInput.value = '';
+        currentMasterAvatarData = null;
+        updateMasterAvatarPreview();
+      }
+    } else {
       currentMasterAvatarData = null;
       updateMasterAvatarPreview();
     }
-  } else {
-    currentMasterAvatarData = null;
-    updateMasterAvatarPreview();
-  }
-});
-
-masterAvatarPreview.addEventListener('click', () => {
-  masterAvatarInput.click();
-});
-
-masterNameInput.addEventListener('input', updateMasterAvatarPreview);
-masterSurnameInput.addEventListener('input', updateMasterAvatarPreview);
-
-function openMasterRegisterScreen() {
-  masterRegisterScreen.hidden = false;
-  lockBodyScroll();
-  masterRegisterScreen.scrollTop = 0;
-  masterNameInput.focus();
-}
-
-function closeMasterRegisterScreen() {
-  masterRegisterScreen.hidden = true;
-  unlockBodyScroll();
-}
-
-if (masterOpenRegisterButton) {
-  masterOpenRegisterButton.addEventListener('click', openMasterRegisterScreen);
-}
-if (masterCloseRegisterButton) {
-  masterCloseRegisterButton.addEventListener('click', closeMasterRegisterScreen);
-}
-
-masterForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const name = masterNameInput.value.trim();
-  const surname = masterSurnameInput.value.trim();
-  if (!name || !surname) {
-    alert('Inserisci nome e cognome.');
-    return;
-  }
-
-  const entries = getMaster();
-  entries.push({
-    id: `mas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    name,
-    surname,
-    avatar: currentMasterAvatarData,
-    createdAt: new Date().toISOString(),
   });
 
-  await saveMaster(entries);
-  masterCurrentPage = 1;
-  renderMaster();
+  masterOn(key, masterAvatarPreview, 'click', () => {
+    masterAvatarInput.click();
+  });
 
-  masterForm.reset();
-  currentMasterAvatarData = null;
-  masterAvatarInput.value = '';
-  updateMasterAvatarPreview();
-  closeMasterRegisterScreen();
-  showToast('Salvato!');
-});
+  masterOn(key, masterNameInput, 'input', updateMasterAvatarPreview);
+  masterOn(key, masterSurnameInput, 'input', updateMasterAvatarPreview);
+
+  function openMasterRegisterScreen() {
+    masterRegisterScreen.hidden = false;
+    lockBodyScroll();
+    masterRegisterScreen.scrollTop = 0;
+    masterNameInput.focus();
+  }
+
+  function closeMasterRegisterScreen() {
+    masterRegisterScreen.hidden = true;
+    unlockBodyScroll();
+  }
+
+  if (masterOpenRegisterButton) {
+    masterOn(key, masterOpenRegisterButton, 'click', openMasterRegisterScreen);
+  }
+  if (masterCloseRegisterButton) {
+    masterOn(key, masterCloseRegisterButton, 'click', closeMasterRegisterScreen);
+  }
+
+  masterOn(key, masterForm, 'submit', async (event) => {
+    event.preventDefault();
+    const name = masterNameInput.value.trim();
+    const surname = masterSurnameInput.value.trim();
+    if (!name || !surname) {
+      alert('Inserisci nome e cognome.');
+      return;
+    }
+
+    const entries = getMaster();
+    entries.push({
+      id: `mas-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      surname,
+      avatar: currentMasterAvatarData,
+      createdAt: new Date().toISOString(),
+    });
+
+    await saveMaster(entries);
+    masterCurrentPage = 1;
+    renderMaster();
+
+    masterForm.reset();
+    currentMasterAvatarData = null;
+    masterAvatarInput.value = '';
+    updateMasterAvatarPreview();
+    closeMasterRegisterScreen();
+    showToast('Salvato!');
+  });
+}
+
+masterWire('mezzofondo');
+masterWire('master');
+
 
 // ===================== "Programma allenamento" (solo C. Militari) =====================
 // Elenco di voci a fisarmonica (titolo + testo), condiviso per tutta la
@@ -8827,6 +8926,10 @@ async function initializeApp() {
   renderEntries();
   readVelocisti();
   renderVelocisti();
+  masterUse('mezzofondo');
+  readMaster();
+  renderMaster();
+  masterUse('master');
   readMaster();
   renderMaster();
 }
