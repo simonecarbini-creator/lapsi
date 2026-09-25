@@ -78,6 +78,9 @@ che si ritocca una percentuale in <code>mezzofondo-calc.js</code>. Dipende anche
   // --- zone nell'ordine della spec ---
   assertEqual(MezzofondoCalc.ZONES.map((z) => z[0]).join(','), 'Rigen.,Lenta,Lungo,Medio,Soglia,2000,1000', 'ordine zone ZONES');
 
+  // --- ogni zona ha una durata tipica ---
+  assertEqual(MezzofondoCalc.ZONES.every((z) => typeof z[2] === 'string' && z[2].length > 0), true, 'ogni zona ha la durata tipica');
+
   // --- render ---
   const list = document.getElementById('results');
   results.forEach((r) => {

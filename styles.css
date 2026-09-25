@@ -437,6 +437,30 @@ button, input {
   font-weight: 700;
 }
 
+.info-table-zones th {
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--card-border);
+}
+
+.info-table-zones th:not(:first-child),
+.info-table-zones td:not(:first-child) {
+  text-align: right;
+}
+
+.info-table-zones td:nth-child(2) {
+  font-weight: 700;
+}
+
+.info-table-zones td:last-child {
+  font-weight: 400;
+}
+
 .calc-input-row {
   display: flex;
   align-items: center;

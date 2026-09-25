@@ -13,15 +13,18 @@
 })(typeof self !== 'undefined' ? self : this, function (RipeteCalc) {
   'use strict';
 
-  // Percentuale della VAM per zona di lavoro: [etichetta, percentuale 0-1].
+  // Zone di lavoro: [etichetta, percentuale della VAM 0-1, durata tipica]. Le
+  // percentuali sono un valore fisso dentro l'intervallo di riferimento di
+  // ciascuna zona (recupero 60-65%, lenta 68-73%, lungo 70-78%, medio
+  // 80-85%, soglia 86-90%, ripetute lunghe 92-97%).
   const ZONES = [
-    ['Rigen.', 0.63],
-    ['Lenta', 0.72],
-    ['Lungo', 0.76],
-    ['Medio', 0.84],
-    ['Soglia', 0.88],
-    ['2000', 0.93],
-    ['1000', 0.96],
+    ['Rigen.', 0.63, '30-45′'],
+    ['Lenta', 0.72, '45-70′'],
+    ['Lungo', 0.76, '90-150′'],
+    ['Medio', 0.84, '25-50′'],
+    ['Soglia', 0.88, '20-40′ frazionati'],
+    ['2000', 0.93, '4-8 km totali'],
+    ['1000', 0.96, '4-8 km totali'],
   ];
 
   const VAM_MIN = 8;

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-24d';
-console.log('[Lapsi] build', APP_BUILD, '— correzione frasi stima VAM/soglia nella nota test');
+const APP_BUILD = '2026-09-25a';
+console.log('[Lapsi] build', APP_BUILD, '— durata tipica nella tabella dei ritmi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -7640,8 +7640,8 @@ function renderInfoDoc() {
     return;
   }
 
-  const vamZonesRows = MezzofondoCalc.ZONES.map(([label, pct]) => (
-    `<tr><td>${escapeHtml(label)}</td><td>${infoPct(pct)}</td></tr>`
+  const vamZonesRows = MezzofondoCalc.ZONES.map(([label, pct, duration]) => (
+    `<tr><td>${escapeHtml(label)}</td><td>${infoPct(pct)}</td><td>${escapeHtml(duration)}</td></tr>`
   )).join('');
 
   const repeatPctRows = RipeteCalc.PCT.map(([dist, pct]) => (
@@ -7681,8 +7681,8 @@ function renderInfoDoc() {
     <details class="info-section">
       <summary>Ritmi di allenamento (dalla VAM)</summary>
       <div class="info-section-body">
-        <p>Ogni zona è una percentuale fissa della VAM; il ritmo al km è 60 ÷ (VAM × percentuale).</p>
-        <table class="info-table"><tbody>${vamZonesRows}</tbody></table>
+        <p>Ogni zona è una percentuale fissa della VAM; il ritmo al km è 60 ÷ (VAM × percentuale). La durata è quella tipica del lavoro in quella zona.</p>
+        <table class="info-table info-table-zones"><thead><tr><th>Lavoro</th><th>% VAM</th><th>Durata tipica</th></tr></thead><tbody>${vamZonesRows}</tbody></table>
       </div>
     </details>
 
