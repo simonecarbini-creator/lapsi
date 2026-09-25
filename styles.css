@@ -5432,3 +5432,124 @@ button:active {
   line-height: 1.4;
   color: var(--muted);
 }
+
+
+/* ===== Allenamenti salvati dal simulatore: verifica dei tempi fatti ===== */
+.mseries-save-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  border-radius: 999px;
+  border: 1px solid var(--thousand-color);
+  background: transparent;
+  color: var(--thousand-color);
+  font-size: 0.86rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mtrain-card {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+}
+
+.mtrain-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.86rem;
+}
+
+.mtrain-sub {
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.mtrain-del {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
+.mtrain-boxes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mtrain-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1.5px solid var(--card-border);
+  background: var(--bg-strong);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.mtrain-box .calc-out-tile {
+  flex: 0 0 76px;
+}
+
+.mtrain-box-ok {
+  background: #dff3e7;
+  border-color: #22a06b;
+}
+
+.mtrain-box-bad {
+  background: #fde3e0;
+  border-color: #e5484d;
+}
+
+.mtrain-done {
+  flex: 1;
+  min-width: 0;
+}
+
+.mtrain-done-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.mtrain-done-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mtrain-done-input {
+  flex: 1 1 58px;
+  min-width: 58px;
+  max-width: 84px;
+  width: auto;
+  box-sizing: border-box;
+  padding: 7px 6px;
+  font-size: 0.85rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+}
+
+.mtrain-group .mtest-history .mtrain-card:first-of-type {
+  margin-top: 8px;
+}

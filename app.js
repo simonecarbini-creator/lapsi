@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26a';
-console.log('[Lapsi] build', APP_BUILD, '— menù: Velocità, Settore giovanile con voci di secondo livello');
+const APP_BUILD = '2026-09-26b';
+console.log('[Lapsi] build', APP_BUILD, '— simulatore: salva allenamento e verifica dei tempi fatti');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5098,6 +5098,7 @@ function normalizeMasterAthlete(entry) {
     sogliaTests: Array.isArray(entry.sogliaTests) ? entry.sogliaTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     thousandTests: Array.isArray(entry.thousandTests) ? entry.thousandTests.map(normalizeMasterTestEntry).filter(Boolean) : [],
     raceResults: Array.isArray(entry.raceResults) ? entry.raceResults.map(normalizeMasterRaceResult).filter(Boolean) : [],
+    trainings: Array.isArray(entry.trainings) ? entry.trainings.map(normalizeMasterTraining).filter(Boolean) : [],
     notes: normalizeNotes(entry.notes),
   };
 }
@@ -5553,6 +5554,289 @@ function masterSeriesResultBlockMarkup(block, T, totalKm) {
   `;
 }
 
+// ----- Allenamenti salvati dal simulatore (con verifica dei tempi fatti) -----
+// Una serie configurata nel simulatore si può salvare: si "congelano" i tempi
+// stimati di quel momento (non cambiano se poi cambia il 1000) e sotto ogni
+// distanza si inseriscono i tempi fatti, uno per ripetuta. Il riquadro diventa
+// verde se sono tutti uguali o migliori della stima, rosso se anche solo uno è
+// peggiore. Gli allenamenti restano in uno storico (l'ultimo in evidenza).
+
+// Stessa approssimazione mostrata da RipeteCalc.formatSeconds (mezzo secondo
+// sotto 59,75 s, secondo intero sopra): il confronto è con il tempo che il
+// coach legge sul riquadro, non con il valore grezzo.
+function mtrainShownSeconds(seconds) {
+  return seconds < 59.75 ? Math.round(seconds * 2) / 2 : Math.round(seconds);
+}
+
+// Tempo fatto: 1-2 cifre = secondi interi, dalla terza in poi l'ultima cifra
+// è il decimo (324 -> 32,4″; 1204 -> 1′20,4″).
+function mtrainFormatDone(digits) {
+  const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, 5);
+  if (!d) return '';
+  if (d.length <= 2) return `${d}″`;
+  const minutes = d.slice(0, -3);
+  return `${minutes ? `${minutes}′` : ''}${d.slice(-3, -1)},${d.slice(-1)}″`;
+}
+
+function mtrainParseDone(digits) {
+  const d = String(digits || '').replace(/[^0-9]/g, '');
+  if (!d) return null;
+  if (d.length <= 2) {
+    const s = parseInt(d, 10);
+    return s > 0 ? s : null;
+  }
+  const seconds = parseInt(d.slice(-3, -1), 10);
+  if (seconds > 59) return null;
+  const minutes = d.length > 3 ? parseInt(d.slice(0, -3), 10) : 0;
+  const total = minutes * 60 + seconds + parseInt(d.slice(-1), 10) / 10;
+  return total > 0 ? total : null;
+}
+
+// 'ok' se tutti i tempi inseriti sono <= stima e sono completi, 'bad' se
+// almeno uno è peggiore (subito, anche a serie incompleta), '' altrimenti.
+function mtrainBoxStatus(estimate, doneList, reps) {
+  const times = (doneList || []).filter((t) => Number.isFinite(t));
+  if (times.some((t) => t > estimate.shown + 1e-9)) return 'bad';
+  return times.length >= reps ? 'ok' : '';
+}
+
+function normalizeMasterTraining(record) {
+  if (!record || typeof record !== 'object' || !Array.isArray(record.blocks)) {
+    return null;
+  }
+  const blocks = record.blocks.map((block) => {
+    if (!block || !Array.isArray(block.estimates) || !block.estimates.length) {
+      return null;
+    }
+    const reps = Math.max(1, parseInt(block.reps, 10) || 1);
+    const estimates = block.estimates
+      .map((e) => ({ dist: Number(e.dist), seconds: Number(e.seconds), shown: Number(e.shown) }))
+      .filter((e) => Number.isFinite(e.dist) && Number.isFinite(e.seconds) && Number.isFinite(e.shown));
+    if (!estimates.length) {
+      return null;
+    }
+    const done = {};
+    estimates.forEach((_, di) => {
+      const list = block.done && Array.isArray(block.done[di]) ? block.done[di] : [];
+      done[di] = Array.from({ length: reps }, (__, r) => (Number.isFinite(list[r]) ? list[r] : null));
+    });
+    return {
+      id: block.id || `mtb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      reps,
+      dist: String(block.dist || ''),
+      recDigits: String(block.recDigits || ''),
+      recActive: !!block.recActive,
+      estimates,
+      done,
+    };
+  }).filter(Boolean);
+  if (!blocks.length) {
+    return null;
+  }
+  return {
+    id: record.id || `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    date: String(record.date || ''),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+    thousand: String(record.thousand || ''),
+    totalKm: Number(record.totalKm) || 0,
+    blocks,
+  };
+}
+
+function masterTrainingCardMarkup(training) {
+  const summary = training.blocks
+    .map((block) => `${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`)
+    .join(' + ');
+  const blocksMarkup = training.blocks.map((block) => {
+    const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${block.recActive ? ' (attivo)' : ''}`;
+    const boxes = block.estimates.map((estimate, di) => {
+      const doneList = block.done[di] || [];
+      const status = mtrainBoxStatus(estimate, doneList, block.reps);
+      const inputs = Array.from({ length: block.reps }, (_, r) => {
+        const value = doneList[r];
+        const digits = Number.isFinite(value) ? mtrainDigitsFromSeconds(value) : '';
+        return `<input type="text" inputmode="numeric" autocomplete="off" class="mtrain-done-input" data-train="${escapeHtml(training.id)}" data-block="${escapeHtml(block.id)}" data-di="${di}" data-rep="${r}" data-digits="${digits}" value="${escapeHtml(mtrainFormatDone(digits))}" placeholder="${block.reps > 1 ? `R${r + 1}` : 'fatto'}" aria-label="Tempo fatto ${estimate.dist} m, ripetuta ${r + 1}" />`;
+      }).join('');
+      return `
+        <div class="mtrain-box${status ? ` mtrain-box-${status}` : ''}" data-shown="${estimate.shown}" data-reps="${block.reps}">
+          <div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(estimate.seconds))}</b><span>${estimate.dist} m</span></div>
+          <div class="mtrain-done"><span class="mtrain-done-label">tempi fatti</span><div class="mtrain-done-inputs">${inputs}</div></div>
+        </div>`;
+    }).join('');
+    const header = training.blocks.length > 1
+      ? `<div class="mseries-result-header"><b>${escapeHtml(`${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`)}</b><span>${escapeHtml(recLabel)}</span></div>`
+      : '';
+    return `
+      <div class="mseries-result-block">
+        ${header}
+        <div class="mtrain-boxes">${boxes}</div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="mtrain-card" data-train="${escapeHtml(training.id)}">
+      <div class="mtrain-head">
+        <div>
+          <b>${escapeHtml(training.date)}</b> · ${escapeHtml(summary)}
+          <div class="mtrain-sub">Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${training.blocks.length === 1 ? ` · rec ${escapeHtml(seriesFormatRecMask(training.blocks[0].recDigits))}${training.blocks[0].recActive ? ' (attivo)' : ''}` : ''}${training.thousand ? ` · 1000: ${escapeHtml(training.thousand)}` : ''}</div>
+        </div>
+        <button type="button" class="mtrain-del" data-train="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
+      </div>
+      ${blocksMarkup}
+    </div>`;
+}
+
+// Cifre "digitate" per ricostruire il campo da un valore in secondi
+// (32,4 -> "324"; 80,4 -> "1204").
+function mtrainDigitsFromSeconds(value) {
+  const tenths = Math.round(value * 10);
+  const minutes = Math.floor(tenths / 600);
+  const rest = tenths - minutes * 600;
+  const seconds = Math.floor(rest / 10);
+  const t = rest % 10;
+  return minutes ? `${minutes}${String(seconds).padStart(2, '0')}${t}` : `${seconds}${t}`;
+}
+
+function masterTrainingsMarkup(entry) {
+  const trainings = [...(entry.trainings || [])]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  if (!trainings.length) {
+    return '';
+  }
+  const [latest, ...older] = trainings;
+  const historyKey = 'train-hist';
+  const historyMarkup = older.length
+    ? `
+      <details class="mtest-history" data-section-key="${historyKey}"${masterSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
+        <summary class="mtest-history-summary">Storico allenamenti (${older.length})</summary>
+        ${older.map(masterTrainingCardMarkup).join('')}
+      </details>`
+    : '';
+  return `
+    <div class="mtest-proj-group mtrain-group">
+      <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Allenamenti salvati</span>
+      ${masterTrainingCardMarkup(latest)}
+      ${historyMarkup}
+    </div>
+  `;
+}
+
+// Salva la serie attualmente calcolata nel simulatore.
+async function handleMasterTrainingSave(button) {
+  const athleteId = button.dataset.id;
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  const entry = entries[index];
+  const latestThousand = entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
+  const T = latestThousand ? RipeteCalc.parseThousand(latestThousand.value) : null;
+  if (!T) {
+    return;
+  }
+  const state = masterSeriesGetState(athleteId);
+  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+
+  const blocks = [];
+  for (const block of state.blocks) {
+    const distances = masterSeriesParseDistances(block.dist);
+    const rec = seriesParseRecSeconds(block.recDigits);
+    if (!distances.length || !rec) {
+      alert('Completa distanze e recupero di tutti i blocchi prima di salvare.');
+      return;
+    }
+    const reps = Math.max(1, parseInt(block.reps, 10) || 1);
+    const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
+    const estimates = distances.map((dist) => {
+      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
+      return { dist, seconds, shown: mtrainShownSeconds(seconds) };
+    });
+    const done = {};
+    estimates.forEach((_, di) => { done[di] = Array.from({ length: reps }, () => null); });
+    blocks.push({ id: `mtb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, reps, dist: block.dist, recDigits: block.recDigits, recActive: !!block.recActive, estimates, done });
+  }
+  const now = getNowParts();
+  const training = {
+    id: `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    date: shortYearDate(now.date),
+    createdAt: now.iso,
+    thousand: latestThousand.value,
+    totalKm,
+    blocks,
+  };
+  entries[index] = { ...entry, trainings: [...(entry.trainings || []), training] };
+  await saveMaster(entries);
+  renderMaster();
+  showToast('Allenamento salvato!');
+}
+
+async function handleMasterTrainingDelete(button) {
+  const card = button.closest('.athlete-item');
+  const confirmed = await showConfirm('Eliminare questo allenamento?', {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Elimina',
+  });
+  if (!confirmed) {
+    return;
+  }
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === card.dataset.id);
+  if (index === -1) {
+    return;
+  }
+  entries[index] = { ...entries[index], trainings: (entries[index].trainings || []).filter((t) => t.id !== button.dataset.train) };
+  await saveMaster(entries);
+  renderMaster();
+  showToast('Eliminato!');
+}
+
+// Tempo fatto digitato: aggiorna la maschera, salva il valore (senza rifare
+// il render, altrimenti si perde il focus a ogni tasto) e ricolora il riquadro.
+function handleMasterTrainingDoneInput(input) {
+  input.dataset.digits = input.value.replace(/[^0-9]/g, '').slice(0, 5);
+  input.value = mtrainFormatDone(input.dataset.digits);
+  const end = input.value.length;
+  input.setSelectionRange(end, end);
+  mtrainStoreDone(input);
+}
+
+function mtrainStoreDone(input) {
+  const card = input.closest('.athlete-item');
+  const box = input.closest('.mtrain-box');
+  const entries = getMaster();
+  const index = entries.findIndex((entry) => entry.id === card.dataset.id);
+  if (index === -1) {
+    return;
+  }
+  const trainings = (entries[index].trainings || []).map((training) => {
+    if (training.id !== input.dataset.train) {
+      return training;
+    }
+    return {
+      ...training,
+      blocks: training.blocks.map((block) => {
+        if (block.id !== input.dataset.block) {
+          return block;
+        }
+        const list = [...(block.done[input.dataset.di] || [])];
+        const parsed = mtrainParseDone(input.dataset.digits);
+        list[Number(input.dataset.rep)] = parsed === null ? null : parsed;
+        return { ...block, done: { ...block.done, [input.dataset.di]: list } };
+      }),
+    };
+  });
+  entries[index] = { ...entries[index], trainings };
+  saveMaster(entries);
+
+  const training = trainings.find((t) => t.id === input.dataset.train);
+  const block = training.blocks.find((b) => b.id === input.dataset.block);
+  const status = mtrainBoxStatus(block.estimates[Number(input.dataset.di)], block.done[input.dataset.di], block.reps);
+  box.classList.toggle('mtrain-box-ok', status === 'ok');
+  box.classList.toggle('mtrain-box-bad', status === 'bad');
+}
+
 // Simulatore ripetute (sezione "Allenamenti"): non più le 5 tile a
 // volume/recupero fissi (2 km, 1'30") del vecchio gruppo "Ripetute", ma
 // mantiene la stessa etichetta arancio maiuscola. Ritorna un
@@ -5598,6 +5882,7 @@ function masterSeriesBuilderMarkup(entry) {
             <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Ricalcola" title="Ricalcola">${MSERIES_RELOAD_ICON}</button>
           </div>
           ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm)}`).join('')}
+          <button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva allenamento</button>
         </div>
       </div>
     `;
@@ -6737,6 +7022,7 @@ function renderMaster() {
         <div class="mtest-section-body">
           ${masterRitmiSectionMarkup(entry)}
           ${masterSeriesBuilderMarkup(entry)}
+          ${masterTrainingsMarkup(entry)}
           ${buildMasterNotesBlock(entry)}
         </div>
       </details>
@@ -6798,6 +7084,18 @@ async function handleMasterListClick(event) {
   if (raceCancelButton) {
     masterRaceEditing.delete(raceCancelButton.dataset.id);
     renderMaster();
+    return;
+  }
+
+  const trainingSaveBtn = event.target.closest('.mseries-save-btn');
+  if (trainingSaveBtn) {
+    await handleMasterTrainingSave(trainingSaveBtn);
+    return;
+  }
+
+  const trainingDelBtn = event.target.closest('.mtrain-del');
+  if (trainingDelBtn) {
+    await handleMasterTrainingDelete(trainingDelBtn);
     return;
   }
 
@@ -7023,6 +7321,7 @@ async function handleMasterListClick(event) {
   masterSectionOpen.delete(`${entryId}:training`);
   masterSectionOpen.delete(`${entryId}:races`);
   MASTER_TEST_KEYS.forEach((key) => masterSectionOpen.delete(`${entryId}:hist-${key}`));
+  masterSectionOpen.delete(`${entryId}:train-hist`);
   masterRaceEditing.delete(entryId);
   renderMaster();
   showToast('Eliminato!');
@@ -7093,6 +7392,19 @@ masterListEl.addEventListener('keydown', (event) => {
     masterSeriesInvalidate(recInput);
     return;
   }
+  const trainingDoneInput = event.target.closest('.mtrain-done-input');
+  if (trainingDoneInput) {
+    if (event.key !== 'Backspace' && event.key !== 'Delete') {
+      return;
+    }
+    event.preventDefault();
+    trainingDoneInput.dataset.digits = (trainingDoneInput.dataset.digits || '').slice(0, -1);
+    trainingDoneInput.value = mtrainFormatDone(trainingDoneInput.dataset.digits);
+    const end = trainingDoneInput.value.length;
+    trainingDoneInput.setSelectionRange(end, end);
+    mtrainStoreDone(trainingDoneInput);
+    return;
+  }
   const raceResultInput = event.target.closest('.race-result-input');
   if (raceResultInput) {
     if (event.key !== 'Backspace' && event.key !== 'Delete') {
@@ -7133,6 +7445,11 @@ masterListEl.addEventListener('input', (event) => {
   if (notesInput) {
     const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
     button.disabled = notesInput.value.trim() === '';
+    return;
+  }
+  const trainingDoneInput = event.target.closest('.mtrain-done-input');
+  if (trainingDoneInput) {
+    handleMasterTrainingDoneInput(trainingDoneInput);
     return;
   }
   const raceResultInput = event.target.closest('.race-result-input');
