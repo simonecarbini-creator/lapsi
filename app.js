@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25a';
-console.log('[Lapsi] build', APP_BUILD, '— durata tipica nella tabella dei ritmi');
+const APP_BUILD = '2026-09-25b';
+console.log('[Lapsi] build', APP_BUILD, '— Velocisti: test sprint e profilo (fotocellule/cronometro, indici, andamento)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3229,6 +3229,35 @@ function normalizeVelTest(record) {
   };
 }
 
+// Una sessione di test sprint. Fotocellule/video: 30 m da fermo, 30 m
+// lanciati, 150 m. Cronometro a mano: 60 m e 150 m. Tempi in secondi.
+const VEL_SPRINT_KEYS = { fotocellule: ['t30f', 't30l', 't150'], cronometro: ['t60', 't150'] };
+
+function normalizeVelSprintTest(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const mode = VEL_SPRINT_KEYS[record.mode] ? record.mode : null;
+  if (!mode) {
+    return null;
+  }
+  const times = {};
+  for (const key of VEL_SPRINT_KEYS[mode]) {
+    const value = Number(record[key]);
+    if (!Number.isFinite(value) || value <= 0) {
+      return null;
+    }
+    times[key] = value;
+  }
+  return {
+    id: record.id || `vs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    mode,
+    ...times,
+    date: String(record.date || ''),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
 function normalizeVelocista(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -3242,6 +3271,8 @@ function normalizeVelocista(entry) {
     createdAt: entry.createdAt || new Date(0).toISOString(),
     results: Array.isArray(entry.results) ? entry.results.map(normalizeVelResult).filter(Boolean) : [],
     tests: Array.isArray(entry.tests) ? entry.tests.map(normalizeVelTest).filter(Boolean) : [],
+    sprintMode: VEL_SPRINT_KEYS[entry.sprintMode] ? entry.sprintMode : 'fotocellule',
+    sprintTests: Array.isArray(entry.sprintTests) ? entry.sprintTests.map(normalizeVelSprintTest).filter(Boolean) : [],
     notes: normalizeNotes(entry.notes),
   };
 }
@@ -3329,6 +3360,7 @@ function velCollapseOtherCards(exceptItem) {
     const panel = item.querySelector('.projection-panel');
     if (panel && !panel.hidden) {
       panel.hidden = true;
+      velExpandedPanels.delete(item.dataset.id);
       const toggle = item.querySelector('.projection-toggle');
       if (toggle) {
         toggle.setAttribute('aria-expanded', 'false');
@@ -3477,6 +3509,7 @@ function renderVelocisti() {
   pageEntries.forEach((entry) => {
     const item = document.createElement('li');
     item.className = 'athlete-item card-v2';
+    item.dataset.id = entry.id;
 
     const avatarMarkup = entry.avatar
       ? `<span class="v2-avatar" style="background-image:url('${entry.avatar}')"></span>`
@@ -3539,7 +3572,9 @@ function renderVelocisti() {
     projectionToggle.dataset.id = entry.id;
     projectionToggle.textContent = '→';
     projectionToggle.setAttribute('aria-label', 'Mostra dettagli');
-    projectionToggle.setAttribute('aria-expanded', 'false');
+    const isExpanded = velExpandedPanels.has(entry.id);
+    projectionToggle.setAttribute('aria-expanded', String(isExpanded));
+    projectionToggle.style.transform = isExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
 
     actionsWrap.appendChild(deleteButton);
     actionsWrap.appendChild(editButton);
@@ -3547,7 +3582,7 @@ function renderVelocisti() {
 
     const panel = document.createElement('div');
     panel.className = 'projection-panel';
-    panel.hidden = true;
+    panel.hidden = !isExpanded;
 
     const smallTrashIcon = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
 
@@ -3576,6 +3611,7 @@ function renderVelocisti() {
       : '<div class="history-row history-empty">Nessun test registrato ancora.</div>';
 
     panel.innerHTML = `
+      ${velSprintSectionMarkup(entry)}
       <div class="time-history">
         <div class="history-header">Risultati</div>
         ${resultsHistoryMarkup}
@@ -3593,6 +3629,355 @@ function renderVelocisti() {
   });
 
   renderVelPagination(entries.length);
+}
+
+// ----- Test sprint e profilo (card Velocisti) -----
+// Stato solo di UI (non persistito), stesso schema della card Master: id dei
+// pannelli "→" aperti e stato aperto/chiuso delle sezioni <details>, altrimenti
+// ogni salvataggio (che rifà il render) le richiuderebbe.
+let velExpandedPanels = new Set();
+let velSectionOpen = new Map();
+function velSectionIsOpen(entryId, key, defaultOpen) {
+  const mapKey = `${entryId}:${key}`;
+  if (!velSectionOpen.has(mapKey)) {
+    velSectionOpen.set(mapKey, defaultOpen);
+  }
+  return velSectionOpen.get(mapKey);
+}
+
+const VEL_SPRINT_TESTS = {
+  t30f: {
+    label: '30 m da fermo',
+    desc: "Misura l'accelerazione, la capacità di mettere forza a terra nei primi appoggi. Dipende molto dalla forza massima e dalla tecnica di partenza.",
+  },
+  t30l: {
+    label: '30 m lanciati',
+    hint: '(con 20-30 m di rincorsa)',
+    desc: "Misura la velocità massima pura, senza la componente di partenza. È il dato che l'accelerazione da sola non ti dà.",
+  },
+  t60: {
+    label: '60 m',
+    desc: "Da fermo: accelerazione e velocità insieme, in una prova abbastanza lunga da ridurre il peso dell'errore della mano.",
+  },
+  t150: {
+    label: '150 m',
+    desc: 'Misura la resistenza alla velocità, cioè quanto tiene la velocità massima quando la distanza si allunga.',
+  },
+};
+
+const VEL_SPRINT_EXPIRY_WEEKS = 6;
+
+function velFormatSec(value) {
+  return `${value.toFixed(2).replace('.', ',')} s`;
+}
+
+function velFormatIndex(value) {
+  return value.toFixed(2).replace('.', ',');
+}
+
+function velWeeksSince(dateStr) {
+  const t = parseItDate(dateStr);
+  return t ? Math.max(0, Math.floor((Date.now() - t) / (7 * 24 * 3600 * 1000))) : null;
+}
+
+function velWeeksLabel(weeks) {
+  if (weeks === null) return '';
+  if (weeks === 0) return 'questa settimana';
+  return weeks === 1 ? '1 settimana fa' : `${weeks} settimane fa`;
+}
+
+function velSprintIndices(test) {
+  if (test.mode === 'fotocellule') {
+    return {
+      accel: VelocistiCalc.accelIndex(test.t30f, test.t30l),
+      resist: VelocistiCalc.resistanceIndex(test.t30l, test.t150),
+      vmax: VelocistiCalc.maxSpeed(test.t30l),
+    };
+  }
+  return {
+    v60: VelocistiCalc.avgSpeed(60, test.t60),
+    v150: VelocistiCalc.avgSpeed(150, test.t150),
+    ratio: VelocistiCalc.speedRatio(test.t60, test.t150),
+  };
+}
+
+// Andamento di un indice test dopo test: linea + punti, con la fascia tipica
+// (se c'è) come sfondo. Con un solo test resta il punto sulla fascia.
+function velSparklineMarkup(values, band) {
+  const W = 200;
+  const H = 44;
+  const pad = 6;
+  const all = band ? [...values, band[0], band[1]] : [...values];
+  let lo = Math.min(...all);
+  let hi = Math.max(...all);
+  const margin = (hi - lo) * 0.12 || 0.05;
+  lo -= margin;
+  hi += margin;
+  const yFor = (v) => pad + (1 - (v - lo) / (hi - lo)) * (H - pad * 2);
+  const xFor = (i) => (values.length === 1 ? W / 2 : pad + (i / (values.length - 1)) * (W - pad * 2));
+  const bandRect = band
+    ? `<rect class="vsp-spark-band" x="0" y="${yFor(band[1]).toFixed(1)}" width="${W}" height="${(yFor(band[0]) - yFor(band[1])).toFixed(1)}"/>`
+    : '';
+  const coords = values.map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`);
+  const line = values.length > 1 ? `<polyline class="vsp-spark-line" points="${coords.join(' ')}"/>` : '';
+  const dots = values.map((v, i) => `<circle class="vsp-spark-dot" cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="${i === values.length - 1 ? 3.4 : 2.4}"/>`).join('');
+  return `<svg class="vsp-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true" focusable="false">${bandRect}${line}${dots}</svg>`;
+}
+
+function velIndexCardMarkup({ label, valueText, status, sub, values, band }) {
+  return `
+    <div class="vsp-index${status ? ` vsp-index-${status}` : ''}">
+      <div class="vsp-index-head"><span class="vsp-index-label">${escapeHtml(label)}</span><b class="vsp-index-value">${escapeHtml(valueText)}</b></div>
+      <div class="vsp-index-sub">${sub}</div>
+      ${velSparklineMarkup(values, band)}
+    </div>
+  `;
+}
+
+const VEL_ACCEL_TEXT = { good: 'buona', poor: 'da migliorare' };
+const VEL_RESIST_TEXT = { ok: 'nella norma', low: 'bassa', high: 'alta' };
+
+// Ultimo test: tempi, indici (con andamento sui test dello stesso tipo),
+// lettura automatica e scadenza.
+function velSprintLatestMarkup(latest, sameModeTests) {
+  const weeks = velWeeksSince(latest.date);
+  const expired = weeks !== null && weeks > VEL_SPRINT_EXPIRY_WEEKS;
+  const idx = velSprintIndices(latest);
+  const series = (fn) => sameModeTests.map((test) => fn(velSprintIndices(test)));
+  const timesMarkup = VEL_SPRINT_KEYS[latest.mode]
+    .map((key) => `<span class="vsp-time"><span>${escapeHtml(VEL_SPRINT_TESTS[key].label)}</span><b>${velFormatSec(latest[key])}</b></span>`)
+    .join('');
+
+  let indicesMarkup;
+  let reading = '';
+  if (latest.mode === 'fotocellule') {
+    const accelStatus = VelocistiCalc.accelStatus(idx.accel);
+    const resistStatus = VelocistiCalc.resistanceStatus(idx.resist);
+    const [aLo, aHi] = VelocistiCalc.ACCEL_BAND;
+    const [rLo, rHi] = VelocistiCalc.RESIST_BAND;
+    const prev = sameModeTests.length > 1 ? velSprintIndices(sameModeTests[sameModeTests.length - 2]).vmax : null;
+    const delta = prev !== null ? idx.vmax - prev : null;
+    const deltaText = delta !== null
+      ? ` · ${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(2).replace('.', ',')} m/s rispetto al test precedente`
+      : '';
+    indicesMarkup = [
+      velIndexCardMarkup({
+        label: 'Indice di accelerazione',
+        valueText: velFormatIndex(idx.accel),
+        status: accelStatus === 'good' ? 'ok' : 'warn',
+        sub: `30 lanciati ÷ 30 da fermo · fascia ${velFormatIndex(aLo)}-${velFormatIndex(aHi)} (più è alto, peggiore è la partenza) · <b>${VEL_ACCEL_TEXT[accelStatus]}</b>`,
+        values: series((i) => i.accel),
+        band: [aLo, aHi],
+      }),
+      velIndexCardMarkup({
+        label: 'Resistenza alla velocità',
+        valueText: velFormatIndex(idx.resist),
+        status: resistStatus === 'ok' ? 'ok' : 'warn',
+        sub: `velocità media 150 ÷ velocità 30 lanciati · fascia ${velFormatIndex(rLo)}-${velFormatIndex(rHi)} · <b>${VEL_RESIST_TEXT[resistStatus]}</b>`,
+        values: series((i) => i.resist),
+        band: [rLo, rHi],
+      }),
+      velIndexCardMarkup({
+        label: 'Velocità massima',
+        valueText: `${idx.vmax.toFixed(2).replace('.', ',')} m/s`,
+        status: '',
+        sub: `30 ÷ tempo sui 30 lanciati${deltaText}`,
+        values: series((i) => i.vmax),
+        band: null,
+      }),
+    ].join('');
+    reading = `<div class="vsp-reading">${escapeHtml(VelocistiCalc.profileReading(idx.accel, idx.resist))}</div>`;
+  } else {
+    indicesMarkup = [
+      velIndexCardMarkup({
+        label: 'Velocità media 60 m',
+        valueText: `${idx.v60.toFixed(2).replace('.', ',')} m/s`,
+        status: '',
+        sub: 'da fermo: include la partenza',
+        values: series((i) => i.v60),
+        band: null,
+      }),
+      velIndexCardMarkup({
+        label: 'Velocità media 150 m',
+        valueText: `${idx.v150.toFixed(2).replace('.', ',')} m/s`,
+        status: '',
+        sub: 'quanto tiene la velocità sulla distanza lunga',
+        values: series((i) => i.v150),
+        band: null,
+      }),
+      velIndexCardMarkup({
+        label: 'Rapporto 150 ÷ 60',
+        valueText: velFormatIndex(idx.ratio),
+        status: '',
+        sub: 'velocità media 150 ÷ velocità media 60',
+        values: series((i) => i.ratio),
+        band: null,
+      }),
+    ].join('');
+    reading = '<div class="vsp-reading vsp-reading-muted">Col cronometro a mano non ci sono indice di accelerazione né velocità massima pura: per il profilo completo servono fotocellule o video.</div>';
+  }
+
+  return `
+    <div class="vsp-latest">
+      <div class="vsp-latest-head">
+        <div>
+          <b>Ultimo test</b>
+          <span class="vsp-latest-date">${escapeHtml(latest.date)}${weeks !== null ? ` · ${velWeeksLabel(weeks)}` : ''}</span>
+        </div>
+        <div class="vsp-latest-actions">
+          ${expired ? `<span class="vsp-expired" title="I test vanno rifatti ogni 4-6 settimane">Da rifare</span>` : ''}
+          <button type="button" class="vsp-del" data-id="${escapeHtml(latest.id)}" aria-label="Elimina questo test">${MTEST_DEL_ICON}</button>
+        </div>
+      </div>
+      <div class="vsp-times">${timesMarkup}</div>
+      <div class="vsp-indices">${indicesMarkup}</div>
+      ${reading}
+    </div>
+  `;
+}
+
+function velSprintSectionMarkup(entry) {
+  const mode = entry.sprintMode;
+  const tests = [...entry.sprintTests].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  const latest = tests.length ? tests[tests.length - 1] : null;
+  const sameModeTests = latest ? tests.filter((test) => test.mode === latest.mode) : [];
+
+  const radios = [
+    ['fotocellule', 'Fotocellule'],
+    ['cronometro', 'Cronometro a mano'],
+  ].map(([value, label]) => `
+    <label class="vsp-radio">
+      <input type="radio" class="vsp-mode-input" name="vsp-mode-${escapeHtml(entry.id)}" data-id="${escapeHtml(entry.id)}" value="${value}"${mode === value ? ' checked' : ''} />
+      <span>${label}</span>
+    </label>
+  `).join('');
+
+  const fieldsMarkup = VEL_SPRINT_KEYS[mode].map((key) => {
+    const info = VEL_SPRINT_TESTS[key];
+    return `
+      <div class="vsp-field">
+        <label class="vsp-field-label">${escapeHtml(info.label)}${info.hint ? ` <small>${escapeHtml(info.hint)}</small>` : ''}</label>
+        <p class="vsp-field-desc">${escapeHtml(info.desc)}</p>
+        <input type="text" class="vsp-time-input" data-key="${key}" inputmode="decimal" autocomplete="off" placeholder="es. 4,05" />
+      </div>
+    `;
+  }).join('');
+
+  const modeNote = mode === 'cronometro'
+    ? `
+      <div class="vsp-warning">
+        <p>Se hai solo il cronometro a mano, lascia perdere i 30 e usa 60 m e 150 m: su prove da 3-4 secondi l'errore della mano (0,15-0,2 s) vale il 5-7%, cioè più della differenza tra correre al 95% e al 100%. Su 150 m lo stesso errore è l'1%.</p>
+        <p><b>Alternativa:</b> video al rallentatore. Con un telefono a 240 fps e due riferimenti a terra la precisione è ottima, e ce l'hanno tutti in tasca: in quel caso scegli "Fotocellule".</p>
+      </div>`
+    : '';
+
+  const older = tests.slice(0, -1).reverse();
+  const historyKey = 'sprint-hist';
+  const historyMarkup = older.length
+    ? `
+      <details class="mtest-history" data-section-key="${historyKey}"${velSectionIsOpen(entry.id, historyKey, false) ? ' open' : ''}>
+        <summary class="mtest-history-summary">Storico (${older.length})</summary>
+        ${older.map((test) => {
+          const i = velSprintIndices(test);
+          const summary = test.mode === 'fotocellule'
+            ? `accel. ${velFormatIndex(i.accel)} · resist. ${velFormatIndex(i.resist)} · ${i.vmax.toFixed(2).replace('.', ',')} m/s`
+            : `${i.v60.toFixed(2).replace('.', ',')} / ${i.v150.toFixed(2).replace('.', ',')} m/s`;
+          const modeLabel = test.mode === 'fotocellule' ? 'Fotocellule' : 'Cronometro';
+          return `
+            <div class="vsp-hist-row">
+              <div>
+                <div class="vsp-hist-main">${VEL_SPRINT_KEYS[test.mode].map((key) => `${escapeHtml(VEL_SPRINT_TESTS[key].label)} ${velFormatSec(test[key])}`).join(' · ')}</div>
+                <div class="vsp-hist-sub">${escapeHtml(summary)} · ${modeLabel} · ${escapeHtml(test.date)}</div>
+              </div>
+              <button type="button" class="vsp-del" data-id="${escapeHtml(test.id)}" aria-label="Elimina questo test">${MTEST_DEL_ICON}</button>
+            </div>`;
+        }).join('')}
+      </details>`
+    : '';
+
+  return `
+    <details class="mtest-section" data-section-key="sprint"${velSectionIsOpen(entry.id, 'sprint', false) ? ' open' : ''}>
+      <summary class="mtest-section-summary">Test e profilo</summary>
+      <div class="mtest-section-body">
+        <p class="vsp-intro">Tre prove, tutte con fotocellule se le hai; col cronometro a mano scendi a due.</p>
+        <fieldset class="vsp-mode">
+          <legend>Come misuri i tempi?</legend>
+          ${radios}
+        </fieldset>
+        <div class="vsp-fields">${fieldsMarkup}</div>
+        ${modeNote}
+        <button type="button" class="vsp-save-btn" data-id="${escapeHtml(entry.id)}">Salva test</button>
+        ${latest ? velSprintLatestMarkup(latest, sameModeTests) : '<div class="vsp-empty">Nessun test registrato ancora.</div>'}
+        ${historyMarkup}
+        <table class="vsp-principles">
+          <caption>Come si ragiona con i test sprint</caption>
+          <tbody>
+            <tr><th>Il test serve a</th><td>ricavare i ritmi · capire dove l'atleta perde</td></tr>
+            <tr><th>Riferimento per i lavori</th><td>massimo sulla distanza stessa</td></tr>
+            <tr><th>Il recupero</th><td>costante, sempre completo</td></tr>
+            <tr><th>Il volume</th><td>è un tetto da non superare</td></tr>
+            <tr><th>Criterio di stop</th><td>cali del 3%, chiudi</td></tr>
+          </tbody>
+        </table>
+        <p class="vsp-footnote">I test vanno rifatti ogni 4-6 settimane: la forma di uno sprinter cambia in fretta. Oltre le 6 settimane compare "Da rifare".</p>
+      </div>
+    </details>
+  `;
+}
+
+async function handleVelSprintSave(button) {
+  const item = button.closest('.athlete-item');
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === button.dataset.id);
+  if (index === -1) {
+    return;
+  }
+  const mode = entries[index].sprintMode;
+  const times = {};
+  for (const key of VEL_SPRINT_KEYS[mode]) {
+    const input = item.querySelector(`.vsp-time-input[data-key="${key}"]`);
+    const value = VelocistiCalc.parseSprintTime(input.value, key);
+    if (value === null) {
+      const [lo, hi] = VelocistiCalc.SPRINT_TIME_RANGES[key];
+      alert(`Inserisci un tempo valido per ${VEL_SPRINT_TESTS[key].label} (tra ${lo} e ${hi} secondi).`);
+      input.focus();
+      return;
+    }
+    times[key] = value;
+  }
+  const now = getNowParts();
+  const test = {
+    id: `vs-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    mode,
+    ...times,
+    date: shortYearDate(now.date),
+    createdAt: now.iso,
+  };
+  entries[index] = { ...entries[index], sprintTests: [...entries[index].sprintTests, test] };
+  await saveVelocisti(entries);
+  renderVelocisti();
+  showToast('Salvato!');
+}
+
+async function handleVelSprintDelete(button) {
+  const item = button.closest('.athlete-item');
+  const entryId = item.dataset.id;
+  const confirmed = await showConfirm('Eliminare questo test?', {
+    detail: "L'operazione non è reversibile.",
+    confirmText: 'Elimina',
+  });
+  if (!confirmed) {
+    return;
+  }
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === entryId);
+  if (index === -1) {
+    return;
+  }
+  entries[index] = { ...entries[index], sprintTests: entries[index].sprintTests.filter((test) => test.id !== button.dataset.id) };
+  await saveVelocisti(entries);
+  renderVelocisti();
+  showToast('Eliminato!');
 }
 
 function createVelocistaEditForm(entry) {
@@ -3837,6 +4222,18 @@ async function handleVelListClick(event) {
     return;
   }
 
+  const sprintSaveButton = event.target.closest('.vsp-save-btn');
+  if (sprintSaveButton) {
+    await handleVelSprintSave(sprintSaveButton);
+    return;
+  }
+
+  const sprintDelButton = event.target.closest('.vsp-del');
+  if (sprintDelButton) {
+    await handleVelSprintDelete(sprintDelButton);
+    return;
+  }
+
   if (notesClearButton) {
     await handleVelNotesClear(notesClearButton);
     return;
@@ -3924,6 +4321,7 @@ async function handleVelListClick(event) {
     const projectionButtonEl = item.querySelector('.projection-toggle');
     if (projectionPanel && !projectionPanel.hidden) {
       projectionPanel.hidden = true;
+      velExpandedPanels.delete(item.dataset.id);
       if (projectionButtonEl) {
         projectionButtonEl.setAttribute('aria-expanded', 'false');
         projectionButtonEl.style.transform = 'rotate(0deg)';
@@ -3974,7 +4372,10 @@ async function handleVelListClick(event) {
     panel.hidden = !nextExpanded;
     projectionButton.style.transform = nextExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
     if (nextExpanded) {
+      velExpandedPanels.add(item.dataset.id);
       scrollCardIntoView(item);
+    } else {
+      velExpandedPanels.delete(item.dataset.id);
     }
   }
 }
@@ -3982,6 +4383,11 @@ async function handleVelListClick(event) {
 velList.addEventListener('click', handleVelListClick);
 velList.addEventListener('submit', handleVelEditSubmit);
 velList.addEventListener('input', (event) => {
+  const timeInput = event.target.closest('.vsp-time-input');
+  if (timeInput) {
+    timeInput.value = timeInput.value.replace('.', ',').replace(/[^0-9,]/g, '').replace(/,(?=.*,)/g, '').slice(0, 6);
+    return;
+  }
   const input = event.target.closest('.notes-input');
   if (!input) {
     return;
@@ -3989,6 +4395,35 @@ velList.addEventListener('input', (event) => {
   const button = input.closest('.notes-block').querySelector('.notes-btn');
   button.disabled = input.value.trim() === '';
 });
+
+// Scelta fotocellule/cronometro: cambia i test mostrati e va ricordata per atleta.
+velList.addEventListener('change', async (event) => {
+  const radio = event.target.closest('.vsp-mode-input');
+  if (!radio) {
+    return;
+  }
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === radio.dataset.id);
+  if (index === -1) {
+    return;
+  }
+  entries[index] = { ...entries[index], sprintMode: radio.value };
+  await saveVelocisti(entries);
+  renderVelocisti();
+});
+
+// Ricorda quali sezioni <details> della card sono aperte (vedi velSectionOpen);
+// "toggle" non garantisce il bubbling su tutti i motori, per questo la cattura.
+velList.addEventListener('toggle', (event) => {
+  const details = event.target;
+  if (!(details instanceof HTMLDetailsElement) || !details.dataset.sectionKey) {
+    return;
+  }
+  const card = details.closest('.athlete-item');
+  if (card) {
+    velSectionOpen.set(`${card.dataset.id}:${details.dataset.sectionKey}`, details.open);
+  }
+}, true);
 
 function velSyncFilterChips() {
   setChipGroupSelection(velSpecialtyChips, velActiveSpecialty);
