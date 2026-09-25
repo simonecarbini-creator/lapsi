@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-25d';
-console.log('[Lapsi] build', APP_BUILD, '— placeholder diversi per ogni test sprint');
+const APP_BUILD = '2026-09-25e';
+console.log('[Lapsi] build', APP_BUILD, '— Velocisti: gare in card chiusa (discipline di velocità), tolto "nessun risultato"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -3229,6 +3229,216 @@ function normalizeVelTest(record) {
   };
 }
 
+// ----- Gare velocisti (card Velocisti) -----
+// Stessa idea delle gare dei Master (form + elenco nella sezione "Gare",
+// risultati migliori nella card chiusa) ma sulle discipline della velocità.
+// Il vento è facoltativo (m/s), come nei risultati cronometrati già presenti.
+const VEL_RACE_TYPES = [
+  ['60', '60 m'],
+  ['100', '100 m'],
+  ['200', '200 m'],
+  ['400', '400 m'],
+  ['60hs', '60 hs'],
+  ['100hs', '100 hs'],
+  ['110hs', '110 hs'],
+  ['400hs', '400 hs'],
+  ['4x100', '4x100'],
+  ['4x400', '4x400'],
+];
+const VEL_RACE_LABELS = Object.fromEntries(VEL_RACE_TYPES);
+
+let velRaceEditing = new Map();
+
+function normalizeVelRaceResult(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const type = String(record.type || '');
+  const result = String(record.result || '').trim();
+  if (!VEL_RACE_LABELS[type] || !result) {
+    return null;
+  }
+  return {
+    id: record.id || `vrace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    result,
+    date: String(record.date || ''),
+    location: String(record.location || '').trim(),
+    wind: String(record.wind || '').trim(),
+    createdAt: record.createdAt || new Date(0).toISOString(),
+  };
+}
+
+// "10,45" -> 10.45 ; "1:02,34" -> 62.34 ; null se il formato non torna.
+function velRaceSeconds(result) {
+  const match = /^(?:(\d+):)?(\d{1,2}),(\d{2})$/.exec(String(result || '').trim());
+  if (!match) {
+    return null;
+  }
+  return (match[1] ? Number(match[1]) * 60 : 0) + Number(match[2]) + Number(match[3]) / 100;
+}
+
+function velRaceMeta(race) {
+  return [race.location, shortYearDate(race.date), race.wind ? `${race.wind} m/s` : '']
+    .filter(Boolean).map(escapeHtml).join(' · ');
+}
+
+// Card chiusa: per ogni disciplina il miglior tempo (a parità il più
+// recente), al massimo 6 discipline — quelle con la gara più recente — in
+// ordine di disciplina. Senza gare non compare niente.
+function velRaceSummaryMarkup(entry) {
+  const best = new Map();
+  (entry.raceResults || []).forEach((race) => {
+    const seconds = velRaceSeconds(race.result);
+    if (seconds === null) {
+      return;
+    }
+    const current = best.get(race.type);
+    const date = parseItDate(race.date) || 0;
+    if (!current || seconds < current.seconds || (seconds === current.seconds && date > current.date)) {
+      best.set(race.type, { race, seconds, date });
+    }
+  });
+  const chosen = [...best.values()].sort((a, b) => b.date - a.date).slice(0, 6);
+  if (!chosen.length) {
+    return '';
+  }
+  const rows = VEL_RACE_TYPES
+    .map(([type]) => chosen.find((item) => item.race.type === type))
+    .filter(Boolean)
+    .map(({ race }) => `
+      <div class="v2-race-row">
+        <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(VEL_RACE_LABELS[race.type])}</span></span>
+        <span class="v2-race-time-block">
+          <span class="v2-race-result">${escapeHtml(race.result)}</span>
+          <span class="v2-race-meta">${velRaceMeta(race)}</span>
+        </span>
+      </div>
+    `).join('');
+  return `<div class="v2-race-list">${rows}</div>`;
+}
+
+function velRacesSectionMarkup(entry) {
+  const results = [...(entry.raceResults || [])]
+    .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0));
+  const editingId = velRaceEditing.get(entry.id) || null;
+  const editingRace = editingId ? results.find((race) => race.id === editingId) : null;
+
+  const listMarkup = results.length
+    ? results.map((race) => `
+        <div class="race-entry${race.id === editingId ? ' race-entry-editing' : ''}">
+          <span class="race-entry-type">${escapeHtml(VEL_RACE_LABELS[race.type] || race.type)}</span>
+          <span class="race-entry-result">${escapeHtml(race.result)}</span>
+          <span class="race-entry-meta">${velRaceMeta(race) || '—'}</span>
+          <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
+          <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
+        </div>
+      `).join('')
+    : '<div class="race-empty">Nessuna gara ancora aggiunta.</div>';
+
+  const defaultType = editingRace ? editingRace.type : VEL_RACE_TYPES[1][0];
+  const resultDigits = editingRace ? editingRace.result.replace(/[^0-9]/g, '') : '';
+  const typeOptions = VEL_RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === defaultType ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  const cancelBtn = editingId
+    ? `<button type="button" class="race-cancel-btn" data-id="${entry.id}" aria-label="Annulla modifica" title="Annulla modifica">${MTEST_CLOSE_ICON}</button>`
+    : '';
+
+  return `
+    <div class="race-form" data-id="${entry.id}"${editingId ? ` data-editing-id="${escapeHtml(editingId)}"` : ''}>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Disciplina</label>
+          <select class="race-type-input">${typeOptions}</select>
+        </div>
+        <div class="field-group">
+          <label>Risultato</label>
+          <input type="text" inputmode="numeric" autocomplete="off" class="race-result-input" data-digits="${resultDigits}" value="${escapeHtml(formatRaceResultMask(resultDigits, defaultType))}" placeholder="10,45" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Data</label>
+          <input type="date" class="race-date-input" value="${editingRace ? itDateToIso(editingRace.date) : ''}" />
+        </div>
+        <div class="field-group">
+          <label>Luogo</label>
+          <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.location : '')}" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Vento (m/s, facoltativo)</label>
+          <input type="text" inputmode="decimal" class="race-wind-input" placeholder="es. +1,2" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.wind : '')}" />
+        </div>
+      </div>
+      <div class="race-form-actions">
+        <button type="button" class="race-add-btn" data-id="${entry.id}">${editingId ? MTEST_CHECK_ICON : MTEST_PLUS_ICON} ${editingId ? 'Salva modifiche' : 'Aggiungi gara'}</button>
+        ${cancelBtn}
+      </div>
+    </div>
+    <div class="race-list">${listMarkup}</div>
+  `;
+}
+
+async function handleVelRaceAdd(addBtn) {
+  const form = addBtn.closest('.race-form');
+  const athleteId = form.dataset.id;
+  const editingId = form.dataset.editingId || null;
+  const result = form.querySelector('.race-result-input').value.trim();
+  const dateIso = form.querySelector('.race-date-input').value;
+  if (!result || !dateIso) {
+    alert('Inserisci almeno il risultato e la data.');
+    return;
+  }
+  const seconds = velRaceSeconds(result);
+  if (seconds === null || seconds < 5 || seconds > 600) {
+    alert('Risultato non valido: usa il formato 10,45 oppure 1:02,34.');
+    return;
+  }
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  const raceData = {
+    type: form.querySelector('.race-type-input').value,
+    result,
+    date: isoDateToIt(dateIso),
+    location: form.querySelector('.race-location-input').value.trim(),
+    wind: form.querySelector('.race-wind-input').value.trim(),
+  };
+  const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
+  const nextList = editingId
+    ? currentList.map((race) => (race.id === editingId ? { ...race, ...raceData } : race))
+    : [...currentList, {
+      id: `vrace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      ...raceData,
+      createdAt: new Date().toISOString(),
+    }];
+  entries[index] = { ...entries[index], raceResults: nextList };
+  await saveVelocisti(entries);
+  velRaceEditing.delete(athleteId);
+  renderVelocisti();
+  showToast('Salvato!');
+}
+
+async function handleVelRaceDelete(delBtn) {
+  const athleteId = delBtn.closest('.athlete-item').dataset.id;
+  const raceId = delBtn.dataset.id;
+  const entries = getVelocisti();
+  const index = entries.findIndex((entry) => entry.id === athleteId);
+  if (index === -1) {
+    return;
+  }
+  const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
+  entries[index] = { ...entries[index], raceResults: currentList.filter((race) => race.id !== raceId) };
+  await saveVelocisti(entries);
+  if (velRaceEditing.get(athleteId) === raceId) {
+    velRaceEditing.delete(athleteId);
+  }
+  renderVelocisti();
+}
+
 // Una sessione di test sprint. Fotocellule/video: 30 m da fermo, 30 m
 // lanciati, 150 m. Cronometro a mano: 60 m e 150 m. Tempi in secondi.
 const VEL_SPRINT_KEYS = { fotocellule: ['t30f', 't30l', 't150'], cronometro: ['t60', 't150'] };
@@ -3273,6 +3483,7 @@ function normalizeVelocista(entry) {
     tests: Array.isArray(entry.tests) ? entry.tests.map(normalizeVelTest).filter(Boolean) : [],
     sprintMode: VEL_SPRINT_KEYS[entry.sprintMode] ? entry.sprintMode : 'fotocellule',
     sprintTests: Array.isArray(entry.sprintTests) ? entry.sprintTests.map(normalizeVelSprintTest).filter(Boolean) : [],
+    raceResults: Array.isArray(entry.raceResults) ? entry.raceResults.map(normalizeVelRaceResult).filter(Boolean) : [],
     notes: normalizeNotes(entry.notes),
   };
 }
@@ -3519,21 +3730,7 @@ function renderVelocisti() {
 
     const results = [...entry.results].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
     const tests = [...entry.tests].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
-    const timedResults = results.filter((r) => parseTimeToSeconds(r.time) > 0);
-    const bestResult = timedResults.length
-      ? timedResults.reduce((best, r) => (parseTimeToSeconds(r.time) < parseTimeToSeconds(best.time) ? r : best))
-      : null;
-
-    const pb = '<span class="v2-pb">PB</span>';
-    const resultTile = bestResult ? `
-      <div class="v2-tile">
-        <div class="v2-tile-head"><span class="v2-tile-ic">${runnerIcon(15)}</span>Corsa ${pb}</div>
-        <div class="v2-tile-val">${escapeHtml(bestResult.time)}</div>
-        <div class="v2-tile-sub">${escapeHtml(bestResult.activity)} · ${escapeHtml(shortYearDate(bestResult.date || ''))}${bestResult.wind ? ` · ${escapeHtml(bestResult.wind)} m/s` : ''}</div>
-      </div>` : '';
-    const tilesMarkup = resultTile
-      ? `<div class="v2-tiles">${resultTile}</div>`
-      : '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato registrato</div></div>';
+    const tilesMarkup = velRaceSummaryMarkup(entry);
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
@@ -3612,6 +3809,7 @@ function renderVelocisti() {
 
     panel.innerHTML = `
       ${velSprintSectionMarkup(entry)}
+      ${velRacesAccordionMarkup(entry)}
       <div class="time-history">
         <div class="history-header">Risultati</div>
         ${resultsHistoryMarkup}
@@ -3929,6 +4127,17 @@ function velSprintSectionMarkup(entry) {
   `;
 }
 
+function velRacesAccordionMarkup(entry) {
+  return `
+    <details class="mtest-section" data-section-key="races"${velSectionIsOpen(entry.id, 'races', false) ? ' open' : ''}>
+      <summary class="mtest-section-summary">Gare</summary>
+      <div class="mtest-section-body">
+        ${velRacesSectionMarkup(entry)}
+      </div>
+    </details>
+  `;
+}
+
 async function handleVelSprintSave(button) {
   const item = button.closest('.athlete-item');
   const entries = getVelocisti();
@@ -4238,6 +4447,32 @@ async function handleVelListClick(event) {
     return;
   }
 
+  const raceAddButton = event.target.closest('.race-add-btn');
+  if (raceAddButton) {
+    await handleVelRaceAdd(raceAddButton);
+    return;
+  }
+
+  const raceDelButton = event.target.closest('.race-entry-del');
+  if (raceDelButton) {
+    await handleVelRaceDelete(raceDelButton);
+    return;
+  }
+
+  const raceEditButton = event.target.closest('.race-entry-edit');
+  if (raceEditButton) {
+    velRaceEditing.set(raceEditButton.closest('.athlete-item').dataset.id, raceEditButton.dataset.id);
+    renderVelocisti();
+    return;
+  }
+
+  const raceCancelButton = event.target.closest('.race-cancel-btn');
+  if (raceCancelButton) {
+    velRaceEditing.delete(raceCancelButton.dataset.id);
+    renderVelocisti();
+    return;
+  }
+
   if (notesClearButton) {
     await handleVelNotesClear(notesClearButton);
     return;
@@ -4387,6 +4622,20 @@ async function handleVelListClick(event) {
 velList.addEventListener('click', handleVelListClick);
 velList.addEventListener('submit', handleVelEditSubmit);
 velList.addEventListener('input', (event) => {
+  const raceResultInput = event.target.closest('.race-result-input');
+  if (raceResultInput) {
+    const type = masterRaceResultType(raceResultInput);
+    raceResultInput.dataset.digits = raceResultInput.value.replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
+    raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, type);
+    const end = raceResultInput.value.length;
+    raceResultInput.setSelectionRange(end, end);
+    return;
+  }
+  const windInput = event.target.closest('.race-wind-input');
+  if (windInput) {
+    windInput.value = windInput.value.replace('.', ',').replace(/[^0-9,+-]/g, '').slice(0, 5);
+    return;
+  }
   const timeInput = event.target.closest('.vsp-time-input');
   if (timeInput) {
     timeInput.value = timeInput.value.replace('.', ',').replace(/[^0-9,]/g, '').replace(/,(?=.*,)/g, '').slice(0, 6);
@@ -4400,8 +4649,29 @@ velList.addEventListener('input', (event) => {
   button.disabled = input.value.trim() === '';
 });
 
+// Backspace sul risultato gara: toglie l'ultima cifra invece del carattere
+// (i separatori sono automatici, come per le gare dei Master).
+velList.addEventListener('keydown', (event) => {
+  const raceResultInput = event.target.closest('.race-result-input');
+  if (!raceResultInput || (event.key !== 'Backspace' && event.key !== 'Delete')) {
+    return;
+  }
+  event.preventDefault();
+  raceResultInput.dataset.digits = (raceResultInput.dataset.digits || '').slice(0, -1);
+  raceResultInput.value = formatRaceResultMask(raceResultInput.dataset.digits, masterRaceResultType(raceResultInput));
+  const end = raceResultInput.value.length;
+  raceResultInput.setSelectionRange(end, end);
+});
+
 // Scelta fotocellule/cronometro: cambia i test mostrati e va ricordata per atleta.
 velList.addEventListener('change', async (event) => {
+  const raceTypeInput = event.target.closest('.race-type-input');
+  if (raceTypeInput) {
+    const resultInput = raceTypeInput.closest('.race-form').querySelector('.race-result-input');
+    resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
+    resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
+    return;
+  }
   const radio = event.target.closest('.vsp-mode-input');
   if (!radio) {
     return;
@@ -4727,6 +4997,9 @@ const RACE_TYPE_LABELS = Object.fromEntries(RACE_TYPES);
 const RACE_LONG_TYPES = new Set(['100k', '50k', 'maratona', 'mezza']);
 
 function raceResultMaxDigits(type) {
+  if (VEL_RACE_LABELS[type]) {
+    return 5;
+  }
   return RACE_LONG_TYPES.has(type) ? 6 : 4;
 }
 
@@ -4736,6 +5009,17 @@ function raceResultMaxDigits(type) {
 // cifre, poi ' e " come al solito.
 function formatRaceResultMask(digits, type) {
   const d = String(digits || '').replace(/[^0-9]/g, '').slice(0, raceResultMaxDigits(type));
+  // Velocità: gli ultimi due numeri sono i centesimi (1045 -> 10,45; 958 ->
+  // 9,58; 10234 -> 1:02,34). Nessuna cifra aggiunta dalla maschera (come per
+  // gli altri formati): il valore mostrato contiene solo le cifre digitate,
+  // altrimenti a ogni tasto si accumulerebbero zeri.
+  if (VEL_RACE_LABELS[type]) {
+    if (d.length <= 2) return d;
+    const hundredths = d.slice(-2);
+    const rest = d.slice(0, -2);
+    if (rest.length <= 2) return `${rest},${hundredths}`;
+    return `${rest.slice(0, -2)}:${rest.slice(-2)},${hundredths}`;
+  }
   if (RACE_LONG_TYPES.has(type)) {
     if (d.length <= 2) return d;
     if (d.length <= 4) return `${d.slice(0, 2)}h${d.slice(2)}`;
