@@ -346,27 +346,47 @@ button, input {
   padding: 4px;
 }
 
-.mil-ath-list {
+/* Elenco compatto (una riga per atleta: nome, tempi, cestino) al posto delle
+   card per atleta — qui sono solo numeri da leggere o comunicare in fretta,
+   non serve la stessa resa visiva del simulatore nella card Master. */
+.mil-ath-compact-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
   margin-top: 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  overflow: hidden;
 }
 
-.mil-ath-row {
-  padding: 10px;
-  border-radius: 14px;
-  border: 1px solid var(--card-border);
+.mil-ath-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
   background: var(--bg-strong);
 }
 
-.mil-ath-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.9rem;
+.mil-ath-compact-row + .mil-ath-compact-row {
+  border-top: 1px dotted var(--card-border);
+}
+
+.mil-ath-compact-name {
+  flex: 0 0 auto;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mil-ath-compact-times {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
 }
 
 .mil-ath-del {

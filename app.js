@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05b';
-console.log('[Lapsi] build', APP_BUILD, '— simulatore ripetute militari: passo dall\'ultimo risultato, non dal migliore');
+const APP_BUILD = '2026-10-05c';
+console.log('[Lapsi] build', APP_BUILD, '— simulatore ripetute militari: elenco atleti compatto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8376,6 +8376,41 @@ function milSeriesEditorMarkup() {
   `;
 }
 
+// Tempi di un blocco in testo compatto — "1′24″" se il blocco ha una sola
+// distanza, "400m 1′24″ · 600m 2′10″" se ne ha più di una — invece dei
+// riquadri grandi usati nella card Master: qui sono solo numeri da leggere
+// o dettare a voce, non c'è bisogno della stessa resa visiva.
+function milCompactBlockTimes(block, T, totalKm) {
+  const distances = masterSeriesParseDistances(block.dist);
+  const rec = seriesParseRecSeconds(block.recDigits);
+  if (!distances.length || !rec) {
+    return 'blocco incompleto';
+  }
+  const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
+  return distances
+    .map((dist) => {
+      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
+      const time = RipeteCalc.formatSeconds(seconds);
+      return distances.length > 1 ? `${dist}m ${time}` : time;
+    })
+    .join(' · ');
+}
+
+// Una riga per atleta: nome + tempi di tutti i blocchi (separati da "/" se
+// sono più di uno) + la "x" per toglierlo dall'elenco, invece della card
+// intera per atleta — elenco più snello, pensato per essere letto o
+// comunicato in fretta.
+function milAthleteCompactRowMarkup(athlete, blocks, totalKm) {
+  const timesText = blocks.map((block) => milCompactBlockTimes(block, athlete.T, totalKm)).join(' / ');
+  return `
+    <div class="mil-ath-compact-row" data-ath="${escapeHtml(athlete.id)}">
+      <span class="mil-ath-compact-name">${escapeHtml(athlete.name)}</span>
+      <span class="mil-ath-compact-times">${escapeHtml(timesText)}</span>
+      <button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>
+    </div>
+  `;
+}
+
 function milSeriesResultsMarkup() {
   const state = milSeriesState;
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
@@ -8389,15 +8424,7 @@ function milSeriesResultsMarkup() {
 
   const athletes = milActiveAthletesWithPace().filter((athlete) => !state.removedAthletes.has(athlete.id));
   const athletesMarkup = athletes.length
-    ? athletes.map((athlete) => `
-        <div class="mil-ath-row" data-ath="${escapeHtml(athlete.id)}">
-          <div class="mil-ath-head">
-            <b>${escapeHtml(athlete.name)}</b>
-            <button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>
-          </div>
-          ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, athlete.T, totalKm)}`).join('')}
-        </div>
-      `).join('')
+    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, state.blocks, totalKm)).join('')}</div>`
     : '<div class="mil-ath-empty">Nessun atleta ancora in corso con un risultato di corsa registrato.</div>';
 
   return `
