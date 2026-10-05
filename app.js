@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05g';
-console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: voci manuali dentro il mese; simulatore militari con storico tempi');
+const APP_BUILD = '2026-10-06a';
+console.log('[Lapsi] build', APP_BUILD, '— fix: data del concorso non più sovrascritta aggiungendo un nuovo risultato');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -2445,9 +2445,29 @@ async function handleEditSubmit(event) {
   const added = [];
 
   // Data del nuovo risultato: se la checkbox "Cambia data del risultato" è
-  // flaggata si usa la data scelta (per date / createdAt / concorsoDate),
-  // altrimenti oggi.
+  // flaggata si usa la data scelta (per date/createdAt del risultato stesso),
+  // altrimenti oggi. Non ha niente a che fare con la data del CONCORSO (vedi
+  // effectiveConcorso sotto): sono due date indipendenti — quando è stato
+  // ottenuto il risultato contro quando è/era il concorso.
   const resultDate = (prefix) => resultDateFrom(editForm, prefix, now);
+
+  // Data di concorso valida per questo salvataggio: quella scelta in
+  // Anagrafica, o se il campo non è stato toccato quella già sul record più
+  // recente (così resta quella che l'utente vede precompilata, non "oggi").
+  // Usata sia per aggiornare il vecchio record più recente sia per QUALSIASI
+  // nuovo risultato aggiunto in questo stesso salvataggio — prima un nuovo
+  // risultato prendeva sempre la data di oggi come concorsoDate, scavalcando
+  // una data di concorso futura impostata nello stesso form e facendo
+  // scattare il popup "come è andata" troppo presto.
+  const latestBeforeEdit = getLatestAthleteTime(athletes[targetIndex]);
+  let effectiveConcorso = latestBeforeEdit ? latestBeforeEdit.concorsoDate : shortYearDate(now.date);
+  const concorsoInput = editForm.querySelector('[name="edit-concorso-date"]');
+  if (concorsoInput && concorsoInput.value) {
+    const concorsoParts = concorsoInput.value.split('-');
+    if (concorsoParts.length === 3) {
+      effectiveConcorso = `${concorsoParts[2]}/${concorsoParts[1]}/${concorsoParts[0].slice(-2)}`;
+    }
+  }
 
   const newTime = formatTimeFromParts({
     hours: editVal('edit-nt-hours'),
@@ -2464,7 +2484,7 @@ async function handleEditSubmit(event) {
       date: rd.date,
       timeInserted: now.time,
       createdAt: rd.iso,
-      concorsoDate: rd.concorso,
+      concorsoDate: effectiveConcorso,
     });
   }
 
@@ -2483,7 +2503,7 @@ async function handleEditSubmit(event) {
       date: rd.date,
       timeInserted: now.time,
       createdAt: rd.iso,
-      concorsoDate: rd.concorso,
+      concorsoDate: effectiveConcorso,
       takeoffFoot,
       jumpHeight: `${jumpM}.${pad(jumpCm)}`,
     });
@@ -2553,18 +2573,14 @@ async function handleEditSubmit(event) {
     }
   });
 
-  // Data del concorso (Anagrafica): aggiorna il concorsoDate del record che era il
-  // più recente all'apertura del form (quello mostrato sulla card).
-  const concorsoInput = editForm.querySelector('[name="edit-concorso-date"]');
-  if (concorsoInput && concorsoInput.value) {
-    const latestBefore = getLatestAthleteTime(athletes[targetIndex]);
-    const parts = concorsoInput.value.split('-');
-    if (latestBefore && parts.length === 3) {
-      const newConcorso = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
-      const targetRecord = times.find((record) => record.id === latestBefore.id);
-      if (targetRecord && targetRecord.concorsoDate !== newConcorso) {
-        targetRecord.concorsoDate = newConcorso;
-      }
+  // Data del concorso (Anagrafica): aggiorna il concorsoDate del record che era
+  // il più recente all'apertura del form (quello mostrato sulla card) con la
+  // stessa effectiveConcorso già usata sopra per gli eventuali nuovi risultati
+  // — così restano coerenti tra loro qualunque cosa sia stata aggiunta.
+  if (latestBeforeEdit) {
+    const targetRecord = times.find((record) => record.id === latestBeforeEdit.id);
+    if (targetRecord && targetRecord.concorsoDate !== effectiveConcorso) {
+      targetRecord.concorsoDate = effectiveConcorso;
     }
   }
 
