@@ -384,9 +384,52 @@ button, input {
 .mil-ath-compact-times {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
+}
+
+/* Ogni distanza resta un gruppo (punto in mezzo), i blocchi diversi hanno un
+   trattino verticale tra loro — ma soprattutto ogni "distanza tempo" è un
+   blocco unico che non si spezza mai andando a capo (vedi .mil-time-pair). */
+.mil-block-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.mil-time-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  white-space: nowrap;
+  padding: 1px 3px;
+}
+
+.mil-time-pair b {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mil-time-pair-invalid {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.mil-pair-sep {
+  color: var(--muted);
+}
+
+.mil-block-sep {
+  width: 1px;
+  height: 14px;
+  flex-shrink: 0;
+  background: var(--card-border);
+  margin: 0 5px;
 }
 
 .mil-ath-del {

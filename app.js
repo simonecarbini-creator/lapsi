@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05c';
-console.log('[Lapsi] build', APP_BUILD, '— simulatore ripetute militari: elenco atleti compatto');
+const APP_BUILD = '2026-10-05d';
+console.log('[Lapsi] build', APP_BUILD, '— elenco ripetute militari: distanza sempre incollata al tempo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8376,36 +8376,36 @@ function milSeriesEditorMarkup() {
   `;
 }
 
-// Tempi di un blocco in testo compatto — "1′24″" se il blocco ha una sola
-// distanza, "400m 1′24″ · 600m 2′10″" se ne ha più di una — invece dei
-// riquadri grandi usati nella card Master: qui sono solo numeri da leggere
-// o dettare a voce, non c'è bisogno della stessa resa visiva.
-function milCompactBlockTimes(block, T, totalKm) {
+// Tempi di un blocco, uno "span" per distanza con l'etichetta sempre
+// incollata al tempo (es. "400m 1′24″") — mai solo il tempo nudo, altrimenti
+// a riga già fatta non si capisce più a quale distanza si riferisce,
+// soprattutto se il testo va a capo in mezzo a un gruppo.
+function milCompactBlockPairs(block, T, totalKm) {
   const distances = masterSeriesParseDistances(block.dist);
   const rec = seriesParseRecSeconds(block.recDigits);
   if (!distances.length || !rec) {
-    return 'blocco incompleto';
+    return ['<span class="mil-time-pair mil-time-pair-invalid">blocco incompleto</span>'];
   }
   const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
-  return distances
-    .map((dist) => {
-      const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
-      const time = RipeteCalc.formatSeconds(seconds);
-      return distances.length > 1 ? `${dist}m ${time}` : time;
-    })
-    .join(' · ');
+  return distances.map((dist) => {
+    const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
+    const time = escapeHtml(RipeteCalc.formatSeconds(seconds));
+    return `<span class="mil-time-pair"><b>${dist}m</b> ${time}</span>`;
+  });
 }
 
-// Una riga per atleta: nome + tempi di tutti i blocchi (separati da "/" se
-// sono più di uno) + la "x" per toglierlo dall'elenco, invece della card
-// intera per atleta — elenco più snello, pensato per essere letto o
-// comunicato in fretta.
+// Le distanze di uno stesso blocco restano un gruppo visivo (separate da un
+// punto), i blocchi diversi da un trattino verticale — sempre tra una coppia
+// e l'altra, mai dentro, così "distanza" e "tempo" non si separano mai anche
+// quando il testo va a capo.
 function milAthleteCompactRowMarkup(athlete, blocks, totalKm) {
-  const timesText = blocks.map((block) => milCompactBlockTimes(block, athlete.T, totalKm)).join(' / ');
+  const timesHtml = blocks
+    .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm).join('<span class="mil-pair-sep">·</span>')}</span>`)
+    .join('<span class="mil-block-sep" aria-hidden="true"></span>');
   return `
     <div class="mil-ath-compact-row" data-ath="${escapeHtml(athlete.id)}">
       <span class="mil-ath-compact-name">${escapeHtml(athlete.name)}</span>
-      <span class="mil-ath-compact-times">${escapeHtml(timesText)}</span>
+      <span class="mil-ath-compact-times">${timesHtml}</span>
       <button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>
     </div>
   `;
