@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-09-26g';
-console.log('[Lapsi] build', APP_BUILD, '— nome dell\'allenamento e storico collassato');
+const APP_BUILD = '2026-10-05a';
+console.log('[Lapsi] build', APP_BUILD, '— card militari senza proiezioni al km, simulatore ripetute per i militari');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -173,6 +173,7 @@ function setMenuOpen(open) {
 // alla home. "master" non ha ancora una gestione atleti propria: ospita solo
 // il calcolatore "Mezzofondo e fondo".
 const SECTION_SHELLS = { militari: militariShell, velocisti: velocistiShell, mezzofondo: mezzofondoShell, master: masterShell };
+let currentAppSection = null;
 
 function switchSection(section) {
   if (!SECTION_SHELLS[section]) {
@@ -183,6 +184,7 @@ function switchSection(section) {
   Object.entries(SECTION_SHELLS).forEach(([key, shell]) => {
     if (shell) shell.hidden = key !== section;
   });
+  currentAppSection = section;
   // Master e Mezzofondo condividono il codice: si passa all'istanza giusta.
   if (section === 'master' || section === 'mezzofondo') {
     masterUse(section);
@@ -325,39 +327,9 @@ function parseTimeToSeconds(timeString) {
   return hours * 3600 + minutes * 60 + seconds + tenths / 10;
 }
 
-function formatSecondsForDisplay(totalSeconds) {
-  const safeTotal = Number.isFinite(totalSeconds) ? Math.max(totalSeconds, 0) : 0;
-  const wholeSeconds = Math.floor(safeTotal);
-  const hours = Math.floor(wholeSeconds / 3600);
-  const minutes = Math.floor((wholeSeconds % 3600) / 60);
-  const seconds = wholeSeconds % 60;
-  const tenths = Math.round((safeTotal - wholeSeconds) * 10) % 10;
-
-  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}.${tenths}`;
-}
-
 function getActivityMeters(activityValue) {
   const selected = ACTIVITY_OPTIONS.find((option) => option.label === activityValue);
   return selected ? selected.meters : 1000;
-}
-
-function buildProjections(timeString, activity) {
-  const baseDistance = getActivityMeters(activity);
-  const totalSeconds = parseTimeToSeconds(timeString);
-
-  if (!totalSeconds) {
-    return [];
-  }
-
-  const distances = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];
-  const secondsPerMeter = totalSeconds / baseDistance;
-
-  return distances.map((distance) => ({
-    distance,
-    label: distance >= 1000 ? '1km' : `${distance}mt`,
-    time: formatSecondsForDisplay(distance * secondsPerMeter),
-    isBase: distance === baseDistance,
-  }));
 }
 
 function escapeHtml(value) {
@@ -1916,13 +1888,6 @@ function renderEntries() {
     const athleteTime = bestRun ? bestRun.time : (latestTime ? latestTime.time : '00:00:00.0');
     const athleteActivity = bestRun ? bestRun.activity : (latestTime ? latestTime.activity : entry.activity || '1km');
 
-    // Le proiezioni si basano sull'ultimo tempo di corsa registrato (non sul PB).
-    const lastTimedRun = timedRuns.length ? timedRuns[timedRuns.length - 1] : null;
-    const projectionBaseLabel = lastTimedRun ? (lastTimedRun.activity || '1km') : '1km';
-    const projections = lastTimedRun
-      ? buildProjections(lastTimedRun.time, projectionBaseLabel)
-      : [];
-
     const item = document.createElement('li');
     item.className = 'athlete-item card-v2';
 
@@ -2043,18 +2008,6 @@ function renderEntries() {
         `).join('')
       : '<div class="history-row history-empty"><span>Nessun risultato</span></div>';
 
-    const projectionsMarkup = projections.length ? `
-      <div class="projection-section">
-        <div class="projection-label">Proiezioni basate su ${escapeHtml(projectionBaseLabel)} attuale</div>
-        ${projections.map((projection) => `
-          <div class="projection-row${projection.isBase ? ' projection-row-base' : ''}">
-            <span>${projection.label}</span>
-            <strong>${projection.time}</strong>
-          </div>
-        `).join('')}
-      </div>
-    ` : '';
-
     panel.innerHTML = `
       <div class="time-history">
         <div class="history-header">Risultati</div>
@@ -2065,7 +2018,6 @@ function renderEntries() {
       </div>
       ${buildResultsChart(runHistory, jumpHistory)}
       ${buildNotesBlock(entry)}
-      ${projectionsMarkup}
     `;
 
     item.appendChild(panel);
@@ -8103,11 +8055,100 @@ function saveTrainingEntries(entries) {
   }
 }
 
+// Allenamenti salvati dal simulatore "Ripetute brevi" dei C. Militari: qui
+// dentro "Programma allenamento" compaiono raggruppati per mese, in automatico
+// — un accordion per mese (il mese in corso già aperto), senza riferimenti
+// agli atleti, solo nome e data di ciascun allenamento. I dati veri (blocchi,
+// atleti) restano nel simulatore; qui è solo un promemoria.
+const STORAGE_KEY_MIL_TRAININGS = 'lapsi-militari-trainings';
+const IT_MONTHS = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+
+function readMilTrainings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_MIL_TRAININGS);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed)
+      ? parsed.filter((t) => t && typeof t === 'object' && t.id && t.name && t.date)
+      : [];
+  } catch (error) {
+    console.warn('Errore lettura allenamenti ripetute (militari):', error);
+    return [];
+  }
+}
+
+function saveMilTrainings(list) {
+  try {
+    localStorage.setItem(STORAGE_KEY_MIL_TRAININGS, JSON.stringify(list));
+  } catch (error) {
+    console.error('Impossibile salvare gli allenamenti ripetute (militari):', error);
+  }
+}
+
+function milTrainingMonthKey(dateStr) {
+  const t = parseItDate(dateStr);
+  if (t === null) {
+    return '0000-00';
+  }
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function milTrainingMonthLabel(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  if (!year || !month) {
+    return 'Senza data';
+  }
+  const name = IT_MONTHS[month - 1] || '';
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
+}
+
+// Gruppi mese -> allenamenti, mese in corso (o più recente) per primo, voci
+// di ogni mese in ordine di data decrescente.
+function milTrainingsByMonth() {
+  const groups = new Map();
+  readMilTrainings().forEach((training) => {
+    const key = milTrainingMonthKey(training.date);
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(training);
+  });
+  return [...groups.entries()]
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .map(([key, trainings]) => ({
+      key,
+      label: milTrainingMonthLabel(key),
+      trainings: trainings.sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0)),
+    }));
+}
+
+function milTrainingMonthEntryMarkup(group, expanded) {
+  const chevron = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const rows = group.trainings.map((training) => `
+    <div class="mil-training-row">
+      <span class="mil-training-date">${escapeHtml(training.date)}</span>
+      <span class="mil-training-name" title="${escapeHtml(training.name)}">${escapeHtml(training.name)}</span>
+      <button type="button" class="mil-training-del" data-id="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
+    </div>
+  `).join('');
+  return `
+    <div class="training-entry training-entry-month" data-month="${escapeHtml(group.key)}">
+      <div class="training-entry-header">
+        <span class="training-entry-title training-entry-title-static">${escapeHtml(group.label)}</span>
+        <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi mese">${chevron}</button>
+      </div>
+      <div class="training-entry-body" ${expanded ? '' : 'hidden'}>
+        <div class="mil-training-list">${rows}</div>
+      </div>
+    </div>
+  `;
+}
+
 function collectTrainingEntriesFromDom() {
   if (!trainingNotesList) {
     return [];
   }
-  return [...trainingNotesList.querySelectorAll('.training-entry')].map((el) => ({
+  return [...trainingNotesList.querySelectorAll('.training-entry:not(.training-entry-month)')].map((el) => ({
     id: el.dataset.id,
     title: el.querySelector('.training-entry-title').value.trim(),
     html: sanitizeTrainingHtml(el.querySelector('.training-entry-editor').innerHTML),
@@ -8141,9 +8182,13 @@ function renderTrainingEntries(entries) {
   }
   trainingNotesList.innerHTML = '';
   trainingActiveEditor = null;
+  const monthGroups = milTrainingsByMonth();
+  monthGroups.forEach((group, index) => {
+    trainingNotesList.insertAdjacentHTML('beforeend', milTrainingMonthEntryMarkup(group, index === 0));
+  });
   const list = entries.length ? entries : [{ id: newTrainingEntryId(), title: '', html: '' }];
   list.forEach((entry, index) => {
-    trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: index === 0 }));
+    trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: monthGroups.length === 0 && index === 0 }));
   });
   const firstEditor = trainingNotesList.querySelector('.training-entry-editor');
   if (firstEditor) {
@@ -8230,6 +8275,22 @@ if (trainingNotesList) {
       return;
     }
 
+    const milDelBtn = event.target.closest('.mil-training-del');
+    if (milDelBtn) {
+      const row = milDelBtn.closest('.mil-training-row');
+      const trainingName = row.querySelector('.mil-training-name').textContent.trim() || 'questo allenamento';
+      const confirmed = await showConfirm(`Eliminare "${trainingName}"?`, {
+        detail: "L'operazione non è reversibile.",
+        confirmText: 'Elimina',
+      });
+      if (!confirmed) {
+        return;
+      }
+      saveMilTrainings(readMilTrainings().filter((t) => t.id !== milDelBtn.dataset.id));
+      renderTrainingEntries(readTrainingEntries());
+      return;
+    }
+
     if (delBtn) {
       const entryEl = delBtn.closest('.training-entry');
       const title = entryEl.querySelector('.training-entry-title').value.trim() || 'questa voce';
@@ -8250,6 +8311,311 @@ if (trainingNotesList) {
     const editor = event.target.closest('.training-entry-editor');
     if (editor && editor !== trainingActiveEditor) {
       trainingActiveEditor = editor;
+    }
+  });
+}
+
+// ===================== "Ripetute brevi" nei C. Militari =====================
+// Stesso costruttore a blocchi (reps × distanze, recupero, pause tra le
+// serie) del simulatore dentro ogni card Master — riusa le sue funzioni pure
+// (masterSeriesDefaultBlock, masterSeriesBlockRowMarkup, ecc., che prendono
+// solo "block" come argomento e non toccano lo stato di Master) ma applicato
+// a TUTTI gli atleti ancora in corso insieme, non a uno solo: non è legato a
+// nessuna card, vive nel suo overlay (#mil-series-overlay), aperto dal FAB
+// "Ripetute brevi" quando si è nella sezione C. Militari. Il simulatore
+// dentro la card Master resta quello com'è, non lo tocca in nessun punto.
+let milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set() };
+
+const milSeriesBackdrop = document.getElementById('mil-series-backdrop');
+const milSeriesOverlay = document.getElementById('mil-series-overlay');
+const milSeriesClose = document.getElementById('mil-series-close');
+const milSeriesBody = document.getElementById('mil-series-body');
+
+// Atleti ancora "in corso" (nessun esito concorso deciso) con un passo di
+// riferimento: il tempo equivalente sul 1000 ricavato dal loro miglior
+// risultato di corsa (stessa logica delle vecchie proiezioni — metri ÷
+// tempo — ma qui alimenta il simulatore invece di una tabella a parte).
+function milActiveAthletesWithPace() {
+  return getAthletes()
+    .filter((entry) => !entry.competitionResult)
+    .map((entry) => {
+      const best = getBestAthleteTime(entry);
+      if (!best) {
+        return null;
+      }
+      const seconds = parseTimeToSeconds(best.time);
+      const meters = getActivityMeters(best.activity || entry.activity || '1km');
+      if (!seconds || !meters) {
+        return null;
+      }
+      return { id: entry.id, name: `${entry.name} ${entry.surname}`.trim() || 'Atleta', T: Math.round((seconds / meters) * 1000) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.name.localeCompare(b.name, 'it'));
+}
+
+function milSeriesFindBlock(inputEl) {
+  return milSeriesState.blocks.find((b) => b.id === inputEl.dataset.blockId);
+}
+
+function milSeriesEditorMarkup() {
+  const blocksMarkup = milSeriesState.blocks
+    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
+    .join('');
+  return `
+    <div class="mil-series-panel">
+      <p class="vsp-intro">Configura l'allenamento: vale per tutti gli atleti ancora in corso, ciascuno sul proprio passo.</p>
+      <div class="mseries-blocks">${blocksMarkup}</div>
+      <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+      <button type="button" class="mseries-calc-btn" id="mil-series-calc-btn">Calcola serie</button>
+    </div>
+  `;
+}
+
+function milSeriesResultsMarkup() {
+  const state = milSeriesState;
+  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+  const rawKm = totalMeters / 1000;
+  const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
+  const usedVolumeSuffix = gapDeductionKm > 0
+    ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (pause lunghe)`
+    : '';
+
+  const athletes = milActiveAthletesWithPace().filter((athlete) => !state.removedAthletes.has(athlete.id));
+  const athletesMarkup = athletes.length
+    ? athletes.map((athlete) => `
+        <div class="mil-ath-row" data-ath="${escapeHtml(athlete.id)}">
+          <div class="mil-ath-head">
+            <b>${escapeHtml(athlete.name)}</b>
+            <button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>
+          </div>
+          ${state.blocks.map((block, index) => `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, athlete.T, totalKm)}`).join('')}
+        </div>
+      `).join('')
+    : '<div class="mil-ath-empty">Nessun atleta ancora in corso con un risultato di corsa registrato.</div>';
+
+  return `
+    <div class="mil-series-panel">
+      <div class="mseries-results">
+        <div class="mseries-total-row">
+          <div class="mseries-total">Volume: <b>${rawKm.toFixed(2).replace('.', ',')} km</b> (${totalReps} ripetute)${usedVolumeSuffix}</div>
+          <button type="button" class="mseries-reload-btn" id="mil-series-edit-btn" aria-label="Modifica allenamento" title="Modifica allenamento">✎</button>
+        </div>
+        <div class="mil-ath-list">${athletesMarkup}</div>
+        <button type="button" class="mseries-save-btn" id="mil-series-save-btn">${MTEST_CHECK_ICON} Salva allenamento</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderMilSeries() {
+  if (!milSeriesBody) {
+    return;
+  }
+  milSeriesBody.innerHTML = milSeriesState.showResults ? milSeriesResultsMarkup() : milSeriesEditorMarkup();
+}
+
+function openMilSeries() {
+  if (!milSeriesOverlay || !milSeriesBackdrop) {
+    return;
+  }
+  renderMilSeries();
+  milSeriesBackdrop.hidden = false;
+  milSeriesOverlay.hidden = false;
+  lockBodyScroll();
+}
+
+function closeMilSeries() {
+  if (!milSeriesOverlay || !milSeriesBackdrop) {
+    return;
+  }
+  milSeriesOverlay.hidden = true;
+  milSeriesBackdrop.hidden = true;
+  unlockBodyScroll();
+}
+
+if (milSeriesClose) {
+  milSeriesClose.addEventListener('click', closeMilSeries);
+}
+if (milSeriesBackdrop) {
+  milSeriesBackdrop.addEventListener('click', closeMilSeries);
+}
+
+// Nome dell'allenamento, poi via nello storico mensile di "Programma
+// allenamento" — senza riferimenti agli atleti, solo nome e data (vedi
+// milTrainingMonthEntryMarkup). Il simulatore torna a un blocco vuoto.
+async function handleMilSeriesSave() {
+  const defaultName = milSeriesState.blocks
+    .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
+    .join(' + ');
+  const name = await showPrompt("Nome dell'allenamento", {
+    detail: 'Lo ritroverai in Programma allenamento, nel mese in corso.',
+    placeholder: 'es. Ripetute 400',
+    defaultValue: defaultName,
+    confirmText: 'Salva',
+  });
+  if (name === null) {
+    return;
+  }
+  const now = getNowParts();
+  const training = {
+    id: `miltr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    date: shortYearDate(now.date),
+    createdAt: now.iso,
+  };
+  saveMilTrainings([...readMilTrainings(), training]);
+
+  milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set() };
+  renderMilSeries();
+  showToast('Allenamento salvato!');
+}
+
+if (milSeriesBody) {
+  milSeriesBody.addEventListener('click', async (event) => {
+    const addBlockBtn = event.target.closest('#mil-series-add-block');
+    if (addBlockBtn) {
+      milSeriesState.blocks.push(masterSeriesDefaultBlock());
+      renderMilSeries();
+      return;
+    }
+
+    const delBlockBtn = event.target.closest('.mseries-del-block-btn');
+    if (delBlockBtn && !delBlockBtn.disabled) {
+      milSeriesState.blocks = milSeriesState.blocks.filter((b) => b.id !== delBlockBtn.dataset.blockId);
+      renderMilSeries();
+      return;
+    }
+
+    const distSlashBtn = event.target.closest('.mseries-dist-slash-btn');
+    if (distSlashBtn) {
+      const distInput = distSlashBtn.closest('.mseries-dist-wrap').querySelector('.mseries-dist-input');
+      const start = distInput.selectionStart != null ? distInput.selectionStart : distInput.value.length;
+      const end = distInput.selectionEnd != null ? distInput.selectionEnd : distInput.value.length;
+      const value = distInput.value;
+      distInput.value = `${value.slice(0, start)}/${value.slice(end)}`;
+      milSeriesFindBlock(distInput).dist = distInput.value;
+      distInput.focus();
+      distInput.setSelectionRange(start + 1, start + 1);
+      return;
+    }
+
+    const calcBtn = event.target.closest('#mil-series-calc-btn');
+    if (calcBtn) {
+      milSeriesState.showResults = true;
+      renderMilSeries();
+      return;
+    }
+
+    const editBtn = event.target.closest('#mil-series-edit-btn');
+    if (editBtn) {
+      milSeriesState.showResults = false;
+      renderMilSeries();
+      return;
+    }
+
+    const athDelBtn = event.target.closest('.mil-ath-del');
+    if (athDelBtn) {
+      milSeriesState.removedAthletes.add(athDelBtn.dataset.ath);
+      renderMilSeries();
+      return;
+    }
+
+    const saveBtn = event.target.closest('#mil-series-save-btn');
+    if (saveBtn) {
+      await handleMilSeriesSave();
+      return;
+    }
+
+    const gapSkipInput = event.target.closest('.mseries-gap-skip-input');
+    if (gapSkipInput) {
+      milSeriesFindBlock(gapSkipInput).gapBefore.skip = gapSkipInput.checked;
+      return;
+    }
+
+    const recActiveInput = event.target.closest('.mseries-rec-active-input');
+    if (recActiveInput) {
+      milSeriesFindBlock(recActiveInput).recActive = recActiveInput.checked;
+      return;
+    }
+
+    const gapRecActiveInput = event.target.closest('.mseries-gap-rec-active-input');
+    if (gapRecActiveInput) {
+      milSeriesFindBlock(gapRecActiveInput).gapBefore.recActive = gapRecActiveInput.checked;
+      return;
+    }
+  });
+
+  milSeriesBody.addEventListener('focusin', (event) => {
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
+    if (input) {
+      input.select();
+    }
+  });
+
+  milSeriesBody.addEventListener('keydown', (event) => {
+    const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+    if (gapRecInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      gapRecInput.dataset.digits = (gapRecInput.dataset.digits || '').slice(0, -1);
+      gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+      const end = gapRecInput.value.length;
+      gapRecInput.setSelectionRange(end, end);
+      const gapBlock = milSeriesFindBlock(gapRecInput);
+      gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+      masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+      return;
+    }
+    const recInput = event.target.closest('.mseries-rec-input');
+    if (recInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      recInput.dataset.digits = (recInput.dataset.digits || '').slice(0, -1);
+      recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+      const end = recInput.value.length;
+      recInput.setSelectionRange(end, end);
+      milSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+    }
+  });
+
+  milSeriesBody.addEventListener('input', (event) => {
+    const repsInput = event.target.closest('.mseries-reps-input');
+    if (repsInput) {
+      repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      milSeriesFindBlock(repsInput).reps = repsInput.value;
+      return;
+    }
+    const distInput = event.target.closest('.mseries-dist-input');
+    if (distInput) {
+      distInput.value = distInput.value.replace(/[^0-9/]/g, '');
+      milSeriesFindBlock(distInput).dist = distInput.value;
+      return;
+    }
+    const gapRecInput = event.target.closest('.mseries-gap-rec-input');
+    if (gapRecInput) {
+      gapRecInput.dataset.digits = gapRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      gapRecInput.value = seriesFormatRecMask(gapRecInput.dataset.digits);
+      const end = gapRecInput.value.length;
+      gapRecInput.setSelectionRange(end, end);
+      const gapBlock = milSeriesFindBlock(gapRecInput);
+      gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
+      masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+      return;
+    }
+    const recInput = event.target.closest('.mseries-rec-input');
+    if (recInput) {
+      recInput.dataset.digits = recInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+      const end = recInput.value.length;
+      recInput.setSelectionRange(end, end);
+      milSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
     }
   });
 }
@@ -8421,7 +8787,13 @@ function closeCalc() {
 }
 
 if (ripetuteFab) {
-  ripetuteFab.addEventListener('click', () => openCalcOverlay('ripetute'));
+  ripetuteFab.addEventListener('click', () => {
+    if (currentAppSection === 'militari') {
+      openMilSeries();
+    } else {
+      openCalcOverlay('ripetute');
+    }
+  });
 }
 if (sprintFab) {
   sprintFab.addEventListener('click', () => openCalcOverlay('velocisti'));

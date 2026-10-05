@@ -259,12 +259,6 @@ button, input {
   line-height: 1.65;
   color: var(--text);
   background-color: #fff;
-  background-image:
-    linear-gradient(to right, #dbe1ea 1px, transparent 1px),
-    linear-gradient(to bottom, #dbe1ea 1px, transparent 1px),
-    linear-gradient(to right, #e9edf3 1px, transparent 1px),
-    linear-gradient(to bottom, #e9edf3 1px, transparent 1px);
-  background-size: 32px 32px, 32px 32px, 8px 8px, 8px 8px;
 }
 
 .training-entry-editor:focus {
@@ -276,6 +270,127 @@ button, input {
   content: attr(data-placeholder);
   color: var(--muted);
   pointer-events: none;
+}
+
+/* Accordion mensile auto-generato con gli allenamenti salvati dal simulatore
+   "Ripetute brevi" dei C. Militari: titolo statico (non un campo libero come
+   le voci manuali) + elenco di righe nome/data/cestino, senza editor. */
+.training-entry-title-static {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 4px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mil-training-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 14px 12px;
+}
+
+.mil-training-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px dotted var(--card-border);
+}
+
+.mil-training-row:first-child {
+  border-top: none;
+}
+
+.mil-training-date {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.mil-training-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.mil-training-del {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
+.mil-training-empty {
+  padding: 4px 0 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Simulatore "Ripetute brevi" dei C. Militari: overlay a sé, non dentro una
+   card — stessi blocchi/risultati del simulatore Master, un elenco per
+   atleta al posto della card singola. */
+.mil-series-panel {
+  padding: 4px;
+}
+
+.mil-ath-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.mil-ath-row {
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--bg-strong);
+}
+
+.mil-ath-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.mil-ath-del {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
+.mil-ath-empty {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--muted);
 }
 
 .training-notes-footer {
