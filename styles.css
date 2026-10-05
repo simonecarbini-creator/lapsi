@@ -377,9 +377,12 @@ button, input {
   border-top: 1px dotted var(--card-border);
 }
 
+/* Larghezza fissa (non sul contenuto): i tempi partono sempre dallo stesso
+   punto per ogni atleta, invece di dipendere da quanto è lungo il nome. Un
+   nome più lungo tronca con i puntini anziché spostare la colonna. */
 .mil-ath-compact-name {
-  flex: 0 0 auto;
-  max-width: 42%;
+  flex: 0 0 122px;
+  max-width: 122px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

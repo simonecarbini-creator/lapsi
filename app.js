@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05e';
-console.log('[Lapsi] build', APP_BUILD, '— elenco ripetute militari: tempi impilati e allineati, niente spazio vuoto in fondo');
+const APP_BUILD = '2026-10-05f';
+console.log('[Lapsi] build', APP_BUILD, '— colonna nomi a larghezza fissa, nome allenamento compatto con recuperi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8474,13 +8474,35 @@ if (milSeriesBackdrop) {
   milSeriesBackdrop.addEventListener('click', closeMilSeries);
 }
 
+// Nome proposto per l'allenamento: compatto, senza spazi inutili né unità di
+// misura ("3x200/300/400 + 3x400 + 1x500"), col recupero in fondo se è lo
+// stesso su tutti i blocchi — e quello tra le serie se c'è più di un blocco
+// (es. "rec 1'30" e 2'00" tra le serie"). Solo un suggerimento: il campo
+// resta libero, lo si può sempre riscrivere.
+function milDefaultTrainingName(blocks) {
+  const blocksText = blocks
+    .map((block) => `${Math.max(1, parseInt(block.reps, 10) || 1)}x${masterSeriesParseDistances(block.dist).join('/')}`)
+    .join(' + ');
+
+  const internalRecs = [...new Set(blocks.map((block) => seriesFormatRecMask(block.recDigits)).filter(Boolean))];
+  const gapRecs = [...new Set(blocks.slice(1).map((block) => seriesFormatRecMask(block.gapBefore.recDigits)).filter(Boolean))];
+
+  const recParts = [];
+  if (internalRecs.length) {
+    recParts.push(internalRecs.join('/'));
+  }
+  if (gapRecs.length) {
+    recParts.push(`${gapRecs.join('/')} tra le serie`);
+  }
+  const recText = recParts.length ? ` rec ${recParts.join(' e ')}` : '';
+  return `${blocksText}${recText}`;
+}
+
 // Nome dell'allenamento, poi via nello storico mensile di "Programma
 // allenamento" — senza riferimenti agli atleti, solo nome e data (vedi
 // milTrainingMonthEntryMarkup). Il simulatore torna a un blocco vuoto.
 async function handleMilSeriesSave() {
-  const defaultName = milSeriesState.blocks
-    .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
-    .join(' + ');
+  const defaultName = milDefaultTrainingName(milSeriesState.blocks);
   const name = await showPrompt("Nome dell'allenamento", {
     detail: 'Lo ritroverai in Programma allenamento, nel mese in corso.',
     placeholder: 'es. Ripetute 400',
