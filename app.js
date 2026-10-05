@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05f';
-console.log('[Lapsi] build', APP_BUILD, '— colonna nomi a larghezza fissa, nome allenamento compatto con recuperi');
+const APP_BUILD = '2026-10-05g';
+console.log('[Lapsi] build', APP_BUILD, '— Programma allenamento: voci manuali dentro il mese; simulatore militari con storico tempi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8031,6 +8031,7 @@ function readTrainingEntries() {
           id: entry.id || newTrainingEntryId(),
           title: String(entry.title || ''),
           html: String(entry.html || ''),
+          date: entry.date ? String(entry.date) : '',
         }));
     }
   } catch (error) {
@@ -8102,54 +8103,80 @@ function milTrainingMonthLabel(monthKey) {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
 }
 
-// Gruppi mese -> allenamenti, mese in corso (o più recente) per primo, voci
-// di ogni mese in ordine di data decrescente.
-function milTrainingsByMonth() {
+// Gruppi mese -> voci (allenamenti salvati dal simulatore + voci manuali
+// insieme), mese in corso (o più recente) per primo, voci di ogni mese in
+// ordine di data decrescente. Convivono nello stesso accordion di mese: può
+// capitare un allenamento salvato dal simulatore E uno scritto a mano nello
+// stesso mese.
+function trainingMonthGroups() {
+  const items = [
+    ...readTrainingEntries().map((entry) => ({ kind: 'manual', ...entry })),
+    ...readMilTrainings().map((training) => ({ kind: 'sim', ...training })),
+  ];
   const groups = new Map();
-  readMilTrainings().forEach((training) => {
-    const key = milTrainingMonthKey(training.date);
+  items.forEach((item) => {
+    const key = milTrainingMonthKey(item.date);
     if (!groups.has(key)) {
       groups.set(key, []);
     }
-    groups.get(key).push(training);
+    groups.get(key).push(item);
   });
   return [...groups.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-    .map(([key, trainings]) => ({
+    .map(([key, groupItems]) => ({
       key,
       label: milTrainingMonthLabel(key),
-      trainings: trainings.sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0)),
+      items: groupItems.sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0)),
     }));
 }
 
-function milTrainingMonthEntryMarkup(group, expanded) {
-  const chevron = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
-  const rows = group.trainings.map((training) => `
+function milTrainingSimRowMarkup(training) {
+  return `
     <div class="mil-training-row">
       <span class="mil-training-date">${escapeHtml(training.date)}</span>
       <span class="mil-training-name" title="${escapeHtml(training.name)}">${escapeHtml(training.name)}</span>
       <button type="button" class="mil-training-del" data-id="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
     </div>
-  `).join('');
-  return `
-    <div class="training-entry training-entry-month" data-month="${escapeHtml(group.key)}">
-      <div class="training-entry-header">
-        <span class="training-entry-title training-entry-title-static">${escapeHtml(group.label)}</span>
-        <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi mese">${chevron}</button>
-      </div>
-      <div class="training-entry-body" ${expanded ? '' : 'hidden'}>
-        <div class="mil-training-list">${rows}</div>
-      </div>
-    </div>
   `;
+}
+
+// Il "guscio" di un mese: le voci manuali restano elementi DOM veri (servono
+// per leggerne dopo titolo/testo al Salva), quelle del simulatore sono solo
+// markup, non modificabili da qui.
+function createMonthGroupElement(group, expanded) {
+  const chevron = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'training-entry training-entry-month';
+  wrapper.dataset.month = group.key;
+  wrapper.innerHTML = `
+    <div class="training-entry-header">
+      <span class="training-entry-title training-entry-title-static">${escapeHtml(group.label)}</span>
+      <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi mese">${chevron}</button>
+    </div>
+    <div class="training-entry-body" ${expanded ? '' : 'hidden'}></div>
+  `;
+  const body = wrapper.querySelector(':scope > .training-entry-body');
+  if (!group.items.length) {
+    body.innerHTML = '<div class="mil-training-empty">Nessun allenamento in questo mese.</div>';
+  } else {
+    group.items.forEach((item) => {
+      if (item.kind === 'sim') {
+        body.insertAdjacentHTML('beforeend', milTrainingSimRowMarkup(item));
+      } else {
+        body.appendChild(trainingEntryTemplate(item, { expanded: false }));
+      }
+    });
+  }
+  return wrapper;
 }
 
 function collectTrainingEntriesFromDom() {
   if (!trainingNotesList) {
     return [];
   }
-  return [...trainingNotesList.querySelectorAll('.training-entry:not(.training-entry-month)')].map((el) => ({
+  return [...trainingNotesList.querySelectorAll('.training-entry-manual')].map((el) => ({
     id: el.dataset.id,
+    date: el.dataset.date || '',
     title: el.querySelector('.training-entry-title').value.trim(),
     html: sanitizeTrainingHtml(el.querySelector('.training-entry-editor').innerHTML),
   }));
@@ -8160,10 +8187,12 @@ function trainingEntryTemplate(entry, { expanded = false } = {}) {
   const trash = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
 
   const item = document.createElement('div');
-  item.className = 'training-entry';
+  item.className = 'training-entry training-entry-manual';
   item.dataset.id = entry.id;
+  item.dataset.date = entry.date || '';
   item.innerHTML = `
     <div class="training-entry-header">
+      ${entry.date ? `<span class="mil-training-date">${escapeHtml(entry.date)}</span>` : ''}
       <input type="text" class="training-entry-title" value="${escapeHtml(entry.title)}" placeholder="Titolo…" />
       <button type="button" class="training-entry-del" aria-label="Elimina voce">${trash}</button>
       <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi voce">${chevron}</button>
@@ -8176,35 +8205,37 @@ function trainingEntryTemplate(entry, { expanded = false } = {}) {
   return item;
 }
 
-function renderTrainingEntries(entries) {
+function renderTrainingEntries() {
   if (!trainingNotesList) {
     return;
   }
   trainingNotesList.innerHTML = '';
   trainingActiveEditor = null;
-  const monthGroups = milTrainingsByMonth();
-  monthGroups.forEach((group, index) => {
-    trainingNotesList.insertAdjacentHTML('beforeend', milTrainingMonthEntryMarkup(group, index === 0));
-  });
-  const list = entries.length ? entries : [{ id: newTrainingEntryId(), title: '', html: '' }];
-  list.forEach((entry, index) => {
-    trainingNotesList.appendChild(trainingEntryTemplate(entry, { expanded: monthGroups.length === 0 && index === 0 }));
-  });
-  const firstEditor = trainingNotesList.querySelector('.training-entry-editor');
-  if (firstEditor) {
-    trainingActiveEditor = firstEditor;
+  const groups = trainingMonthGroups();
+  if (!groups.length) {
+    trainingNotesList.innerHTML = '<div class="training-notes-empty">Nessuna voce ancora. Tocca "+ Nuova voce" per aggiungerne una.</div>';
+    return;
   }
+  groups.forEach((group, index) => {
+    trainingNotesList.appendChild(createMonthGroupElement(group, index === 0));
+  });
 }
 
-// Una sola voce aperta per volta.
+// Una sola voce aperta per volta, ma per livello: aprirne una chiude solo le
+// "sorelle" allo stesso livello (gli altri mesi, oppure le altre voci
+// manuali dentro lo stesso mese) — due livelli di accordion ora che le voci
+// manuali vivono dentro il mese, non più uno solo piatto.
 function toggleTrainingEntry(entryEl) {
-  const body = entryEl.querySelector('.training-entry-body');
-  const toggleBtn = entryEl.querySelector('.training-entry-toggle');
+  const body = entryEl.querySelector(':scope > .training-entry-body');
+  const toggleBtn = entryEl.querySelector(':scope > .training-entry-header .training-entry-toggle');
   const wasOpen = body && !body.hidden;
 
-  trainingNotesList.querySelectorAll('.training-entry').forEach((other) => {
-    const otherBody = other.querySelector('.training-entry-body');
-    const otherToggle = other.querySelector('.training-entry-toggle');
+  [...entryEl.parentElement.children].forEach((sibling) => {
+    if (sibling === entryEl || !sibling.classList || !sibling.classList.contains('training-entry')) {
+      return;
+    }
+    const otherBody = sibling.querySelector(':scope > .training-entry-body');
+    const otherToggle = sibling.querySelector(':scope > .training-entry-header .training-entry-toggle');
     if (otherBody) otherBody.hidden = true;
     if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
   });
@@ -8224,7 +8255,7 @@ function openTrainingNotes() {
   if (!trainingNotesOverlay || !trainingNotesBackdrop || !trainingNotesList) {
     return;
   }
-  renderTrainingEntries(readTrainingEntries());
+  renderTrainingEntries();
   trainingNotesBackdrop.hidden = false;
   trainingNotesOverlay.hidden = false;
   lockBodyScroll();
@@ -8250,11 +8281,33 @@ if (trainingNotesBackdrop) {
 }
 if (trainingNotesAdd) {
   trainingNotesAdd.addEventListener('click', () => {
-    const item = trainingEntryTemplate({ id: newTrainingEntryId(), title: '', html: '' }, { expanded: false });
-    trainingNotesList.appendChild(item);
+    const emptyState = trainingNotesList.querySelector('.training-notes-empty');
+    if (emptyState) {
+      emptyState.remove();
+    }
+    const today = shortYearDate(getNowParts().date);
+    const monthKey = milTrainingMonthKey(today);
+    let monthEl = trainingNotesList.querySelector(`.training-entry-month[data-month="${monthKey}"]`);
+    if (!monthEl) {
+      monthEl = createMonthGroupElement({ key: monthKey, label: milTrainingMonthLabel(monthKey), items: [] }, true);
+      // Mantiene l'ordine (mese più recente in cima) invece di accodarlo e basta.
+      const existingMonths = [...trainingNotesList.querySelectorAll('.training-entry-month')];
+      const before = existingMonths.find((el) => el.dataset.month < monthKey);
+      trainingNotesList.insertBefore(monthEl, before || trainingNotesList.firstChild);
+    }
+    const body = monthEl.querySelector(':scope > .training-entry-body');
+    const placeholder = body.querySelector('.mil-training-empty');
+    if (placeholder) {
+      placeholder.remove();
+    }
+    const item = trainingEntryTemplate({ id: newTrainingEntryId(), title: '', html: '', date: today }, { expanded: false });
+    body.insertBefore(item, body.firstChild);
+    if (monthEl.querySelector(':scope > .training-entry-body').hidden) {
+      toggleTrainingEntry(monthEl);
+    }
     toggleTrainingEntry(item);
     item.querySelector('.training-entry-title').focus();
-    item.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    item.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 }
 if (trainingNotesSave) {
@@ -8287,7 +8340,7 @@ if (trainingNotesList) {
         return;
       }
       saveMilTrainings(readMilTrainings().filter((t) => t.id !== milDelBtn.dataset.id));
-      renderTrainingEntries(readTrainingEntries());
+      renderTrainingEntries();
       return;
     }
 
@@ -8304,7 +8357,11 @@ if (trainingNotesList) {
       if (trainingActiveEditor && entryEl.contains(trainingActiveEditor)) {
         trainingActiveEditor = null;
       }
+      const monthBody = entryEl.closest('.training-entry-month')?.querySelector(':scope > .training-entry-body');
       entryEl.remove();
+      if (monthBody && !monthBody.children.length) {
+        monthBody.innerHTML = '<div class="mil-training-empty">Nessun allenamento in questo mese.</div>';
+      }
     }
   });
   trainingNotesList.addEventListener('focusin', (event) => {
@@ -8398,15 +8455,18 @@ function milCompactBlockPairs(block, T, totalKm) {
 // così l'elenco resta ordinato anche con più distanze o più blocchi, senza
 // bisogno di andare a capo in mezzo a un testo lungo. I blocchi diversi sono
 // separati da un filo tratteggiato.
-function milAthleteCompactRowMarkup(athlete, blocks, totalKm) {
+function milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly = false } = {}) {
   const timesHtml = blocks
     .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm).join('')}</span>`)
     .join('');
+  const delButton = readOnly
+    ? ''
+    : `<button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>`;
   return `
     <div class="mil-ath-compact-row" data-ath="${escapeHtml(athlete.id)}">
       <span class="mil-ath-compact-name">${escapeHtml(athlete.name)}</span>
       <span class="mil-ath-compact-times">${timesHtml}</span>
-      <button type="button" class="mil-ath-del" data-ath="${escapeHtml(athlete.id)}" aria-label="Togli ${escapeHtml(athlete.name)} da questo elenco" title="Togli dall'elenco">${MTEST_DEL_ICON}</button>
+      ${delButton}
     </div>
   `;
 }
@@ -8441,11 +8501,47 @@ function milSeriesResultsMarkup() {
   `;
 }
 
+// Storico degli allenamenti salvati, dentro il simulatore stesso — con i
+// tempi per atleta, congelati al momento del salvataggio (non si
+// ricalcolano se poi il passo di un atleta cambia): un atleta può tornarci
+// anche dopo aver "scordato" i tempi comunicati quel giorno. Qui dentro
+// restano anche i riferimenti agli atleti: a differenza della voce in
+// "Programma allenamento" (solo nome e data), questo è il posto fatto apposta
+// per ritrovarli.
+function milTrainingHistoryCardMarkup(training) {
+  const blocks = Array.isArray(training.blocks) ? training.blocks : [];
+  const athletes = Array.isArray(training.athletes) ? training.athletes : [];
+  const totalKm = Number(training.totalKm) || 0;
+  const body = (blocks.length && athletes.length)
+    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly: true })).join('')}</div>`
+    : '<div class="mil-ath-empty">Nessun dettaglio salvato per questo allenamento.</div>';
+  return `
+    <details class="mtest-history mil-series-history-entry">
+      <summary class="mtest-history-summary">${escapeHtml(training.date)} · ${escapeHtml(training.name)}</summary>
+      ${body}
+    </details>
+  `;
+}
+
+function milSeriesHistoryMarkup() {
+  const trainings = [...readMilTrainings()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  if (!trainings.length) {
+    return '';
+  }
+  return `
+    <details class="mtest-history" data-section-key="mil-series-hist">
+      <summary class="mtest-history-summary">Storico allenamenti (${trainings.length})</summary>
+      ${trainings.map(milTrainingHistoryCardMarkup).join('')}
+    </details>
+  `;
+}
+
 function renderMilSeries() {
   if (!milSeriesBody) {
     return;
   }
-  milSeriesBody.innerHTML = milSeriesState.showResults ? milSeriesResultsMarkup() : milSeriesEditorMarkup();
+  const main = milSeriesState.showResults ? milSeriesResultsMarkup() : milSeriesEditorMarkup();
+  milSeriesBody.innerHTML = `${main}${milSeriesHistoryMarkup()}`;
 }
 
 function openMilSeries() {
@@ -8499,12 +8595,13 @@ function milDefaultTrainingName(blocks) {
 }
 
 // Nome dell'allenamento, poi via nello storico mensile di "Programma
-// allenamento" — senza riferimenti agli atleti, solo nome e data (vedi
-// milTrainingMonthEntryMarkup). Il simulatore torna a un blocco vuoto.
+// allenamento" (solo nome e data) E nello storico del simulatore (con i
+// tempi per atleta congelati a questo momento, vedi milSeriesHistoryMarkup).
+// Il simulatore torna a un blocco vuoto.
 async function handleMilSeriesSave() {
   const defaultName = milDefaultTrainingName(milSeriesState.blocks);
   const name = await showPrompt("Nome dell'allenamento", {
-    detail: 'Lo ritroverai in Programma allenamento, nel mese in corso.',
+    detail: 'Lo ritroverai in Programma allenamento, nel mese in corso, e nello storico qui sotto con i tempi.',
     placeholder: 'es. Ripetute 400',
     defaultValue: defaultName,
     confirmText: 'Salva',
@@ -8512,12 +8609,22 @@ async function handleMilSeriesSave() {
   if (name === null) {
     return;
   }
+  const totalMeters = milSeriesState.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = milSeriesState.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+  const athletes = milActiveAthletesWithPace()
+    .filter((athlete) => !milSeriesState.removedAthletes.has(athlete.id))
+    .map((athlete) => ({ id: athlete.id, name: athlete.name, T: athlete.T }));
+
   const now = getNowParts();
   const training = {
     id: `miltr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     name,
     date: shortYearDate(now.date),
     createdAt: now.iso,
+    blocks: milSeriesState.blocks,
+    totalKm,
+    athletes,
   };
   saveMilTrainings([...readMilTrainings(), training]);
 

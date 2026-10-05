@@ -284,22 +284,22 @@ button, input {
   color: var(--text);
 }
 
-.mil-training-list {
+/* Corpo di un accordion di mese: ora può contenere sia righe di allenamenti
+   salvati dal simulatore (.mil-training-row) sia voci scritte a mano
+   (.training-entry-manual, annidate) — lo spazio tra le due è dato dal gap,
+   non più da un bordo tra "righe sorelle" dello stesso tipo. */
+.training-entry-month > .training-entry-body {
   display: flex;
   flex-direction: column;
-  padding: 4px 14px 12px;
+  gap: 8px;
+  padding: 10px 14px 14px;
 }
 
 .mil-training-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 0;
-  border-top: 1px dotted var(--card-border);
-}
-
-.mil-training-row:first-child {
-  border-top: none;
+  padding: 2px 0;
 }
 
 .mil-training-date {
@@ -351,6 +351,27 @@ button, input {
    vuoto sotto pensato per quel caso. */
 #mil-series-body {
   padding-bottom: 12px;
+}
+
+/* Storico degli allenamenti salvati, dentro il simulatore: una card per
+   allenamento (data + nome come titolo) con dentro i tempi congelati per
+   ogni atleta — per tornarci quando un atleta ha scordato i tempi
+   comunicati quel giorno, senza dover ripassare da Programma allenamento
+   (che mostra solo nome e data, niente atleti). */
+.mil-series-panel + .mtest-history {
+  margin-top: 16px;
+  padding-top: 12px;
+}
+
+.mil-series-history-entry {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+}
+
+.mil-series-history-entry .mil-ath-compact-list {
+  margin-top: 8px;
 }
 
 /* Elenco compatto (una riga per atleta: nome, tempi, cestino) al posto delle
