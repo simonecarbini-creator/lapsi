@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05a';
-console.log('[Lapsi] build', APP_BUILD, '— card militari senza proiezioni al km, simulatore ripetute per i militari');
+const APP_BUILD = '2026-10-05b';
+console.log('[Lapsi] build', APP_BUILD, '— simulatore ripetute militari: passo dall\'ultimo risultato, non dal migliore');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8339,12 +8339,16 @@ function milActiveAthletesWithPace() {
   return getAthletes()
     .filter((entry) => !entry.competitionResult)
     .map((entry) => {
-      const best = getBestAthleteTime(entry);
-      if (!best) {
+      // L'ULTIMO risultato di corsa, non il migliore: un PB di mesi fa non
+      // dice più nulla sul passo attuale dell'atleta.
+      const timedRuns = getAthleteTimeRecords(entry)
+        .filter((record) => record.activity !== 'Salto in alto' && parseTimeToSeconds(record.time) > 0);
+      const latest = timedRuns.length ? timedRuns[timedRuns.length - 1] : null;
+      if (!latest) {
         return null;
       }
-      const seconds = parseTimeToSeconds(best.time);
-      const meters = getActivityMeters(best.activity || entry.activity || '1km');
+      const seconds = parseTimeToSeconds(latest.time);
+      const meters = getActivityMeters(latest.activity || entry.activity || '1km');
       if (!seconds || !meters) {
         return null;
       }
