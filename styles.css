@@ -346,6 +346,13 @@ button, input {
   padding: 4px;
 }
 
+/* Qui dentro non c'è un editor di testo lungo coperto dalla tastiera come
+   nelle altre voci di "Programma allenamento": niente del grande spazio
+   vuoto sotto pensato per quel caso. */
+#mil-series-body {
+  padding-bottom: 12px;
+}
+
 /* Elenco compatto (una riga per atleta: nome, tempi, cestino) al posto delle
    card per atleta — qui sono solo numeri da leggere o comunicare in fretta,
    non serve la stessa resa visiva del simulatore nella card Master. */
@@ -360,7 +367,7 @@ button, input {
 
 .mil-ath-compact-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   padding: 9px 10px;
   background: var(--bg-strong);
@@ -376,40 +383,47 @@ button, input {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding-top: 2px;
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--text);
 }
 
+/* Un tempo per riga, impilati e allineati in colonna (etichetta a larghezza
+   fissa, poi il tempo) invece che in fila su un unico rigo: con più
+   distanze o più blocchi l'elenco resta ordinato senza bisogno di andare a
+   capo in mezzo al testo. */
 .mil-ath-compact-times {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: 2px;
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
 
-/* Ogni distanza resta un gruppo (punto in mezzo), i blocchi diversi hanno un
-   trattino verticale tra loro — ma soprattutto ogni "distanza tempo" è un
-   blocco unico che non si spezza mai andando a capo (vedi .mil-time-pair). */
 .mil-block-group {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mil-block-group + .mil-block-group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--card-border);
 }
 
 .mil-time-pair {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
-  gap: 3px;
-  white-space: nowrap;
-  padding: 1px 3px;
+  gap: 8px;
 }
 
 .mil-time-pair b {
+  flex: 0 0 40px;
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--muted);
@@ -418,18 +432,6 @@ button, input {
 .mil-time-pair-invalid {
   font-style: italic;
   color: var(--muted);
-}
-
-.mil-pair-sep {
-  color: var(--muted);
-}
-
-.mil-block-sep {
-  width: 1px;
-  height: 14px;
-  flex-shrink: 0;
-  background: var(--card-border);
-  margin: 0 5px;
 }
 
 .mil-ath-del {

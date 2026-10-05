@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-05d';
-console.log('[Lapsi] build', APP_BUILD, '— elenco ripetute militari: distanza sempre incollata al tempo');
+const APP_BUILD = '2026-10-05e';
+console.log('[Lapsi] build', APP_BUILD, '— elenco ripetute militari: tempi impilati e allineati, niente spazio vuoto in fondo');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8390,18 +8390,18 @@ function milCompactBlockPairs(block, T, totalKm) {
   return distances.map((dist) => {
     const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
     const time = escapeHtml(RipeteCalc.formatSeconds(seconds));
-    return `<span class="mil-time-pair"><b>${dist}m</b> ${time}</span>`;
+    return `<span class="mil-time-pair"><b>${dist}m</b><span class="mil-time-val">${time}</span></span>`;
   });
 }
 
-// Le distanze di uno stesso blocco restano un gruppo visivo (separate da un
-// punto), i blocchi diversi da un trattino verticale — sempre tra una coppia
-// e l'altra, mai dentro, così "distanza" e "tempo" non si separano mai anche
-// quando il testo va a capo.
+// Una riga per distanza, impilate — invece che in fila su un unico rigo —
+// così l'elenco resta ordinato anche con più distanze o più blocchi, senza
+// bisogno di andare a capo in mezzo a un testo lungo. I blocchi diversi sono
+// separati da un filo tratteggiato.
 function milAthleteCompactRowMarkup(athlete, blocks, totalKm) {
   const timesHtml = blocks
-    .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm).join('<span class="mil-pair-sep">·</span>')}</span>`)
-    .join('<span class="mil-block-sep" aria-hidden="true"></span>');
+    .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm).join('')}</span>`)
+    .join('');
   return `
     <div class="mil-ath-compact-row" data-ath="${escapeHtml(athlete.id)}">
       <span class="mil-ath-compact-name">${escapeHtml(athlete.name)}</span>
