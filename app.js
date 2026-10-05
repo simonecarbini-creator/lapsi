@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-06a';
-console.log('[Lapsi] build', APP_BUILD, '— fix: data del concorso non più sovrascritta aggiungendo un nuovo risultato');
+const APP_BUILD = '2026-10-06b';
+console.log('[Lapsi] build', APP_BUILD, '— data del concorso: campo indipendente dell\'atleta, non più legata ai risultati');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -452,6 +452,10 @@ function normalizeAthlete(entry) {
   const competitionAskedOn = entry.competitionAskedOn || null;
 
   if (Array.isArray(entry.times)) {
+    const times = entry.times.map((timeEntry) => ({
+      ...timeEntry,
+      id: timeEntry.id || `${entry.id || 'time'}-${Math.random().toString(36).slice(2, 8)}`,
+    }));
     return {
       id: entry.id || `athlete-${Math.random().toString(36).slice(2, 8)}`,
       name: entry.name || '',
@@ -463,10 +467,12 @@ function normalizeAthlete(entry) {
       notes: normalizeNotes(entry.notes, entry.notesSavedAt),
       competitionResult,
       competitionAskedOn,
-      times: entry.times.map((timeEntry) => ({
-        ...timeEntry,
-        id: timeEntry.id || `${entry.id || 'time'}-${Math.random().toString(36).slice(2, 8)}`,
-      })),
+      // Data del concorso: campo indipendente dell'atleta, non di un singolo
+      // risultato — nessuna relazione con i tempi. Per i dati salvati prima
+      // di questa modifica (quando viveva sull'ultimo risultato) si eredita
+      // da lì una volta sola, solo se l'atleta non ha già un suo valore.
+      concorsoDate: entry.concorsoDate || migrateConcorsoDateFromTimes(times),
+      times,
     };
   }
 
@@ -482,6 +488,7 @@ function normalizeAthlete(entry) {
       notes: normalizeNotes(entry.notes, entry.notesSavedAt),
       competitionResult,
       competitionAskedOn,
+      concorsoDate: entry.concorsoDate || '',
       times: [{
         id: entry.id || `time-${Math.random().toString(36).slice(2, 8)}`,
         activity: entry.activity || '1km',
@@ -494,6 +501,18 @@ function normalizeAthlete(entry) {
   }
 
   return null;
+}
+
+// Migrazione una tantum: prima della v2026-10-06 la data di concorso viveva
+// sull'ultimo risultato invece che sull'atleta. Se non c'è ancora un
+// concorsoDate proprio, lo eredita da lì (il più recente per createdAt).
+function migrateConcorsoDateFromTimes(times) {
+  if (!Array.isArray(times) || !times.length) {
+    return '';
+  }
+  const sorted = [...times].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  const latest = sorted[sorted.length - 1];
+  return latest && latest.concorsoDate ? latest.concorsoDate : '';
 }
 
 let cachedEntries = [];
@@ -756,10 +775,9 @@ function createEditForm(entry) {
     .find((record) => record.activity === 'Salto in alto' && record.takeoffFoot);
   const defaultTakeoffFoot = firstJumpWithFoot ? firstJumpWithFoot.takeoffFoot : '';
 
-  // Data del concorso mostrata sulla card = concorsoDate del record più recente.
-  const latestRecord = getLatestAthleteTime(entry);
+  // Data del concorso: campo dell'atleta, indipendente dai risultati.
   const concorsoNativeValue = (() => {
-    const ts = latestRecord ? parseItDate(latestRecord.concorsoDate || '') : null;
+    const ts = parseItDate(entry.concorsoDate || '');
     if (ts === null) {
       return '';
     }
@@ -906,11 +924,10 @@ function createEditForm(entry) {
           </select>
         </div>
       </div>
-      ${latestRecord ? `
       <div class="field-group">
         <label>Data del concorso</label>
         <input class="native-date" name="edit-concorso-date" type="date" value="${concorsoNativeValue}" />
-      </div>` : ''}
+      </div>
   `;
 
   const risultatiBody = `
@@ -1891,7 +1908,7 @@ function renderEntries() {
     const item = document.createElement('li');
     item.className = 'athlete-item card-v2';
 
-    const concorsoDate = latestTime && latestTime.concorsoDate ? latestTime.concorsoDate : '--/--/--';
+    const concorsoDate = entry.concorsoDate || '--/--/--';
 
     // Esito concorso: badge sempre visibile (default "in corso"). Una volta
     // deciso l'esito la card si disabilita con una velina sopra al resto,
@@ -2049,6 +2066,8 @@ async function handleSubmit(event) {
     ? athletes.find((entry) => entry.id === selectedAthleteId)
     : athletes.find((entry) => entry.name.toLowerCase() === name.toLowerCase() && entry.surname.toLowerCase() === surname.toLowerCase());
 
+  const concorso = formatConcorsoDate();
+
   if (!athlete) {
     athlete = {
       id: `athlete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
@@ -2058,6 +2077,7 @@ async function handleSubmit(event) {
       military: militaryInput.value,
       activity: selectedActivity,
       avatar: currentAvatarData,
+      concorsoDate: concorso,
       times: [],
     };
     athletes.push(athlete);
@@ -2070,16 +2090,22 @@ async function handleSubmit(event) {
     if (currentAvatarData) {
       athlete.avatar = currentAvatarData;
     }
+    // Un atleta già esistente, registrato di nuovo per aggiungere un altro
+    // risultato: il campo "Data concorso" qui parte sempre vuoto (vedi
+    // initConcorsoDate), quindi si aggiorna la data di concorso SOLO se
+    // l'utente l'ha davvero compilata — altrimenti si perderebbe quella già
+    // impostata per lui ogni volta che si registra un nuovo tempo.
+    if (concorso && concorso !== '--/--/--') {
+      athlete.concorsoDate = concorso;
+    }
   }
 
-  const concorso = formatConcorsoDate();
   const newRecordId = () => `time-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const baseRecord = () => ({
     id: newRecordId(),
     date: now.date,
     timeInserted: now.time,
     createdAt: now.iso,
-    concorsoDate: concorso,
   });
 
   const records = [];
@@ -2432,7 +2458,17 @@ async function handleEditSubmit(event) {
   const editNicknameInput = editForm.querySelector('[name="edit-nickname"]');
   updatedEntry.nickname = editNicknameInput ? editNicknameInput.value.trim() : updatedEntry.nickname || '';
   updatedEntry.military = editForm.querySelector('[name="edit-military"]').value;
-  
+
+  // Data del concorso: campo indipendente dell'atleta, nessuna relazione con
+  // i risultati (vecchi o nuovi che siano) — si aggiorna qui e basta.
+  const concorsoInput = editForm.querySelector('[name="edit-concorso-date"]');
+  if (concorsoInput && concorsoInput.value) {
+    const concorsoParts = concorsoInput.value.split('-');
+    if (concorsoParts.length === 3) {
+      updatedEntry.concorsoDate = `${concorsoParts[2]}/${concorsoParts[1]}/${concorsoParts[0].slice(-2)}`;
+    }
+  }
+
   // Update avatar if provided in form
   const editAvatarData = editForm.dataset.editAvatarData || '';
   if (editAvatarData) {
@@ -2446,28 +2482,10 @@ async function handleEditSubmit(event) {
 
   // Data del nuovo risultato: se la checkbox "Cambia data del risultato" è
   // flaggata si usa la data scelta (per date/createdAt del risultato stesso),
-  // altrimenti oggi. Non ha niente a che fare con la data del CONCORSO (vedi
-  // effectiveConcorso sotto): sono due date indipendenti — quando è stato
-  // ottenuto il risultato contro quando è/era il concorso.
+  // altrimenti oggi. Nessuna relazione con la data del concorso (aggiornata
+  // sopra, indipendentemente): quando è stato ottenuto il risultato è una
+  // cosa, quando è/era il concorso è un'altra.
   const resultDate = (prefix) => resultDateFrom(editForm, prefix, now);
-
-  // Data di concorso valida per questo salvataggio: quella scelta in
-  // Anagrafica, o se il campo non è stato toccato quella già sul record più
-  // recente (così resta quella che l'utente vede precompilata, non "oggi").
-  // Usata sia per aggiornare il vecchio record più recente sia per QUALSIASI
-  // nuovo risultato aggiunto in questo stesso salvataggio — prima un nuovo
-  // risultato prendeva sempre la data di oggi come concorsoDate, scavalcando
-  // una data di concorso futura impostata nello stesso form e facendo
-  // scattare il popup "come è andata" troppo presto.
-  const latestBeforeEdit = getLatestAthleteTime(athletes[targetIndex]);
-  let effectiveConcorso = latestBeforeEdit ? latestBeforeEdit.concorsoDate : shortYearDate(now.date);
-  const concorsoInput = editForm.querySelector('[name="edit-concorso-date"]');
-  if (concorsoInput && concorsoInput.value) {
-    const concorsoParts = concorsoInput.value.split('-');
-    if (concorsoParts.length === 3) {
-      effectiveConcorso = `${concorsoParts[2]}/${concorsoParts[1]}/${concorsoParts[0].slice(-2)}`;
-    }
-  }
 
   const newTime = formatTimeFromParts({
     hours: editVal('edit-nt-hours'),
@@ -2484,7 +2502,6 @@ async function handleEditSubmit(event) {
       date: rd.date,
       timeInserted: now.time,
       createdAt: rd.iso,
-      concorsoDate: effectiveConcorso,
     });
   }
 
@@ -2503,7 +2520,6 @@ async function handleEditSubmit(event) {
       date: rd.date,
       timeInserted: now.time,
       createdAt: rd.iso,
-      concorsoDate: effectiveConcorso,
       takeoffFoot,
       jumpHeight: `${jumpM}.${pad(jumpCm)}`,
     });
@@ -2524,7 +2540,7 @@ async function handleEditSubmit(event) {
 
   // Modifica dei risultati già registrati: si aggiornano SOLO i campi che l'utente
   // ha effettivamente cambiato rispetto al valore salvato, così le righe non
-  // toccate (e i loro createdAt/concorsoDate/piede di stacco) restano intatte.
+  // toccate (e i loro createdAt/piede di stacco) restano intatte.
   const times = athletes[targetIndex].times
     .map((record) => ({ ...record }))
     .filter((record) => !deletedIds.has(record.id));
@@ -2572,17 +2588,6 @@ async function handleEditSubmit(event) {
       }
     }
   });
-
-  // Data del concorso (Anagrafica): aggiorna il concorsoDate del record che era
-  // il più recente all'apertura del form (quello mostrato sulla card) con la
-  // stessa effectiveConcorso già usata sopra per gli eventuali nuovi risultati
-  // — così restano coerenti tra loro qualunque cosa sia stata aggiunta.
-  if (latestBeforeEdit) {
-    const targetRecord = times.find((record) => record.id === latestBeforeEdit.id);
-    if (targetRecord && targetRecord.concorsoDate !== effectiveConcorso) {
-      targetRecord.concorsoDate = effectiveConcorso;
-    }
-  }
 
   updatedEntry.times = [...times, ...added];
 
@@ -8814,8 +8819,7 @@ async function checkExpiredConcorsi() {
       if (entry.competitionAskedOn === todayKey) {
         return false;
       }
-      const latest = getLatestAthleteTime(entry);
-      const concorsoStr = latest ? latest.concorsoDate : '';
+      const concorsoStr = entry.concorsoDate || '';
       if (!concorsoStr || concorsoStr === '--/--/--') {
         return false;
       }
@@ -8841,8 +8845,7 @@ async function checkExpiredConcorsi() {
       continue;
     }
     const label = `${entry.name} ${entry.surname}`.trim() || 'questo atleta';
-    const latest = getLatestAthleteTime(entry);
-    const concorsoStr = latest ? latest.concorsoDate : '--/--/--';
+    const concorsoStr = entry.concorsoDate || '--/--/--';
 
     const choice = await showChoice(`Concorso di ${label} concluso`, {
       detail: `Il concorso del ${concorsoStr} risulta concluso. Come è andata?`,
