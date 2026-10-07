@@ -339,6 +339,31 @@ button, input {
   font-style: italic;
 }
 
+/* Voce manuale già salvata: stessa riga compatta del simulatore, solo con
+   un asterisco in più e un toggle (26px, come il cestino del simulatore)
+   per apire/chiudere l'editor sotto. */
+.mil-training-row .training-entry-toggle,
+.mil-training-row .training-entry-del {
+  width: 26px;
+  height: 26px;
+}
+
+.mil-training-manual-mark {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* Voce appena creata con "+ Nuova voce": solo data + cestino per annullare,
+   niente titolo né toggle — l'aspetto da riga compatta arriva solo al
+   Salva, quando la lista viene rigenerata da zero. */
+.training-entry-new-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 4px 14px;
+}
+
 /* Simulatore "Ripetute brevi" dei C. Militari: overlay a sé, non dentro una
    card — stessi blocchi/risultati del simulatore Master, un elenco per
    atleta al posto della card singola. */

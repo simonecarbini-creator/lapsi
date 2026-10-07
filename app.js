@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-06b';
-console.log('[Lapsi] build', APP_BUILD, '— data del concorso: campo indipendente dell\'atleta, non più legata ai risultati');
+const APP_BUILD = '2026-10-07a';
+console.log('[Lapsi] build', APP_BUILD, '— programma allenamento: nuova voce senza accordion annidato, fix chiusura accordion');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8124,6 +8124,30 @@ function milTrainingMonthLabel(monthKey) {
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`;
 }
 
+// Nome del giorno abbreviato (Dom=0 ... Sab=6, come Date.getDay()), da
+// anteporre alla data nelle righe di Programma allenamento.
+const IT_WEEKDAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+function itWeekdayShort(dateStr) {
+  const t = parseItDate(dateStr);
+  return t === null ? '' : IT_WEEKDAYS_SHORT[new Date(t).getDay()];
+}
+
+function trainingDateLabel(dateStr) {
+  const weekday = itWeekdayShort(dateStr);
+  return weekday ? `${weekday} ${dateStr}` : dateStr;
+}
+
+// Anteprima in solo testo (senza tag) del contenuto html di una voce
+// manuale, troncata via CSS (text-overflow) una volta mostrata — qui si
+// toglie solo la formattazione, non la lunghezza.
+function trainingEntryPreview(html) {
+  const temp = document.createElement('div');
+  temp.innerHTML = html || '';
+  const text = (temp.textContent || '').replace(/\s+/g, ' ').trim();
+  return text;
+}
+
 // Gruppi mese -> voci (allenamenti salvati dal simulatore + voci manuali
 // insieme), mese in corso (o più recente) per primo, voci di ogni mese in
 // ordine di data decrescente. Convivono nello stesso accordion di mese: può
@@ -8154,7 +8178,7 @@ function trainingMonthGroups() {
 function milTrainingSimRowMarkup(training) {
   return `
     <div class="mil-training-row">
-      <span class="mil-training-date">${escapeHtml(training.date)}</span>
+      <span class="mil-training-date">${escapeHtml(trainingDateLabel(training.date))}</span>
       <span class="mil-training-name" title="${escapeHtml(training.name)}">${escapeHtml(training.name)}</span>
       <button type="button" class="mil-training-del" data-id="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
     </div>
@@ -8195,34 +8219,64 @@ function collectTrainingEntriesFromDom() {
   if (!trainingNotesList) {
     return [];
   }
-  return [...trainingNotesList.querySelectorAll('.training-entry-manual')].map((el) => ({
-    id: el.dataset.id,
-    date: el.dataset.date || '',
-    title: el.querySelector('.training-entry-title').value.trim(),
-    html: sanitizeTrainingHtml(el.querySelector('.training-entry-editor').innerHTML),
-  }));
+  return [...trainingNotesList.querySelectorAll('.training-entry-manual')].map((el) => {
+    const html = sanitizeTrainingHtml(el.querySelector('.training-entry-editor').innerHTML);
+    return {
+      id: el.dataset.id,
+      date: el.dataset.date || '',
+      title: trainingEntryPreview(html),
+      html,
+    };
+  });
 }
 
+// Voce manuale già salvata (o che lo sta per essere): riga compatta uguale a
+// quella del simulatore (data + testo troncato + cestino), con un asterisco
+// distintivo e un toggle per apire/chiudere l'editor sotto — "Devono essere
+// uguali", chiesto esplicitamente dall'utente, cambia solo il marcatore.
 function trainingEntryTemplate(entry, { expanded = false } = {}) {
-  const chevron = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const chevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const trash = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+  const preview = trainingEntryPreview(entry.html) || 'Voce senza testo';
 
   const item = document.createElement('div');
   item.className = 'training-entry training-entry-manual';
   item.dataset.id = entry.id;
   item.dataset.date = entry.date || '';
   item.innerHTML = `
-    <div class="training-entry-header">
-      ${entry.date ? `<span class="mil-training-date">${escapeHtml(entry.date)}</span>` : ''}
-      <input type="text" class="training-entry-title" value="${escapeHtml(entry.title)}" placeholder="Titolo…" />
-      <button type="button" class="training-entry-del" aria-label="Elimina voce">${trash}</button>
+    <div class="mil-training-row">
+      <span class="mil-training-date">${escapeHtml(trainingDateLabel(entry.date))}</span>
+      <span class="mil-training-name" title="${escapeHtml(preview)}">${escapeHtml(preview)} <span class="mil-training-manual-mark" title="Voce inserita manualmente">*</span></span>
       <button type="button" class="training-entry-toggle" aria-expanded="${expanded}" aria-label="Apri/chiudi voce">${chevron}</button>
+      <button type="button" class="training-entry-del" aria-label="Elimina voce">${trash}</button>
     </div>
     <div class="training-entry-body" ${expanded ? '' : 'hidden'}>
       <div class="training-entry-editor" contenteditable="true" data-placeholder="Scrivi qui…"></div>
     </div>
   `;
   item.querySelector('.training-entry-editor').innerHTML = entry.html || '';
+  return item;
+}
+
+// Voce appena creata con "+ Nuova voce": solo il testo da scrivere, niente
+// accordion/toggle (non c'è ancora nulla da richiudere) — prende l'aspetto
+// della riga compatta solo al primo Salva, quando la lista viene rigenerata.
+function trainingEntryNewTemplate(entry) {
+  const trash = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6"/></svg>';
+
+  const item = document.createElement('div');
+  item.className = 'training-entry training-entry-manual training-entry-new';
+  item.dataset.id = entry.id;
+  item.dataset.date = entry.date || '';
+  item.innerHTML = `
+    <div class="training-entry-new-header">
+      <span class="mil-training-date">${escapeHtml(trainingDateLabel(entry.date))}</span>
+      <button type="button" class="training-entry-del" aria-label="Annulla">${trash}</button>
+    </div>
+    <div class="training-entry-body">
+      <div class="training-entry-editor" contenteditable="true" data-placeholder="Scrivi qui…"></div>
+    </div>
+  `;
   return item;
 }
 
@@ -8248,7 +8302,7 @@ function renderTrainingEntries() {
 // manuali vivono dentro il mese, non più uno solo piatto.
 function toggleTrainingEntry(entryEl) {
   const body = entryEl.querySelector(':scope > .training-entry-body');
-  const toggleBtn = entryEl.querySelector(':scope > .training-entry-header .training-entry-toggle');
+  const toggleBtn = entryEl.querySelector(':scope > .training-entry-toggle, :scope > .training-entry-header .training-entry-toggle, :scope > .mil-training-row .training-entry-toggle');
   const wasOpen = body && !body.hidden;
 
   [...entryEl.parentElement.children].forEach((sibling) => {
@@ -8256,12 +8310,18 @@ function toggleTrainingEntry(entryEl) {
       return;
     }
     const otherBody = sibling.querySelector(':scope > .training-entry-body');
-    const otherToggle = sibling.querySelector(':scope > .training-entry-header .training-entry-toggle');
+    const otherToggle = sibling.querySelector(':scope > .training-entry-toggle, :scope > .training-entry-header .training-entry-toggle, :scope > .mil-training-row .training-entry-toggle');
     if (otherBody) otherBody.hidden = true;
     if (otherToggle) otherToggle.setAttribute('aria-expanded', 'false');
   });
 
-  if (!wasOpen) {
+  if (wasOpen) {
+    body.hidden = true;
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+    if (trainingActiveEditor && entryEl.contains(trainingActiveEditor)) {
+      trainingActiveEditor = null;
+    }
+  } else {
     if (body) body.hidden = false;
     if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
     const editor = entryEl.querySelector('.training-entry-editor');
@@ -8321,21 +8381,23 @@ if (trainingNotesAdd) {
     if (placeholder) {
       placeholder.remove();
     }
-    const item = trainingEntryTemplate({ id: newTrainingEntryId(), title: '', html: '', date: today }, { expanded: false });
+    const item = trainingEntryNewTemplate({ id: newTrainingEntryId(), html: '', date: today });
     body.insertBefore(item, body.firstChild);
     if (monthEl.querySelector(':scope > .training-entry-body').hidden) {
       toggleTrainingEntry(monthEl);
     }
-    toggleTrainingEntry(item);
-    item.querySelector('.training-entry-title').focus();
+    const editor = item.querySelector('.training-entry-editor');
+    trainingActiveEditor = editor;
+    editor.focus();
     item.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 }
 if (trainingNotesSave) {
   trainingNotesSave.addEventListener('click', () => {
     const entries = collectTrainingEntriesFromDom()
-      .filter((entry) => entry.title.trim() || entry.html.replace(/<[^>]*>/g, '').trim());
+      .filter((entry) => entry.html.replace(/<[^>]*>/g, '').trim());
     saveTrainingEntries(entries);
+    renderTrainingEntries();
     showToast('Salvato!');
   });
 }
@@ -8367,7 +8429,8 @@ if (trainingNotesList) {
 
     if (delBtn) {
       const entryEl = delBtn.closest('.training-entry');
-      const title = entryEl.querySelector('.training-entry-title').value.trim() || 'questa voce';
+      const editorEl = entryEl.querySelector('.training-entry-editor');
+      const title = (editorEl && trainingEntryPreview(editorEl.innerHTML)) || 'questa voce';
       const confirmed = await showConfirm(`Eliminare "${title}"?`, {
         detail: 'Diventa definitivo solo premendo Salva.',
         confirmText: 'Elimina',
