@@ -2340,6 +2340,104 @@ button:active {
   text-align: center;
 }
 
+.list-count-btn {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+.list-count-btn[aria-expanded='true'] {
+  background: var(--text);
+}
+
+/* Elenco compatto alfabetico (aperto cliccando il conteggio in alto a dx):
+   sostituisce le card, solo nome + badge esito, con una legenda dei conteggi
+   sopra. */
+.athlete-compact-list {
+  padding: 4px 2px 8px;
+}
+
+.athlete-compact-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 4px 6px 8px;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.athlete-compact-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.athlete-compact-note {
+  margin: 0 6px 12px;
+  font-size: 0.76rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.athlete-compact-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.athlete-compact-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 10px;
+  border: none;
+  border-bottom: 1px solid var(--card-border);
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.athlete-compact-row:active {
+  background: rgba(15, 23, 42, 0.05);
+}
+
+.athlete-compact-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.athlete-compact-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.athlete-compact-legend-item .athlete-compact-badge {
+  width: 20px;
+  height: 20px;
+}
+
+.athlete-compact-empty {
+  padding: 20px 6px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 /* ===== Paginazione adattiva ===== */
 .pagination {
   display: flex;

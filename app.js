@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07a';
-console.log('[Lapsi] build', APP_BUILD, '— programma allenamento: nuova voce senza accordion annidato, fix chiusura accordion');
+const APP_BUILD = '2026-10-07b';
+console.log('[Lapsi] build', APP_BUILD, '— conteggio atleti militari cliccabile: elenco compatto alfabetico con badge esito');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -81,6 +81,10 @@ let filterSnapshot = null;
 
 const PAGE_SIZE = 5;
 let currentPage = 1;
+// Id dell'atleta su cui puntare al prossimo renderEntries() (scelto
+// nell'elenco compatto): va in cima alla lista, pagina 1, card già aperta.
+let pinnedAthleteId = null;
+let athleteCompactActive = false;
 const openRegisterButton = document.getElementById('open-register');
 const closeRegisterButton = document.getElementById('close-register');
 const registerScreen = document.getElementById('register-screen');
@@ -1864,6 +1868,21 @@ function renderEntries() {
   const searchQuery = athleteSearchInput.value.trim().toLowerCase();
   athletesList.innerHTML = '';
 
+  // Atleta scelto nell'elenco compatto (vedi openAthleteCompactList): va in
+  // cima alla lista e forza la prima pagina, a prescindere dall'ordinamento
+  // attivo — "consumato" subito dopo, vale solo per questa singola render.
+  let focusAfterRender = null;
+  if (pinnedAthleteId) {
+    const pinnedIndex = entries.findIndex((entry) => entry.id === pinnedAthleteId);
+    if (pinnedIndex !== -1) {
+      const [pinned] = entries.splice(pinnedIndex, 1);
+      entries.unshift(pinned);
+      currentPage = 1;
+      focusAfterRender = pinnedAthleteId;
+    }
+    pinnedAthleteId = null;
+  }
+
   const countEl = document.getElementById('athlete-count');
   if (countEl) {
     countEl.textContent = String(entries.length);
@@ -1907,6 +1926,7 @@ function renderEntries() {
 
     const item = document.createElement('li');
     item.className = 'athlete-item card-v2';
+    item.dataset.id = entry.id;
 
     const concorsoDate = entry.concorsoDate || '--/--/--';
 
@@ -2042,6 +2062,140 @@ function renderEntries() {
   });
 
   renderPagination(entries.length);
+
+  if (focusAfterRender) {
+    const pinnedItem = athletesList.querySelector(`.athlete-item[data-id="${focusAfterRender}"]`);
+    const toggle = pinnedItem && pinnedItem.querySelector('.projection-toggle');
+    if (toggle) {
+      toggle.click();
+    }
+  }
+}
+
+// ===================== Elenco compatto atleti (conteggio cliccabile) =====================
+// Sostituisce le card con un elenco alfabetico nome+badge, per vedere a
+// colpo d'occhio tutti gli atleti registrati (non solo quelli della pagina
+// o del filtro attivo) e il totale per esito. Cliccando un nome si torna
+// alla vista a card con quell'atleta in cima e già aperto (vedi
+// pinnedAthleteId/focusAfterRender in renderEntries).
+function athleteStatusCounts() {
+  const counts = { pending: 0, passed: 0, failed: 0 };
+  cachedEntries.forEach((entry) => {
+    if (entry.competitionResult === 'passed') counts.passed += 1;
+    else if (entry.competitionResult === 'failed') counts.failed += 1;
+    else counts.pending += 1;
+  });
+  return counts;
+}
+
+function renderAthleteCompactList() {
+  const container = document.getElementById('athlete-compact-list');
+  if (!container) {
+    return;
+  }
+  const counts = athleteStatusCounts();
+  const sorted = [...cachedEntries].sort((a, b) => {
+    const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+    const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+    return aName.localeCompare(bName, 'it');
+  });
+
+  const rowsMarkup = sorted.map((entry) => {
+    const result = entry.competitionResult;
+    const badgeClass = result === 'passed' ? 'result-badge-passed'
+      : result === 'failed' ? 'result-badge-failed'
+      : 'result-badge-pending';
+    const badgeIcon = result === 'passed' ? thumbsUpIcon(12)
+      : result === 'failed' ? thumbsDownIcon(12)
+      : hourglassIcon(11);
+    const badgeLabel = result === 'passed' ? 'Concorso superato'
+      : result === 'failed' ? 'Concorso non superato'
+      : 'Concorso in corso';
+    return `
+      <button type="button" class="athlete-compact-row" data-id="${entry.id}">
+        <span class="athlete-compact-name">${escapeHtml(entry.name)} ${escapeHtml(entry.surname)}</span>
+        <span class="athlete-compact-badge ${badgeClass}" title="${escapeHtml(badgeLabel)}" aria-label="${escapeHtml(badgeLabel)}">${badgeIcon}</span>
+      </button>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="athlete-compact-legend">
+      <span class="athlete-compact-legend-item"><span class="athlete-compact-badge result-badge-pending">${hourglassIcon(11)}</span>${counts.pending} in corso</span>
+      <span class="athlete-compact-legend-item"><span class="athlete-compact-badge result-badge-passed">${thumbsUpIcon(12)}</span>${counts.passed} superati</span>
+      <span class="athlete-compact-legend-item"><span class="athlete-compact-badge result-badge-failed">${thumbsDownIcon(12)}</span>${counts.failed} non superati</span>
+    </div>
+    <p class="athlete-compact-note">Elenco disponibile da ottobre 2026.</p>
+    <div class="athlete-compact-rows">
+      ${rowsMarkup || '<div class="athlete-compact-empty">Nessun atleta ancora registrato.</div>'}
+    </div>
+  `;
+}
+
+function openAthleteCompactList() {
+  const container = document.getElementById('athlete-compact-list');
+  const countBtn = document.getElementById('athlete-count');
+  if (!container) {
+    return;
+  }
+  athleteCompactActive = true;
+  renderAthleteCompactList();
+  container.hidden = false;
+  athletesList.hidden = true;
+  emptyState.style.display = 'none';
+  const pagination = document.getElementById('athlete-pagination');
+  if (pagination) {
+    pagination.hidden = true;
+  }
+  if (countBtn) {
+    countBtn.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function closeAthleteCompactList({ focusId = null } = {}) {
+  const container = document.getElementById('athlete-compact-list');
+  const countBtn = document.getElementById('athlete-count');
+  athleteCompactActive = false;
+  if (container) {
+    container.hidden = true;
+  }
+  athletesList.hidden = false;
+  if (countBtn) {
+    countBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (focusId) {
+    // Garantisce che l'atleta scelto sia davvero visibile a prescindere da
+    // ricerca/filtri lasciati attivi prima di aprire l'elenco compatto.
+    athleteSearchInput.value = '';
+    activeDistance = FILTER_DEFAULTS.distance;
+    activeSort = FILTER_DEFAULTS.sort;
+    activeOutcome = FILTER_DEFAULTS.outcome;
+    activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
+    pinnedAthleteId = focusId;
+  }
+  renderEntries();
+}
+
+const athleteCountButton = document.getElementById('athlete-count');
+if (athleteCountButton) {
+  athleteCountButton.addEventListener('click', () => {
+    if (athleteCompactActive) {
+      closeAthleteCompactList();
+    } else {
+      openAthleteCompactList();
+    }
+  });
+}
+
+const athleteCompactListEl = document.getElementById('athlete-compact-list');
+if (athleteCompactListEl) {
+  athleteCompactListEl.addEventListener('click', (event) => {
+    const row = event.target.closest('.athlete-compact-row');
+    if (!row) {
+      return;
+    }
+    closeAthleteCompactList({ focusId: row.dataset.id });
+  });
 }
 
 async function handleSubmit(event) {

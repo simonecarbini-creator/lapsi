@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-10-07a">
+<html lang="it" data-build="2026-10-07b">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -256,11 +256,12 @@
             </svg>
             <span id="athlete-list-title-text">Atleti registrati</span>
           </h2>
-          <span class="list-count" id="athlete-count">0</span>
+          <button type="button" class="list-count list-count-btn" id="athlete-count" aria-label="Mostra l'elenco compatto degli atleti" aria-expanded="false">0</button>
         </div>
         <div id="empty-state" class="empty-state">Nessun atleta ancora registrato.</div>
         <ul id="athletes-list" class="athletes-list" aria-live="polite"></ul>
         <nav id="athlete-pagination" class="pagination" hidden aria-label="Paginazione atleti"></nav>
+        <div id="athlete-compact-list" class="athlete-compact-list" hidden></div>
       </section>
 
       <footer class="app-footer">
