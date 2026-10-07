@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07c';
-console.log('[Lapsi] build', APP_BUILD, '— ritmi stimati dal 1000: bordo arancione invece di viola, spiegazione sempre visibile della fonte');
+const APP_BUILD = '2026-10-07d';
+console.log('[Lapsi] build', APP_BUILD, '— "Crea allenamento" (militari) + "Storico allenamenti": storico spostato lì, righe espandibili con i tempi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -206,6 +206,10 @@ function switchSection(section) {
   }
   if (ripetuteFab) {
     ripetuteFab.hidden = section !== 'militari' && section !== 'master' && section !== 'mezzofondo';
+    // Stesso pulsante, due funzioni diverse: nei militari apre il
+    // costruttore di allenamenti per tutti gli atleti ("Crea allenamento"),
+    // in Master/Mezzofondo resta il vecchio calcolatore ("Ripetute brevi").
+    ripetuteFab.setAttribute('aria-label', section === 'militari' ? 'Crea allenamento' : 'Ripetute brevi');
   }
   if (sprintFab) {
     sprintFab.hidden = section !== 'velocisti';
@@ -8337,14 +8341,33 @@ function trainingMonthGroups() {
     }));
 }
 
+// Riga di un allenamento salvato dal simulatore "Crea allenamento":
+// espandibile come le voci manuali (stesso .training-entry/toggle), ma il
+// corpo mostra i tempi per atleta congelati al salvataggio invece di un
+// editor — riusa milAthleteCompactRowMarkup, la stessa riga ultra-compatta
+// già usata dentro il simulatore.
 function milTrainingSimRowMarkup(training) {
-  return `
+  const chevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  const blocks = Array.isArray(training.blocks) ? training.blocks : [];
+  const athletes = Array.isArray(training.athletes) ? training.athletes : [];
+  const totalKm = Number(training.totalKm) || 0;
+  const bodyMarkup = (blocks.length && athletes.length)
+    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly: true })).join('')}</div>`
+    : '<div class="mil-ath-empty">Nessun dettaglio salvato per questo allenamento.</div>';
+
+  const item = document.createElement('div');
+  item.className = 'training-entry training-entry-sim';
+  item.dataset.id = training.id;
+  item.innerHTML = `
     <div class="mil-training-row">
       <span class="mil-training-date">${escapeHtml(trainingDateLabel(training.date))}</span>
       <span class="mil-training-name" title="${escapeHtml(training.name)}">${escapeHtml(training.name)}</span>
+      <button type="button" class="training-entry-toggle" aria-expanded="false" aria-label="Apri/chiudi dettagli">${chevron}</button>
       <button type="button" class="mil-training-del" data-id="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
     </div>
+    <div class="training-entry-body" hidden>${bodyMarkup}</div>
   `;
+  return item;
 }
 
 // Il "guscio" di un mese: le voci manuali restano elementi DOM veri (servono
@@ -8368,7 +8391,7 @@ function createMonthGroupElement(group, expanded) {
   } else {
     group.items.forEach((item) => {
       if (item.kind === 'sim') {
-        body.insertAdjacentHTML('beforeend', milTrainingSimRowMarkup(item));
+        body.appendChild(milTrainingSimRowMarkup(item));
       } else {
         body.appendChild(trainingEntryTemplate(item, { expanded: false }));
       }
@@ -8747,47 +8770,11 @@ function milSeriesResultsMarkup() {
   `;
 }
 
-// Storico degli allenamenti salvati, dentro il simulatore stesso — con i
-// tempi per atleta, congelati al momento del salvataggio (non si
-// ricalcolano se poi il passo di un atleta cambia): un atleta può tornarci
-// anche dopo aver "scordato" i tempi comunicati quel giorno. Qui dentro
-// restano anche i riferimenti agli atleti: a differenza della voce in
-// "Programma allenamento" (solo nome e data), questo è il posto fatto apposta
-// per ritrovarli.
-function milTrainingHistoryCardMarkup(training) {
-  const blocks = Array.isArray(training.blocks) ? training.blocks : [];
-  const athletes = Array.isArray(training.athletes) ? training.athletes : [];
-  const totalKm = Number(training.totalKm) || 0;
-  const body = (blocks.length && athletes.length)
-    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly: true })).join('')}</div>`
-    : '<div class="mil-ath-empty">Nessun dettaglio salvato per questo allenamento.</div>';
-  return `
-    <details class="mtest-history mil-series-history-entry">
-      <summary class="mtest-history-summary">${escapeHtml(training.date)} · ${escapeHtml(training.name)}</summary>
-      ${body}
-    </details>
-  `;
-}
-
-function milSeriesHistoryMarkup() {
-  const trainings = [...readMilTrainings()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  if (!trainings.length) {
-    return '';
-  }
-  return `
-    <details class="mtest-history" data-section-key="mil-series-hist">
-      <summary class="mtest-history-summary">Storico allenamenti (${trainings.length})</summary>
-      ${trainings.map(milTrainingHistoryCardMarkup).join('')}
-    </details>
-  `;
-}
-
 function renderMilSeries() {
   if (!milSeriesBody) {
     return;
   }
-  const main = milSeriesState.showResults ? milSeriesResultsMarkup() : milSeriesEditorMarkup();
-  milSeriesBody.innerHTML = `${main}${milSeriesHistoryMarkup()}`;
+  milSeriesBody.innerHTML = milSeriesState.showResults ? milSeriesResultsMarkup() : milSeriesEditorMarkup();
 }
 
 function openMilSeries() {
@@ -8840,14 +8827,14 @@ function milDefaultTrainingName(blocks) {
   return `${blocksText}${recText}`;
 }
 
-// Nome dell'allenamento, poi via nello storico mensile di "Programma
-// allenamento" (solo nome e data) E nello storico del simulatore (con i
-// tempi per atleta congelati a questo momento, vedi milSeriesHistoryMarkup).
-// Il simulatore torna a un blocco vuoto.
+// Nome dell'allenamento, poi via nello storico mensile di "Storico
+// allenamenti" — con i tempi per atleta congelati a questo momento
+// (vedi milTrainingSimRowMarkup), non nel simulatore stesso. Il simulatore
+// torna a un blocco vuoto.
 async function handleMilSeriesSave() {
   const defaultName = milDefaultTrainingName(milSeriesState.blocks);
   const name = await showPrompt("Nome dell'allenamento", {
-    detail: 'Lo ritroverai in Programma allenamento, nel mese in corso, e nello storico qui sotto con i tempi.',
+    detail: 'Lo ritroverai in Storico allenamenti, nel mese in corso, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
     defaultValue: defaultName,
     confirmText: 'Salva',

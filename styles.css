@@ -378,25 +378,13 @@ button, input {
   padding-bottom: 12px;
 }
 
-/* Storico degli allenamenti salvati, dentro il simulatore: una card per
-   allenamento (data + nome come titolo) con dentro i tempi congelati per
-   ogni atleta — per tornarci quando un atleta ha scordato i tempi
-   comunicati quel giorno, senza dover ripassare da Programma allenamento
-   (che mostra solo nome e data, niente atleti). */
-.mil-series-panel + .mtest-history {
-  margin-top: 16px;
-  padding-top: 12px;
-}
-
-.mil-series-history-entry {
-  margin-top: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-}
-
-.mil-series-history-entry .mil-ath-compact-list {
-  margin-top: 8px;
+/* Riga di un allenamento salvato dal simulatore, dentro "Storico
+   allenamenti": stessa riga compatta delle voci manuali (data + nome +
+   cestino), ma espandibile per rivedere i tempi congelati per ogni atleta
+   — per tornarci quando un atleta ha scordato i tempi comunicati quel
+   giorno, senza dover riaprire "Crea allenamento". */
+.training-entry-sim .training-entry-body {
+  padding: 2px 14px 12px;
 }
 
 /* Elenco compatto (una riga per atleta: nome, tempi, cestino) al posto delle
