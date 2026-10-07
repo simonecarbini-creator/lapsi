@@ -151,6 +151,60 @@
     return REC_OPTIONS.some(([r]) => r === rec);
   }
 
+  // "Giorno di forza": salite/gradoni/balzi aggiunti come volume
+  // equivalente alle ripetute della stessa seduta. [chiave, etichetta,
+  // intensità]. Il fattore 3.5 nella formula sotto è solo di scala: un
+  // minuto a intensità 1.0 equivale a 210 m di corsa piana.
+  const STRENGTH_EXERCISES = [
+    ['salita-dolce', 'Salita dolce (3-5%)', 1.3],
+    ['salita-media', 'Salita media (6-9%)', 1.6],
+    ['salita-ripida', 'Salita ripida (10-15%)', 2.0],
+    ['gradoni-corsa', 'Gradoni di corsa', 2.2],
+    ['gradoni-balzi-1', 'Gradoni a balzi, un gradone', 2.8],
+    ['gradoni-balzi-2', 'Gradoni a balzi, due gradoni', 3.2],
+    ['saggittali', 'Balzi sagittali sul posto', 2.4],
+    ['jumping-squat', 'Jumping squat', 3.0],
+    ['skip', 'Skip, andature', 1.8],
+  ];
+  const STRENGTH_SCALE = 3.5;
+
+  // Velocità stimata (m/s) per convertire metri -> secondi, solo per gli
+  // esercizi dove ha senso pensare in distanza invece che in tempo (salite
+  // e gradoni di corsa) — stima approssimativa, pensata per essere
+  // ritoccata qui se non rispecchia il ritmo reale.
+  const STRENGTH_METERS_SPEED = {
+    'salita-dolce': 2.8,
+    'salita-media': 2.4,
+    'salita-ripida': 2.0,
+    'gradoni-corsa': 1.5,
+  };
+
+  function strengthIntensity(key) {
+    const found = STRENGTH_EXERCISES.find(([k]) => k === key);
+    return found ? found[2] : null;
+  }
+
+  function strengthSecondsFromMeters(key, meters) {
+    const speed = STRENGTH_METERS_SPEED[key];
+    return speed && meters > 0 ? meters / speed : 0;
+  }
+
+  // Secondi totali di lavoro di un esercizio: durata della singola serie
+  // (o la stima dai metri) per il numero di serie, SENZA i recuperi, più
+  // l'eventuale discesa di corsa (dimezzata: la discesa camminando non
+  // conta, vedi app.js dove si sceglie se includerla).
+  function strengthExerciseSeconds({ serieSeconds = 0, numSerie = 1, descentRunSeconds = 0 }) {
+    const reps = Math.max(1, numSerie || 1);
+    return Math.max(0, serieSeconds) * reps + Math.max(0, descentRunSeconds) * 0.5;
+  }
+
+  // Volume equivalente (in metri, stessa unità delle ripetute) di un
+  // esercizio di forza: secondiTotali * intensità * 3.5.
+  function strengthVolumeEquivalent(totalSeconds, key) {
+    const intensity = strengthIntensity(key);
+    return intensity && totalSeconds > 0 ? totalSeconds * intensity * STRENGTH_SCALE : 0;
+  }
+
   return {
     PCT,
     VOL_OPTIONS,
@@ -173,5 +227,12 @@
     parseThousand,
     isValidVol,
     isValidRec,
+    STRENGTH_EXERCISES,
+    STRENGTH_SCALE,
+    STRENGTH_METERS_SPEED,
+    strengthIntensity,
+    strengthSecondsFromMeters,
+    strengthExerciseSeconds,
+    strengthVolumeEquivalent,
   };
 });

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07e';
-console.log('[Lapsi] build', APP_BUILD, '— esporta/importa dati per categoria, con export anche in CSV per Excel');
+const APP_BUILD = '2026-10-07f';
+console.log('[Lapsi] build', APP_BUILD, '— nuove formule pure: recupero in metri e volume "giorno di forza" (non ancora in UI)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al

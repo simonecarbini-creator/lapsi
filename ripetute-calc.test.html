@@ -81,6 +81,31 @@ che si ritocca un coefficiente in <code>ripetute-calc.js</code>.</p>
   assertEqual(RipeteCalc.isValidRec(90), true, 'isValidRec(90) === true');
   assertEqual(RipeteCalc.isValidRec(100), false, 'isValidRec(100) === false');
 
+  // --- "Giorno di forza": volume equivalente di salite/gradoni/balzi ---
+  assertEqual(RipeteCalc.strengthIntensity('gradoni-corsa'), 2.2, 'strengthIntensity("gradoni-corsa") === 2.2');
+  assertEqual(RipeteCalc.strengthIntensity('non-esiste'), null, 'strengthIntensity("non-esiste") === null');
+
+  // 10 serie da 20" di gradoni = 200" totali, senza i recuperi (caso dalla spec).
+  const gradoniSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 20, numSerie: 10 });
+  assertEqual(gradoniSeconds, 200, '10x20" di gradoni === 200" totali');
+  assertEqual(Math.round(RipeteCalc.strengthVolumeEquivalent(gradoniSeconds, 'gradoni-corsa')), 1540, 'volEquivalente(200", gradoni-corsa) === 1540 m');
+
+  // 1 minuto a intensità 1,0 deve valere 210 m (il senso del fattore 3,5).
+  assertEqual(60 * 1.0 * RipeteCalc.STRENGTH_SCALE, 210, "1' a intensità 1,0 === 210 m");
+
+  // Discesa di corsa: conta a metà; se non c'è (camminata) non va passata.
+  const withDescent = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 0, numSerie: 1, descentRunSeconds: 10 });
+  assertEqual(withDescent, 5, 'discesa di corsa di 10" conta per 5"');
+  const noDescent = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 20, numSerie: 3 });
+  assertEqual(noDescent, 60, 'senza discesa, 3x20" === 60" (nessun contributo extra)');
+
+  // Metri -> secondi per gli esercizi che accettano la distanza.
+  assertEqual(Math.round(RipeteCalc.strengthSecondsFromMeters('salita-media', 100) * 100) / 100, 41.67, 'strengthSecondsFromMeters("salita-media", 100) ≈ 41,67"');
+  assertEqual(RipeteCalc.strengthSecondsFromMeters('jumping-squat', 100), 0, 'strengthSecondsFromMeters su un esercizio senza velocità stimata === 0');
+
+  assertEqual(RipeteCalc.strengthVolumeEquivalent(0, 'skip'), 0, 'strengthVolumeEquivalent(0, ...) === 0');
+  assertEqual(RipeteCalc.strengthVolumeEquivalent(100, 'non-esiste'), 0, 'strengthVolumeEquivalent con chiave sconosciuta === 0');
+
   // --- render ---
   const list = document.getElementById('results');
   results.forEach((r) => {
