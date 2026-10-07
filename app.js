@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07d';
-console.log('[Lapsi] build', APP_BUILD, '— "Crea allenamento" (militari) + "Storico allenamenti": storico spostato lì, righe espandibili con i tempi');
+const APP_BUILD = '2026-10-07e';
+console.log('[Lapsi] build', APP_BUILD, '— esporta/importa dati per categoria, con export anche in CSV per Excel');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -2841,7 +2841,11 @@ function exportEntriesAsJson() {
   URL.revokeObjectURL(url);
 }
 
-async function importEntriesFromJson(file) {
+// onlyDomainKey: se valorizzato (scelta di una categoria specifica nel menu
+// "Importa dati", invece di "Tutto il sito"), il file viene letto come al
+// solito ma si considera solo quel dominio — anche se il JSON ne contiene
+// altri (es. un vecchio backup completo), gli altri restano intatti.
+async function importEntriesFromJson(file, onlyDomainKey = null) {
   if (!file) {
     return;
   }
@@ -2857,6 +2861,10 @@ async function importEntriesFromJson(file) {
     return;
   }
 
+  const domainsToConsider = onlyDomainKey
+    ? DATA_DOMAINS.filter((domain) => domain.key === onlyDomainKey)
+    : DATA_DOMAINS;
+
   // Formato unico { athletes, velocisti, master, mezzofondo } (le chiavi
   // possono mancare: un export di una build precedente non ha master e
   // mezzofondo, e resta leggibile anche un vecchio export "solo atleti", un
@@ -2867,7 +2875,7 @@ async function importEntriesFromJson(file) {
     }
     return parsed && Array.isArray(parsed[domain.key]) ? parsed[domain.key] : null;
   };
-  const found = DATA_DOMAINS
+  const found = domainsToConsider
     .map((domain) => ({ domain, list: listFor(domain) }))
     .filter((item) => item.list);
 
@@ -2912,6 +2920,160 @@ async function importEntriesFromJson(file) {
     await domain.save(items);
   }
   showToast('Import completato!');
+}
+
+// ===== Esporta dati: per categoria, JSON o foglio Excel (CSV) =====
+// Un vero .xlsx richiederebbe una libreria esterna (il progetto non ne usa):
+// il CSV con BOM e separatore ";" si apre comunque diretto in Excel/Numeri/
+// Fogli Google con le colonne già separate, stesso risultato pratico per una
+// segreteria che deve solo leggerlo o stamparlo.
+function csvEscape(value) {
+  const str = value === null || value === undefined ? '' : String(value);
+  return /[";\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+function buildCsv(headers, rows) {
+  const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(';'));
+  return `﻿${lines.join('\r\n')}`;
+}
+
+function downloadTextFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Riga CSV condivisa da Master e Mezzofondo (stessa forma dei dati, stesse
+// colonne): ultimo risultato di ciascuno dei tre test, non lo storico intero
+// — un elenco da leggere in fretta, non un dump completo.
+function masterCsvRow(entry) {
+  const lastVam = entry.vamTests && entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
+  const lastThousand = entry.thousandTests && entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
+  const lastSoglia = entry.sogliaTests && entry.sogliaTests.length ? entry.sogliaTests[entry.sogliaTests.length - 1] : null;
+  const thousandSeconds = lastThousand ? RipeteCalc.parseThousand(lastThousand.value) : null;
+  return [
+    entry.name || '',
+    entry.surname || '',
+    lastVam ? `${lastVam.value} km/h` : '',
+    thousandSeconds ? RipeteCalc.formatSeconds(thousandSeconds) : '',
+    lastSoglia ? (lastSoglia.meters ? `${lastSoglia.meters} m` : lastSoglia.value) : '',
+  ];
+}
+
+const DATA_DOMAIN_CSV = {
+  athletes: {
+    filename: 'lapsi-militari.csv',
+    headers: ['Nome', 'Cognome', 'Soprannome', 'Corpo militare', 'Data concorso', 'Esito concorso', 'Attività', 'Miglior tempo', 'Data miglior tempo', 'Miglior salto (m)', 'Data miglior salto'],
+    rows: (list) => list.map((entry) => {
+      const bestTime = getBestAthleteTime(entry);
+      const bestJump = getBestAthleteJump(entry);
+      const esito = entry.competitionResult === 'passed' ? 'Superato'
+        : entry.competitionResult === 'failed' ? 'Non superato'
+        : 'In corso';
+      return [
+        entry.name || '', entry.surname || '', entry.nickname || '', entry.military || '',
+        entry.concorsoDate || '', esito, entry.activity || '',
+        bestTime ? bestTime.time : '', bestTime ? bestTime.date : '',
+        bestJump ? bestJump.jumpHeight : '', bestJump ? bestJump.date : '',
+      ];
+    }),
+  },
+  velocisti: {
+    filename: 'lapsi-velocita.csv',
+    headers: ['Nome', 'Cognome', 'Specialità', 'N. test sprint registrati', 'N. risultati gara'],
+    rows: (list) => list.map((entry) => [
+      entry.name || '', entry.surname || '', entry.specialty || '',
+      (entry.sprintTests || []).length, (entry.raceResults || []).length,
+    ]),
+  },
+  master: {
+    filename: 'lapsi-master.csv',
+    headers: ['Nome', 'Cognome', 'Ultima VAM', 'Ultimo Tempo sul 1000', 'Ultima Soglia'],
+    rows: (list) => list.map(masterCsvRow),
+  },
+  mezzofondo: {
+    filename: 'lapsi-mezzofondo.csv',
+    headers: ['Nome', 'Cognome', 'Ultima VAM', 'Ultimo Tempo sul 1000', 'Ultima Soglia'],
+    rows: (list) => list.map(masterCsvRow),
+  },
+};
+
+function exportDomainAsJson(key) {
+  const domain = DATA_DOMAINS.find((d) => d.key === key);
+  if (!domain) {
+    return;
+  }
+  const list = domain.get();
+  if (!list.length) {
+    alert('Nessun dato da esportare.');
+    return;
+  }
+  const payload = { lapsi: true, exportedAt: new Date().toISOString(), [key]: list };
+  downloadTextFile(`lapsi-${key}.json`, JSON.stringify(payload, null, 2), 'application/json');
+}
+
+function exportDomainAsCsv(key) {
+  const domain = DATA_DOMAINS.find((d) => d.key === key);
+  const csvDef = DATA_DOMAIN_CSV[key];
+  if (!domain || !csvDef) {
+    return;
+  }
+  const list = domain.get();
+  if (!list.length) {
+    alert('Nessun dato da esportare.');
+    return;
+  }
+  const csv = buildCsv(csvDef.headers, csvDef.rows(list));
+  downloadTextFile(csvDef.filename, csv, 'text/csv;charset=utf-8');
+}
+
+const EXPORT_IMPORT_SCOPE_OPTIONS = [
+  { value: 'all', label: 'Tutto il sito' },
+  { value: 'athletes', label: 'Militari' },
+  { value: 'velocisti', label: 'Velocità' },
+  { value: 'master', label: 'Master' },
+  { value: 'mezzofondo', label: 'Mezzofondo' },
+];
+
+async function handleExportMenuClick() {
+  setMenuOpen(false);
+  const scope = await showChoice('Cosa vuoi esportare?', { options: EXPORT_IMPORT_SCOPE_OPTIONS });
+  if (!scope) {
+    return;
+  }
+  if (scope === 'all') {
+    exportEntriesAsJson();
+    return;
+  }
+  const format = await showChoice('In che formato?', {
+    options: [
+      { value: 'json', label: 'JSON (per reimportarlo in Lapsi)' },
+      { value: 'csv', label: 'Foglio Excel (.csv)' },
+    ],
+  });
+  if (format === 'json') {
+    exportDomainAsJson(scope);
+  } else if (format === 'csv') {
+    exportDomainAsCsv(scope);
+  }
+}
+
+let pendingImportScopeKey = null;
+
+async function handleImportMenuClick() {
+  setMenuOpen(false);
+  const scope = await showChoice('Cosa vuoi importare?', { options: EXPORT_IMPORT_SCOPE_OPTIONS });
+  if (!scope) {
+    return;
+  }
+  pendingImportScopeKey = scope === 'all' ? null : scope;
+  importFileInput.click();
 }
 
 function handleSuggestionInput() {
@@ -3185,19 +3347,15 @@ athletesList.addEventListener('focusin', (event) => {
     setTimeout(() => input.select(), 0);
   }
 });
-exportButton.addEventListener('click', () => {
-  setMenuOpen(false);
-  exportEntriesAsJson();
-});
+exportButton.addEventListener('click', handleExportMenuClick);
 if (importButton && importFileInput) {
-  importButton.addEventListener('click', () => {
-    setMenuOpen(false);
-    importFileInput.click();
-  });
+  importButton.addEventListener('click', handleImportMenuClick);
   importFileInput.addEventListener('change', async () => {
     const file = importFileInput.files && importFileInput.files[0];
+    const scopeKey = pendingImportScopeKey;
     importFileInput.value = '';
-    await importEntriesFromJson(file);
+    pendingImportScopeKey = null;
+    await importEntriesFromJson(file, scopeKey);
   });
 }
 athleteSearchInput.addEventListener('input', () => {
