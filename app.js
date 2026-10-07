@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07g';
-console.log('[Lapsi] build', APP_BUILD, '— recupero in metri (fermo/corsa/camminando/misto) nei simulatori di ripetute');
+const APP_BUILD = '2026-10-07h';
+console.log('[Lapsi] build', APP_BUILD, '— "giorno di forza" (salite/gradoni/balzi) come volume equivalente nei simulatori di ripetute');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5808,9 +5808,58 @@ function masterSeriesDefaultBlock() {
   };
 }
 
+// "Giorno di forza": salite/gradoni/balzi aggiunti come volume equivalente
+// al totale della seduta (vedi RipeteCalc.strengthVolumeEquivalent) — stato
+// di sessione, non di un singolo blocco: una checkbox più un elenco libero
+// di esercizi, condiviso dal simulatore Master/Mezzofondo (per atleta) e da
+// quello di gruppo dei militari (un elenco solo, vale per tutti).
+function masterSeriesDefaultStrength() {
+  return { enabled: false, exercises: [] };
+}
+
+function masterSeriesDefaultStrengthExercise() {
+  return {
+    id: `mstr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    type: RipeteCalc.STRENGTH_EXERCISES[0][0],
+    seconds: '',
+    meters: '',
+    numSerie: '1',
+    descentSeconds: '',
+    descentRun: false,
+  };
+}
+
+// Tipi di esercizio dove ha senso la discesa (si scende da qualcosa): tutto
+// tranne i balzi "sul posto" (saggittali, jumping squat) e lo skip in piano.
+function masterSeriesStrengthHasDescent(type) {
+  return type !== 'saggittali' && type !== 'jumping-squat' && type !== 'skip';
+}
+
+// Volume equivalente totale (in metri) di tutti gli esercizi del "giorno di
+// forza", da sommare al volume delle ripetute — 0 se la checkbox non è
+// attiva. Il tipo decide se i metri (quando compilati, al posto dei
+// secondi) hanno una velocità stimata per convertirli (RipeteCalc
+// restituisce 0 secondi altrimenti, quindi quel contributo resta 0 anziché
+// dare un errore silenzioso).
+function masterSeriesStrengthVolumeMeters(strength) {
+  if (!strength || !strength.enabled || !strength.exercises.length) {
+    return 0;
+  }
+  return strength.exercises.reduce((sum, ex) => {
+    const metersInput = parseInt(ex.meters, 10) || 0;
+    const effSeconds = metersInput
+      ? RipeteCalc.strengthSecondsFromMeters(ex.type, metersInput)
+      : (parseFloat(ex.seconds) || 0);
+    const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
+    const descentRunSeconds = ex.descentRun ? (parseFloat(ex.descentSeconds) || 0) : 0;
+    const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
+    return sum + RipeteCalc.strengthVolumeEquivalent(totalSeconds, ex.type);
+  }, 0);
+}
+
 function masterSeriesGetState(athleteId) {
   if (!masterSeriesState.has(athleteId)) {
-    masterSeriesState.set(athleteId, { blocks: [masterSeriesDefaultBlock()], showResults: false, savedTrainingId: null, compare: false });
+    masterSeriesState.set(athleteId, { blocks: [masterSeriesDefaultBlock()], showResults: false, savedTrainingId: null, compare: false, strength: masterSeriesDefaultStrength() });
   }
   return masterSeriesState.get(athleteId);
 }
@@ -5823,6 +5872,36 @@ function masterSeriesFindBlock(inputEl) {
   const card = inputEl.closest('.athlete-item');
   const state = masterSeriesGetState(card.dataset.id);
   return state.blocks.find((b) => b.id === inputEl.dataset.blockId);
+}
+
+// Stesso meccanismo di masterSeriesFindBlock, per un esercizio del "giorno
+// di forza" (data-ex-id invece di data-block-id).
+function masterSeriesFindExercise(inputEl) {
+  const card = inputEl.closest('.athlete-item');
+  const state = masterSeriesGetState(card.dataset.id);
+  return state.strength.exercises.find((ex) => ex.id === inputEl.dataset.exId);
+}
+
+// Aggiorna a mano la nota di un esercizio mentre si digita (stesso motivo
+// di masterSeriesUpdateRecMetersNote: un renderMaster() qui perderebbe il
+// focus).
+function masterSeriesUpdateStrengthNote(inputEl, ex) {
+  const row = inputEl.closest('.mseries-strength-row');
+  const noteEl = row && row.querySelector('.mseries-strength-ex-note');
+  if (!noteEl) {
+    return;
+  }
+  const metersInput = parseInt(ex.meters, 10) || 0;
+  const effSeconds = metersInput
+    ? RipeteCalc.strengthSecondsFromMeters(ex.type, metersInput)
+    : (parseFloat(ex.seconds) || 0);
+  const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
+  const descentRunSeconds = ex.descentRun ? (parseFloat(ex.descentSeconds) || 0) : 0;
+  const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
+  const volume = RipeteCalc.strengthVolumeEquivalent(totalSeconds, ex.type);
+  noteEl.textContent = volume > 0
+    ? `≈ ${Math.round(volume)} m equivalenti (${RipeteCalc.formatLabel(Math.round(totalSeconds))} di lavoro)`
+    : 'inserisci durata (o metri) e numero di serie';
 }
 
 // Aggiorna a mano la nota sotto "recupero tra le serie" mentre si digita
@@ -6030,6 +6109,83 @@ function masterSeriesCheckboxMarkup(inputClass, blockId, checked, labelText) {
       <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
       <span class="mseries-checkbox-label">${escapeHtml(labelText)}</span>
     </label>
+  `;
+}
+
+// Riga di un esercizio del "giorno di forza": tipo, durata (secondi, o in
+// alternativa metri per i tipi dove c'è una velocità stimata — salite e
+// gradoni di corsa), numero di serie, e per i tipi "con dislivello" la
+// discesa (solo se di corsa, vedi masterSeriesStrengthHasDescent).
+function masterSeriesStrengthRowMarkup(ex) {
+  const hasMeters = Object.prototype.hasOwnProperty.call(RipeteCalc.STRENGTH_METERS_SPEED, ex.type);
+  const hasDescent = masterSeriesStrengthHasDescent(ex.type);
+  const metersInput = parseInt(ex.meters, 10) || 0;
+  const effSeconds = metersInput
+    ? RipeteCalc.strengthSecondsFromMeters(ex.type, metersInput)
+    : (parseFloat(ex.seconds) || 0);
+  const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
+  const descentRunSeconds = ex.descentRun ? (parseFloat(ex.descentSeconds) || 0) : 0;
+  const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
+  const volume = RipeteCalc.strengthVolumeEquivalent(totalSeconds, ex.type);
+  const note = volume > 0
+    ? `≈ ${Math.round(volume)} m equivalenti (${RipeteCalc.formatLabel(Math.round(totalSeconds))} di lavoro)`
+    : 'inserisci durata (o metri) e numero di serie';
+  const typeOptions = RipeteCalc.STRENGTH_EXERCISES
+    .map(([key, label]) => `<option value="${key}"${ex.type === key ? ' selected' : ''}>${escapeHtml(label)}</option>`)
+    .join('');
+  return `
+    <div class="mseries-strength-row" data-ex-id="${ex.id}">
+      <div class="mseries-strength-row-head">
+        <select class="mseries-strength-type-input" data-ex-id="${ex.id}" aria-label="Tipo di esercizio">${typeOptions}</select>
+        <button type="button" class="mseries-strength-del-btn" data-ex-id="${ex.id}" aria-label="Rimuovi esercizio">${MTEST_DEL_ICON}</button>
+      </div>
+      <div class="mseries-strength-fields">
+        <div class="mseries-strength-field">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-seconds-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.seconds)}" placeholder="0" aria-label="Secondi a serie" /><span>″/serie</span>
+        </div>
+        ${hasMeters ? `
+        <div class="mseries-strength-field">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-meters-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.meters)}" placeholder="o metri" aria-label="Metri a serie, in alternativa ai secondi" /><span>m/serie</span>
+        </div>` : ''}
+        <div class="mseries-strength-field">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-numserie-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.numSerie)}" placeholder="N" aria-label="Numero di serie" /><span>serie</span>
+        </div>
+      </div>
+      ${hasDescent ? `
+      <div class="mseries-strength-descent-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-descent-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.descentSeconds)}" placeholder="0" aria-label="Secondi di discesa" /><span>″ discesa</span>
+        <label class="mseries-checkbox mseries-strength-descent-label">
+          <input type="checkbox" class="mseries-strength-descent-run-input" data-ex-id="${ex.id}"${ex.descentRun ? ' checked' : ''} />
+          <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
+          <span class="mseries-checkbox-label">di corsa (camminando non conta)</span>
+        </label>
+      </div>` : ''}
+      <div class="mseries-strength-ex-note">${escapeHtml(note)}</div>
+    </div>
+  `;
+}
+
+// Checkbox "giorno di forza" + elenco esercizi, sotto i blocchi di
+// ripetute — stato di sessione (masterSeriesDefaultStrength), non di un
+// singolo blocco.
+function masterSeriesStrengthMarkup(strength) {
+  const totalVolume = masterSeriesStrengthVolumeMeters(strength);
+  const body = strength.enabled ? `
+    <div class="mseries-strength-body">
+      ${strength.exercises.map(masterSeriesStrengthRowMarkup).join('')}
+      <button type="button" class="mseries-strength-add-btn">${MTEST_PLUS_ICON} Aggiungi esercizio</button>
+      ${totalVolume > 0 ? `<div class="mseries-strength-total">Giorno di forza: +${(totalVolume / 1000).toFixed(2).replace('.', ',')} km equivalenti aggiunti al volume.</div>` : ''}
+    </div>
+  ` : '';
+  return `
+    <div class="mseries-strength">
+      <label class="mseries-checkbox">
+        <input type="checkbox" class="mseries-strength-toggle"${strength.enabled ? ' checked' : ''} />
+        <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
+        <span class="mseries-checkbox-label">Giorno di forza (salite, gradoni, balzi)</span>
+      </label>
+      ${body}
+    </div>
   `;
 }
 
@@ -6640,8 +6796,12 @@ function masterSeriesBuilderMarkup(entry) {
   // masterSeriesGapDeductionKm. Sottratto solo dal secondo blocco in poi:
   // il primo non ha un "prima" a cui applicare una pausa.
   const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  // "Giorno di forza": salite/gradoni/balzi si sommano al volume usato nel
+  // calcolo del passo, come se fossero altre ripetute — non al volume
+  // "reale" della seduta mostrato come ripetute vere e proprie.
+  const strengthKm = masterSeriesStrengthVolumeMeters(state.strength) / 1000;
   const rawKm = totalMeters / 1000;
-  const totalKm = Math.max(0, rawKm - gapDeductionKm);
+  const totalKm = Math.max(0, rawKm - gapDeductionKm + strengthKm);
 
   // Dopo "Calcola serie" i blocchi da compilare (e i pulsanti per costruirli)
   // spariscono: restano solo il risultato e il totale, con un'icona reload
@@ -6652,8 +6812,15 @@ function masterSeriesBuilderMarkup(entry) {
       ? (entry.trainings || []).find((training) => training.id === state.savedTrainingId) || null
       : null;
     const compareOn = !!(savedTraining && state.compare);
-    const usedVolumeSuffix = gapDeductionKm > 0
-      ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (pause lunghe)`
+    const volumeSuffixParts = [];
+    if (gapDeductionKm > 0) {
+      volumeSuffixParts.push('pause lunghe');
+    }
+    if (strengthKm > 0) {
+      volumeSuffixParts.push(`+${strengthKm.toFixed(2).replace('.', ',')} km giorno di forza`);
+    }
+    const usedVolumeSuffix = volumeSuffixParts.length
+      ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (${volumeSuffixParts.join(', ')})`
       : '';
     return `
       <div class="mtest-proj-group mseries-proj-group">
@@ -6687,6 +6854,7 @@ function masterSeriesBuilderMarkup(entry) {
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
       <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
+      ${masterSeriesStrengthMarkup(state.strength)}
     </div>
   `;
 }
@@ -8024,6 +8192,45 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const strengthToggle = event.target.closest('.mseries-strength-toggle');
+  if (strengthToggle) {
+    const state = masterSeriesGetState(strengthToggle.closest('.athlete-item').dataset.id);
+    state.strength.enabled = strengthToggle.checked;
+    if (state.strength.enabled && !state.strength.exercises.length) {
+      state.strength.exercises.push(masterSeriesDefaultStrengthExercise());
+    }
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const strengthAddBtn = event.target.closest('.mseries-strength-add-btn');
+  if (strengthAddBtn) {
+    const state = masterSeriesGetState(strengthAddBtn.closest('.athlete-item').dataset.id);
+    state.strength.exercises.push(masterSeriesDefaultStrengthExercise());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const strengthDelBtn = event.target.closest('.mseries-strength-del-btn');
+  if (strengthDelBtn) {
+    const state = masterSeriesGetState(strengthDelBtn.closest('.athlete-item').dataset.id);
+    state.strength.exercises = state.strength.exercises.filter((ex) => ex.id !== strengthDelBtn.dataset.exId);
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const strengthDescentRunInput = event.target.closest('.mseries-strength-descent-run-input');
+  if (strengthDescentRunInput) {
+    const state = masterSeriesGetState(strengthDescentRunInput.closest('.athlete-item').dataset.id);
+    masterSeriesFindExercise(strengthDescentRunInput).descentRun = strengthDescentRunInput.checked;
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
   const editOrRepeatBtn = event.target.closest('.mtest-edit-btn, .mtest-repeat-btn');
   if (editOrRepeatBtn) {
     const card = editOrRepeatBtn.closest('.athlete-item');
@@ -8180,7 +8387,7 @@ function masterWire(key) {
   // compilato senza doverlo prima svuotare a mano). 'focusin' invece di
   // 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
   masterOn(key, masterListEl, 'focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-seconds-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-input');
     if (input) {
       input.select();
     }
@@ -8288,6 +8495,14 @@ function masterWire(key) {
       masterSeriesFindBlock(recModeInput).recMode = recModeInput.value;
       state.showResults = false;
       renderMaster();
+      return;
+    }
+    const strengthTypeInput = event.target.closest('.mseries-strength-type-input');
+    if (strengthTypeInput) {
+      const state = masterSeriesGetState(strengthTypeInput.closest('.athlete-item').dataset.id);
+      masterSeriesFindExercise(strengthTypeInput).type = strengthTypeInput.value;
+      state.showResults = false;
+      renderMaster();
     }
   });
 
@@ -8380,6 +8595,42 @@ function masterWire(key) {
       const metersEntry = getMaster().find((e) => e.id === recMetersInput.closest('.athlete-item').dataset.id);
       masterSeriesUpdateRecMetersNote(recMetersInput, metersBlock, metersEntry);
       masterSeriesInvalidate(recMetersInput);
+      return;
+    }
+    const strengthSecondsInput = event.target.closest('.mseries-strength-seconds-input');
+    if (strengthSecondsInput) {
+      strengthSecondsInput.value = strengthSecondsInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      const ex = masterSeriesFindExercise(strengthSecondsInput);
+      ex.seconds = strengthSecondsInput.value;
+      masterSeriesUpdateStrengthNote(strengthSecondsInput, ex);
+      masterSeriesInvalidate(strengthSecondsInput);
+      return;
+    }
+    const strengthMetersInput = event.target.closest('.mseries-strength-meters-input');
+    if (strengthMetersInput) {
+      strengthMetersInput.value = strengthMetersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+      const ex = masterSeriesFindExercise(strengthMetersInput);
+      ex.meters = strengthMetersInput.value;
+      masterSeriesUpdateStrengthNote(strengthMetersInput, ex);
+      masterSeriesInvalidate(strengthMetersInput);
+      return;
+    }
+    const strengthNumSerieInput = event.target.closest('.mseries-strength-numserie-input');
+    if (strengthNumSerieInput) {
+      strengthNumSerieInput.value = strengthNumSerieInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      const ex = masterSeriesFindExercise(strengthNumSerieInput);
+      ex.numSerie = strengthNumSerieInput.value;
+      masterSeriesUpdateStrengthNote(strengthNumSerieInput, ex);
+      masterSeriesInvalidate(strengthNumSerieInput);
+      return;
+    }
+    const strengthDescentInput = event.target.closest('.mseries-strength-descent-input');
+    if (strengthDescentInput) {
+      strengthDescentInput.value = strengthDescentInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      const ex = masterSeriesFindExercise(strengthDescentInput);
+      ex.descentSeconds = strengthDescentInput.value;
+      masterSeriesUpdateStrengthNote(strengthDescentInput, ex);
+      masterSeriesInvalidate(strengthDescentInput);
       return;
     }
     const input = event.target.closest('.mtest-input');
@@ -9103,7 +9354,7 @@ if (trainingNotesList) {
 // nessuna card, vive nel suo overlay (#mil-series-overlay), aperto dal FAB
 // "Ripetute brevi" quando si è nella sezione C. Militari. Il simulatore
 // dentro la card Master resta quello com'è, non lo tocca in nessun punto.
-let milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set() };
+let milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set(), strength: masterSeriesDefaultStrength() };
 
 const milSeriesBackdrop = document.getElementById('mil-series-backdrop');
 const milSeriesOverlay = document.getElementById('mil-series-overlay');
@@ -9145,6 +9396,10 @@ function milSeriesFindBlock(inputEl) {
   return milSeriesState.blocks.find((b) => b.id === inputEl.dataset.blockId);
 }
 
+function milSeriesFindExercise(inputEl) {
+  return milSeriesState.strength.exercises.find((ex) => ex.id === inputEl.dataset.exId);
+}
+
 function milSeriesEditorMarkup() {
   const blocksMarkup = milSeriesState.blocks
     .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
@@ -9155,6 +9410,7 @@ function milSeriesEditorMarkup() {
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
       <button type="button" class="mseries-calc-btn" id="mil-series-calc-btn">Calcola serie</button>
+      ${masterSeriesStrengthMarkup(milSeriesState.strength)}
     </div>
   `;
 }
@@ -9201,11 +9457,19 @@ function milSeriesResultsMarkup() {
   const state = milSeriesState;
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+  const strengthKm = masterSeriesStrengthVolumeMeters(state.strength) / 1000;
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
   const rawKm = totalMeters / 1000;
   const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
-  const usedVolumeSuffix = gapDeductionKm > 0
-    ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (pause lunghe)`
+  const volumeSuffixParts = [];
+  if (gapDeductionKm > 0) {
+    volumeSuffixParts.push('pause lunghe');
+  }
+  if (strengthKm > 0) {
+    volumeSuffixParts.push(`+${strengthKm.toFixed(2).replace('.', ',')} km giorno di forza`);
+  }
+  const usedVolumeSuffix = volumeSuffixParts.length
+    ? ` → <b>${totalKm.toFixed(2).replace('.', ',')} km</b> usati (${volumeSuffixParts.join(', ')})`
     : '';
 
   const athletes = milActiveAthletesWithPace().filter((athlete) => !state.removedAthletes.has(athlete.id));
@@ -9313,7 +9577,8 @@ async function handleMilSeriesSave() {
   }
   const totalMeters = milSeriesState.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const gapDeductionKm = milSeriesState.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+  const strengthKm = masterSeriesStrengthVolumeMeters(milSeriesState.strength) / 1000;
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
   const athletes = milActiveAthletesWithPace()
     .filter((athlete) => !milSeriesState.removedAthletes.has(athlete.id))
     .map((athlete) => ({ id: athlete.id, name: athlete.name, T: athlete.T, vam: athlete.vam }));
@@ -9325,12 +9590,13 @@ async function handleMilSeriesSave() {
     date: shortYearDate(now.date),
     createdAt: now.iso,
     blocks: milSeriesState.blocks,
+    strength: milSeriesState.strength,
     totalKm,
     athletes,
   };
   saveMilTrainings([...readMilTrainings(), training]);
 
-  milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set() };
+  milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set(), strength: masterSeriesDefaultStrength() };
   renderMilSeries();
   showToast('Allenamento salvato!');
 }
@@ -9408,6 +9674,37 @@ if (milSeriesBody) {
       milSeriesFindBlock(gapRecActiveInput).gapBefore.recActive = gapRecActiveInput.checked;
       return;
     }
+
+    const strengthToggle = event.target.closest('.mseries-strength-toggle');
+    if (strengthToggle) {
+      milSeriesState.strength.enabled = strengthToggle.checked;
+      if (milSeriesState.strength.enabled && !milSeriesState.strength.exercises.length) {
+        milSeriesState.strength.exercises.push(masterSeriesDefaultStrengthExercise());
+      }
+      renderMilSeries();
+      return;
+    }
+
+    const strengthAddBtn = event.target.closest('.mseries-strength-add-btn');
+    if (strengthAddBtn) {
+      milSeriesState.strength.exercises.push(masterSeriesDefaultStrengthExercise());
+      renderMilSeries();
+      return;
+    }
+
+    const strengthDelBtn = event.target.closest('.mseries-strength-del-btn');
+    if (strengthDelBtn) {
+      milSeriesState.strength.exercises = milSeriesState.strength.exercises.filter((ex) => ex.id !== strengthDelBtn.dataset.exId);
+      renderMilSeries();
+      return;
+    }
+
+    const strengthDescentRunInput = event.target.closest('.mseries-strength-descent-run-input');
+    if (strengthDescentRunInput) {
+      milSeriesFindExercise(strengthDescentRunInput).descentRun = strengthDescentRunInput.checked;
+      renderMilSeries();
+      return;
+    }
   });
 
   milSeriesBody.addEventListener('change', (event) => {
@@ -9415,11 +9712,17 @@ if (milSeriesBody) {
     if (recModeInput) {
       milSeriesFindBlock(recModeInput).recMode = recModeInput.value;
       renderMilSeries();
+      return;
+    }
+    const strengthTypeInput = event.target.closest('.mseries-strength-type-input');
+    if (strengthTypeInput) {
+      milSeriesFindExercise(strengthTypeInput).type = strengthTypeInput.value;
+      renderMilSeries();
     }
   });
 
   milSeriesBody.addEventListener('focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-seconds-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-input');
     if (input) {
       input.select();
     }
@@ -9526,6 +9829,38 @@ if (milSeriesBody) {
         metersBlock.recMeters = recMetersInput.value;
       }
       masterSeriesUpdateRecMetersNote(recMetersInput, metersBlock, null);
+      return;
+    }
+    const strengthSecondsInput = event.target.closest('.mseries-strength-seconds-input');
+    if (strengthSecondsInput) {
+      strengthSecondsInput.value = strengthSecondsInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      const ex = milSeriesFindExercise(strengthSecondsInput);
+      ex.seconds = strengthSecondsInput.value;
+      masterSeriesUpdateStrengthNote(strengthSecondsInput, ex);
+      return;
+    }
+    const strengthMetersInput = event.target.closest('.mseries-strength-meters-input');
+    if (strengthMetersInput) {
+      strengthMetersInput.value = strengthMetersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+      const ex = milSeriesFindExercise(strengthMetersInput);
+      ex.meters = strengthMetersInput.value;
+      masterSeriesUpdateStrengthNote(strengthMetersInput, ex);
+      return;
+    }
+    const strengthNumSerieInput = event.target.closest('.mseries-strength-numserie-input');
+    if (strengthNumSerieInput) {
+      strengthNumSerieInput.value = strengthNumSerieInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      const ex = milSeriesFindExercise(strengthNumSerieInput);
+      ex.numSerie = strengthNumSerieInput.value;
+      masterSeriesUpdateStrengthNote(strengthNumSerieInput, ex);
+      return;
+    }
+    const strengthDescentInput = event.target.closest('.mseries-strength-descent-input');
+    if (strengthDescentInput) {
+      strengthDescentInput.value = strengthDescentInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      const ex = milSeriesFindExercise(strengthDescentInput);
+      ex.descentSeconds = strengthDescentInput.value;
+      masterSeriesUpdateStrengthNote(strengthDescentInput, ex);
     }
   });
 }

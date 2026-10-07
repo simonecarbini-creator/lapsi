@@ -4574,6 +4574,133 @@ button:active {
   margin-top: 4px;
 }
 
+/* "Giorno di forza": checkbox + elenco esercizi, sotto i blocchi di
+   ripetute — stesso bordo tratteggiato di "Aggiungi blocco" per restare
+   visivamente un'aggiunta facoltativa, non un'altra sezione obbligatoria. */
+.mseries-strength {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--card-border);
+}
+
+.mseries-strength-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mseries-strength-row {
+  padding: 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mseries-strength-row-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mseries-strength-type-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.mseries-strength-del-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fdeaea;
+  color: #c0392b;
+}
+
+.mseries-strength-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mseries-strength-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.mseries-strength-seconds-input,
+.mseries-strength-meters-input,
+.mseries-strength-numserie-input,
+.mseries-strength-descent-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mseries-strength-descent-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mseries-strength-descent-label {
+  font-size: 0.74rem;
+}
+
+.mseries-strength-ex-note {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.mseries-strength-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mseries-strength-add-btn:hover {
+  background: #fff;
+}
+
+.mseries-strength-total {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* Volume a sx, reload a dx: cliccarlo torna alla vista con i blocchi da
    compilare (stessi valori di prima, si limita a rimettere
    state.showResults a false) invece di lasciare "Calcola serie" pieno e
