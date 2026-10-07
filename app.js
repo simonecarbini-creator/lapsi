@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07f';
-console.log('[Lapsi] build', APP_BUILD, '— nuove formule pure: recupero in metri e volume "giorno di forza" (non ancora in UI)');
+const APP_BUILD = '2026-10-07g';
+console.log('[Lapsi] build', APP_BUILD, '— recupero in metri (fermo/corsa/camminando/misto) nei simulatori di ripetute');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5788,6 +5788,18 @@ function masterSeriesDefaultBlock() {
     // true = il recupero tra le ripetute di questo blocco è attivo (corsetta
     // blanda, non fermi): vedi RipeteCalc.effectiveRecovery.
     recActive: false,
+    // Modalità del recupero INTERNO (tra le ripetute dello stesso blocco):
+    // 'time' (il default, comportamento invariato: recDigits/recActive sopra)
+    // oppure in metri — 'meters-run' (corsa lenta), 'meters-walk'
+    // (camminando), 'meters-mixed' (i due sommati). Vedi
+    // masterSeriesResolveRecovery per come si traducono in un tempo.
+    recMode: 'time',
+    recMeters: '',
+    recMetersWalk: '',
+    recMetersRun: '',
+    // Passo di recupero scritto a mano (stesse cifre mm'ss" di recDigits,
+    // min/km) al posto di quello stimato dalla VAM — vuoto = usa la stima.
+    recPaceOverride: '',
     // Recupero PRIMA di questo blocco (ignorato per il primo, index 0):
     // diverso dal recupero interno alle ripetute del blocco, come i "rest
     // step" tra le serie in Garmin Connect. skip=true = si passa dritti al
@@ -5821,6 +5833,20 @@ function masterSeriesUpdateGapNote(gapRecInput, gap) {
   const note = masterSeriesGapNote(gap);
   noteEl.textContent = note;
   noteEl.hidden = !note;
+}
+
+// Stesso motivo, per la nota col tempo di recupero calcolato sotto i campi
+// "metri" (vedi masterSeriesRecMetersRowMarkup): la si aggiorna a mano
+// mentre si digita, senza un renderMaster() che perderebbe il focus.
+// "entry" è l'atleta Master/Mezzofondo (null nel simulatore di gruppo dei
+// militari, dove il passo varia per atleta e la nota resta generica).
+function masterSeriesUpdateRecMetersNote(inputEl, block, entry) {
+  const noteEl = inputEl.closest('.mseries-block').querySelector('.mseries-rec-meters-note');
+  if (!noteEl) {
+    return;
+  }
+  const vam = entry ? masterAthleteVam(entry) : null;
+  noteEl.textContent = masterSeriesRecMetersNote(block, vam);
 }
 
 // Un valore digitato dopo aver già calcolato rende i risultati mostrati
@@ -5869,6 +5895,111 @@ function seriesParseRecSeconds(digits) {
   return total > 0 ? total : null;
 }
 
+// VAM di un atleta Master/Mezzofondo, stesso ordine di priorità usato in
+// masterRitmiSectionMarkup: test diretto se c'è, altrimenti stimata dal
+// Tempo sul 1000. Usata qui per il passo di recupero in metri — non tocca
+// masterRitmiSectionMarkup, solo la stessa logica applicata altrove.
+function masterAthleteVam(entry) {
+  const latestVam = entry.vamTests && entry.vamTests.length ? entry.vamTests[entry.vamTests.length - 1] : null;
+  if (latestVam) {
+    return MezzofondoCalc.parseVam(latestVam.value);
+  }
+  const latestThousand = entry.thousandTests && entry.thousandTests.length ? entry.thousandTests[entry.thousandTests.length - 1] : null;
+  return latestThousand ? MezzofondoCalc.parseThousandToVam(latestThousand.value) : null;
+}
+
+// Passo di recupero (min/km) per un blocco: quello scritto a mano se c'è
+// (stesse cifre mm'ss" di recDigits, riusa seriesParseRecSeconds), altrimenti
+// quello stimato dalla VAM dell'atleta. "vam" null (VAM non disponibile, o
+// nel simulatore di gruppo dei militari dove varia per atleta) -> null se
+// non c'è nemmeno l'override.
+function masterSeriesRecoveryPace(block, vam) {
+  const overrideSeconds = seriesParseRecSeconds(block.recPaceOverride);
+  if (overrideSeconds) {
+    return { pace: overrideSeconds / 60, overridden: true };
+  }
+  const pace = MezzofondoCalc.recoveryPaceMinPerKm(vam);
+  return { pace, overridden: false };
+}
+
+// Risolve il recupero INTERNO di un blocco (tra le ripetute) in un tempo
+// effettivo (equivalente da fermo, in secondi) qualunque sia la modalità
+// scelta — il ramo 'time' riproduce ESATTAMENTE il calcolo originale
+// (seriesParseRecSeconds + RipeteCalc.effectiveRecovery), quindi un blocco
+// mai toccato da queste nuove opzioni si comporta com'è sempre stato.
+// Per i rami in metri regole esatte concordate: corsa lenta -> tempo dal
+// passo di recupero, poi la stessa conversione attivo/fermo di sempre;
+// camminando -> 0,63"/m, NESSUNA ulteriore conversione (è già un
+// equivalente da fermo); misto -> somma dei due equivalenti.
+function masterSeriesResolveRecovery(block, vam) {
+  const mode = block.recMode || 'time';
+  if (mode === 'time') {
+    const rec = seriesParseRecSeconds(block.recDigits);
+    if (!rec) {
+      return null;
+    }
+    return { effRec: RipeteCalc.effectiveRecovery(rec, block.recActive), mode };
+  }
+  const { pace, overridden } = masterSeriesRecoveryPace(block, vam);
+  if (mode === 'meters-walk') {
+    const meters = parseInt(block.recMeters, 10) || 0;
+    if (!meters) {
+      return null;
+    }
+    return { effRec: MezzofondoCalc.recoverySecondsFromWalkMeters(meters), mode, meters };
+  }
+  if (mode === 'meters-run') {
+    const meters = parseInt(block.recMeters, 10) || 0;
+    if (!meters || !pace) {
+      return null;
+    }
+    const raw = MezzofondoCalc.recoverySecondsFromRunMeters(meters, pace);
+    return { effRec: RipeteCalc.effectiveRecovery(raw, true), mode, meters, pace, overridden, rawSeconds: raw };
+  }
+  if (mode === 'meters-mixed') {
+    const metersWalk = parseInt(block.recMetersWalk, 10) || 0;
+    const metersRun = parseInt(block.recMetersRun, 10) || 0;
+    if (!metersWalk && !metersRun) {
+      return null;
+    }
+    const walkEff = MezzofondoCalc.recoverySecondsFromWalkMeters(metersWalk);
+    let runEff = 0;
+    let rawRunSeconds = 0;
+    if (metersRun) {
+      if (!pace) {
+        return null;
+      }
+      rawRunSeconds = MezzofondoCalc.recoverySecondsFromRunMeters(metersRun, pace);
+      runEff = RipeteCalc.effectiveRecovery(rawRunSeconds, true);
+    }
+    return { effRec: walkEff + runEff, mode, metersWalk, metersRun, pace, overridden, rawSeconds: rawRunSeconds + metersWalk * MezzofondoCalc.RECOVERY_WALK_SEC_PER_METER };
+  }
+  return null;
+}
+
+// Etichetta compatta del recupero per le intestazioni dei risultati e lo
+// storico, qualunque sia la modalità — stesso schema di prima per 'time'
+// ("rec 1′30″ (corsa lenta, equiv. 1′10″ fermo)"), nuove frasi per i metri.
+function masterSeriesRecoveryLabel(block, resolved) {
+  if (!resolved) {
+    return 'rec da impostare';
+  }
+  if (resolved.mode === 'time') {
+    const activeSuffix = block.recActive
+      ? ` (corsa lenta, equiv. ${RipeteCalc.formatLabel(Math.round(resolved.effRec))} fermo)`
+      : '';
+    return `rec ${seriesFormatRecMask(block.recDigits)}${activeSuffix}`;
+  }
+  const effLabel = RipeteCalc.formatLabel(Math.round(resolved.effRec));
+  if (resolved.mode === 'meters-walk') {
+    return `rec ${resolved.meters} m camminando (equiv. ${effLabel} fermo)`;
+  }
+  if (resolved.mode === 'meters-run') {
+    return `rec ${resolved.meters} m di corsa lenta (equiv. ${effLabel} fermo)`;
+  }
+  return `rec ${resolved.metersWalk || 0}+${resolved.metersRun || 0} m misto (equiv. ${effLabel} fermo)`;
+}
+
 // "400" -> [400]; "200/300/400/600/400/300" -> [200,300,400,600,400,300].
 // Tiene l'ordine e le ripetizioni (un 400 due volte nella piramide resta
 // due voci distinte, serve a disegnare la serie così com'è) e scarta solo i
@@ -5902,7 +6033,67 @@ function masterSeriesCheckboxMarkup(inputClass, blockId, checked, labelText) {
   `;
 }
 
-function masterSeriesBlockRowMarkup(block, index) {
+// Testo del tempo calcolato sotto i campi "metri": sempre passo usato +
+// tempo di recupero grezzo + equivalente da fermo, l'informazione che
+// manca all'allenatore quando scrive "rec. 200 m" sulla scheda (vedi
+// masterSeriesResolveRecovery). Quando vam è null (simulatore di gruppo
+// dei militari, dove ogni atleta ha il proprio passo) resta solo la nota
+// che il tempo varia per atleta — vedi i risultati per quello.
+function masterSeriesRecMetersNote(block, vam) {
+  const resolved = masterSeriesResolveRecovery(block, vam);
+  if (!vam && block.recMode !== 'meters-walk') {
+    return 'il tempo di recupero varia per atleta: si vede nei risultati, per ciascuno';
+  }
+  if (!resolved) {
+    return 'inserisci i metri per vedere il tempo di recupero stimato';
+  }
+  const effLabel = RipeteCalc.formatLabel(Math.round(resolved.effRec));
+  if (resolved.mode === 'meters-walk') {
+    return `tempo di recupero: ${effLabel}`;
+  }
+  const paceLabel = resolved.pace ? `${MezzofondoCalc.formatPace(resolved.pace)}/km` : '--';
+  const rawLabel = RipeteCalc.formatLabel(Math.round(resolved.rawSeconds || 0));
+  return `passo ${paceLabel}${resolved.overridden ? ' (scritto a mano)' : ' (stimato)'} · ${rawLabel} di corsa, equivalente a ${effLabel} fermo`;
+}
+
+// Righe aggiuntive quando il recupero è in metri (non 'time'): i campi dei
+// metri (uno o due, a seconda della modalità), il passo di recupero
+// (editabile, vuoto = stima automatica) e la nota col tempo calcolato.
+function masterSeriesRecMetersRowMarkup(block, vam) {
+  const mode = block.recMode;
+  if (mode !== 'meters-run' && mode !== 'meters-walk' && mode !== 'meters-mixed') {
+    return '';
+  }
+  const note = masterSeriesRecMetersNote(block, vam);
+  const metersFields = mode === 'meters-mixed'
+    ? `
+      <div class="mseries-rec-meters-field">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-meters-walk-input" data-block-id="${block.id}" value="${escapeHtml(block.recMetersWalk)}" placeholder="0" aria-label="Metri camminati" /><span>m camminati</span>
+      </div>
+      <div class="mseries-rec-meters-field">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-meters-run-input" data-block-id="${block.id}" value="${escapeHtml(block.recMetersRun)}" placeholder="0" aria-label="Metri di corsa lenta" /><span>m di corsa</span>
+      </div>
+    `
+    : `
+      <div class="mseries-rec-meters-field">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-meters-input" data-block-id="${block.id}" value="${escapeHtml(block.recMeters)}" placeholder="0" aria-label="Metri di recupero" /><span>m${mode === 'meters-walk' ? ' camminati' : ' di corsa lenta'}</span>
+      </div>
+    `;
+  const paceRow = mode === 'meters-walk' ? '' : `
+    <div class="mseries-rec-pace-row">
+      <span class="mseries-rec-pace-label">passo di recupero</span>
+      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-pace-input" data-block-id="${block.id}" data-digits="${block.recPaceOverride}" value="${escapeHtml(seriesFormatRecMask(block.recPaceOverride))}" placeholder="stimato" aria-label="Passo di recupero scritto a mano" />
+    </div>
+  `;
+  return `
+    <div class="mseries-rec-meters-row">${metersFields}</div>
+    ${paceRow}
+    <div class="mseries-rec-meters-note">${escapeHtml(note)}</div>
+  `;
+}
+
+function masterSeriesBlockRowMarkup(block, index, vam = null) {
+  const mode = block.recMode || 'time';
   return `
     <div class="mseries-block" data-block-id="${block.id}">
       <div class="mseries-block-row">
@@ -5914,11 +6105,21 @@ function masterSeriesBlockRowMarkup(block, index) {
         </div>
         <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${index === 0 ? ' disabled' : ''}>${MTEST_DEL_ICON}</button>
       </div>
+      <div class="mseries-rec-mode-row">
+        <select class="mseries-rec-mode-input" data-block-id="${block.id}" aria-label="Tipo di recupero">
+          <option value="time"${mode === 'time' ? ' selected' : ''}>Tempo</option>
+          <option value="meters-run"${mode === 'meters-run' ? ' selected' : ''}>Metri, di corsa lenta</option>
+          <option value="meters-walk"${mode === 'meters-walk' ? ' selected' : ''}>Metri, camminando</option>
+          <option value="meters-mixed"${mode === 'meters-mixed' ? ' selected' : ''}>Metri, misto (camminata + corsa)</option>
+        </select>
+      </div>
+      ${mode === 'time' ? `
       <div class="mseries-block-rec-row">
         <span class="mseries-rec-label">recupero</span>
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
         ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
       </div>
+      ` : masterSeriesRecMetersRowMarkup(block, vam)}
     </div>
   `;
 }
@@ -6009,14 +6210,14 @@ function masterSeriesResultGapMarkup(block) {
   return `<div class="mseries-result-gap">${escapeHtml(`${skipNote}rec ${label}${activeNote} tra le serie · ${impact}`)}</div>`;
 }
 
-function masterSeriesResultBlockMarkup(block, T, totalKm, compare = null) {
+function masterSeriesResultBlockMarkup(block, T, totalKm, compare = null, vam = null) {
   const reps = Math.max(1, parseInt(block.reps, 10) || 1);
   const distances = masterSeriesParseDistances(block.dist);
-  const rec = seriesParseRecSeconds(block.recDigits);
-  if (!distances.length || !rec) {
+  const resolved = masterSeriesResolveRecovery(block, vam);
+  if (!distances.length || !resolved) {
     return `<div class="mseries-result-block mseries-result-block-invalid">Blocco incompleto: controlla distanze e recupero.</div>`;
   }
-  const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
+  const effRec = resolved.effRec;
   const tiles = distances
     .map((dist, di) => {
       const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
@@ -6030,10 +6231,7 @@ function masterSeriesResultBlockMarkup(block, T, totalKm, compare = null) {
     })
     .join('');
   const header = `${reps > 1 ? `${reps} × ` : ''}${distances.join('-')} m`;
-  const activeSuffix = block.recActive
-    ? ` (corsa lenta, equiv. ${RipeteCalc.formatLabel(Math.round(effRec))} fermo)`
-    : '';
-  const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${activeSuffix}`;
+  const recLabel = masterSeriesRecoveryLabel(block, resolved);
   return `
     <div class="mseries-result-block">
       <div class="mseries-result-header"><b>${escapeHtml(header)}</b><span>${escapeHtml(recLabel)}</span></div>
@@ -6143,6 +6341,14 @@ function normalizeMasterTraining(record) {
       dist: String(block.dist || ''),
       recDigits: String(block.recDigits || ''),
       recActive: !!block.recActive,
+      // Solo per l'etichetta mostrata nello storico (vedi
+      // masterSeriesRecoveryLabel) — i tempi stimati sono già congelati
+      // sopra in "estimates", non si ricalcolano da questi campi.
+      recMode: String(block.recMode || 'time'),
+      recMeters: String(block.recMeters || ''),
+      recMetersWalk: String(block.recMetersWalk || ''),
+      recMetersRun: String(block.recMetersRun || ''),
+      recPaceOverride: String(block.recPaceOverride || ''),
       estimates,
       done,
     };
@@ -6176,6 +6382,27 @@ function masterTrainingBlockLabel(block) {
   return `${block.reps > 1 ? `${block.reps} × ` : ''}${block.dist.replace(/\//g, '-')} m`;
 }
 
+// Etichetta del recupero in uno storico salvato: per 'time' ESATTAMENTE il
+// formato originale ("rec 1′30″ (attivo)", mai toccato — i tempi sono già
+// congelati in "estimates", qui è solo testo) perché uno storico salvato
+// prima di questa funzione non cambi aspetto. Per i blocchi in metri (che
+// prima non potevano esistere) una frase analoga con quanto scritto allora;
+// niente VAM da ricalcolare, bastano i metri/il passo già congelati nel
+// blocco stesso.
+function masterTrainingRecLabel(block) {
+  const mode = block.recMode || 'time';
+  if (mode === 'time') {
+    return `rec ${seriesFormatRecMask(block.recDigits)}${block.recActive ? ' (attivo)' : ''}`;
+  }
+  if (mode === 'meters-walk') {
+    return `rec ${block.recMeters || 0} m camminando`;
+  }
+  if (mode === 'meters-run') {
+    return `rec ${block.recMeters || 0} m di corsa lenta`;
+  }
+  return `rec ${block.recMetersWalk || 0}+${block.recMetersRun || 0} m misto`;
+}
+
 // Card di uno storico: chiusa mostra solo data, nome (una riga, troncato) e
 // cestino; aperta i dettagli, con stima sopra e tempo fatto sotto in formato
 // ridotto.
@@ -6183,7 +6410,7 @@ function masterTrainingCardMarkup(training, open) {
   const summary = training.blocks.map(masterTrainingBlockLabel).join(' + ');
   const displayName = training.name || summary;
   const blocksMarkup = training.blocks.map((block) => {
-    const recLabel = `rec ${seriesFormatRecMask(block.recDigits)}${block.recActive ? ' (attivo)' : ''}`;
+    const recLabel = masterTrainingRecLabel(block);
     const cells = block.estimates.map((estimate, di) => `
       <div class="mtrain-cell">
         <div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(estimate.seconds))}</b><span>${estimate.dist} m</span></div>
@@ -6195,7 +6422,7 @@ function masterTrainingCardMarkup(training, open) {
     return `<div class="mtrain-block">${header}<div class="mtrain-cells">${cells}</div></div>`;
   }).join('');
   const single = training.blocks.length === 1
-    ? ` · rec ${escapeHtml(seriesFormatRecMask(training.blocks[0].recDigits))}${training.blocks[0].recActive ? ' (attivo)' : ''}`
+    ? ` · ${escapeHtml(masterTrainingRecLabel(training.blocks[0]))}`
     : '';
   return `
     <details class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}" data-section-key="train-${escapeHtml(training.id)}"${open ? ' open' : ''}>
@@ -6242,6 +6469,7 @@ async function handleMasterTrainingSave(button) {
   if (!T) {
     return;
   }
+  const vam = masterAthleteVam(entry);
   const state = masterSeriesGetState(athleteId);
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
@@ -6263,13 +6491,13 @@ async function handleMasterTrainingSave(button) {
   const blocks = [];
   for (const block of state.blocks) {
     const distances = masterSeriesParseDistances(block.dist);
-    const rec = seriesParseRecSeconds(block.recDigits);
-    if (!distances.length || !rec) {
+    const resolved = masterSeriesResolveRecovery(block, vam);
+    if (!distances.length || !resolved) {
       alert('Completa distanze e recupero di tutti i blocchi prima di salvare.');
       return;
     }
     const reps = Math.max(1, parseInt(block.reps, 10) || 1);
-    const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
+    const effRec = resolved.effRec;
     const estimates = distances.map((dist) => {
       const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
       return { dist, seconds, shown: mtrainShownSeconds(seconds) };
@@ -6278,7 +6506,20 @@ async function handleMasterTrainingSave(button) {
     estimates.forEach((_, di) => { done[di] = Array.from({ length: reps }, () => null); });
     // Stesso id del blocco del simulatore: serve a ritrovare i campi del
     // confronto sotto i riquadri giusti.
-    blocks.push({ id: block.id, reps, dist: block.dist, recDigits: block.recDigits, recActive: !!block.recActive, estimates, done });
+    blocks.push({
+      id: block.id,
+      reps,
+      dist: block.dist,
+      recDigits: block.recDigits,
+      recActive: !!block.recActive,
+      recMode: block.recMode || 'time',
+      recMeters: block.recMeters || '',
+      recMetersWalk: block.recMetersWalk || '',
+      recMetersRun: block.recMetersRun || '',
+      recPaceOverride: block.recPaceOverride || '',
+      estimates,
+      done,
+    });
   }
   const now = getNowParts();
   const training = {
@@ -6391,6 +6632,7 @@ function masterSeriesBuilderMarkup(entry) {
   }
 
   const state = masterSeriesGetState(entry.id);
+  const vam = masterAthleteVam(entry);
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
   // Le pause lunghe tra le serie riducono il volume usato nel calcolo del
@@ -6423,7 +6665,7 @@ function masterSeriesBuilderMarkup(entry) {
           </div>
           ${state.blocks.map((block, index) => {
             const compare = compareOn ? { training: savedTraining, savedBlock: savedTraining.blocks.find((b) => b.id === block.id) } : null;
-            return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare)}`;
+            return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare, vam)}`;
           }).join('')}
           ${savedTraining
             ? (compareOn
@@ -6436,7 +6678,7 @@ function masterSeriesBuilderMarkup(entry) {
   }
 
   const blocksMarkup = state.blocks
-    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
+    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, vam)}`)
     .join('');
 
   return `
@@ -7938,7 +8180,7 @@ function masterWire(key) {
   // compilato senza doverlo prima svuotare a mano). 'focusin' invece di
   // 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
   masterOn(key, masterListEl, 'focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input');
     if (input) {
       input.select();
     }
@@ -7975,6 +8217,23 @@ function masterWire(key) {
       recInput.setSelectionRange(end, end);
       masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
       masterSeriesInvalidate(recInput);
+      return;
+    }
+    const recPaceInput = event.target.closest('.mseries-rec-pace-input');
+    if (recPaceInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      recPaceInput.dataset.digits = (recPaceInput.dataset.digits || '').slice(0, -1);
+      recPaceInput.value = seriesFormatRecMask(recPaceInput.dataset.digits);
+      const end = recPaceInput.value.length;
+      recPaceInput.setSelectionRange(end, end);
+      const block = masterSeriesFindBlock(recPaceInput);
+      block.recPaceOverride = recPaceInput.dataset.digits;
+      const entry = getMaster().find((e) => e.id === recPaceInput.closest('.athlete-item').dataset.id);
+      masterSeriesUpdateRecMetersNote(recPaceInput, block, entry);
+      masterSeriesInvalidate(recPaceInput);
       return;
     }
     const trainingDoneInput = event.target.closest('.mtrain-done-input');
@@ -8016,13 +8275,20 @@ function masterWire(key) {
   // digitate, invece di dover riscrivere il risultato da capo.
   masterOn(key, masterListEl, 'change', (event) => {
     const raceTypeInput = event.target.closest('.race-type-input');
-    if (!raceTypeInput) {
+    if (raceTypeInput) {
+      const form = raceTypeInput.closest('.race-form');
+      const resultInput = form.querySelector('.race-result-input');
+      resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
+      resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
       return;
     }
-    const form = raceTypeInput.closest('.race-form');
-    const resultInput = form.querySelector('.race-result-input');
-    resultInput.dataset.digits = (resultInput.dataset.digits || '').slice(0, raceResultMaxDigits(raceTypeInput.value));
-    resultInput.value = formatRaceResultMask(resultInput.dataset.digits, raceTypeInput.value);
+    const recModeInput = event.target.closest('.mseries-rec-mode-input');
+    if (recModeInput) {
+      const state = masterSeriesGetState(recModeInput.closest('.athlete-item').dataset.id);
+      masterSeriesFindBlock(recModeInput).recMode = recModeInput.value;
+      state.showResults = false;
+      renderMaster();
+    }
   });
 
   masterOn(key, masterListEl, 'input', (event) => {
@@ -8085,6 +8351,35 @@ function masterWire(key) {
       recInput.setSelectionRange(end, end);
       masterSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
       masterSeriesInvalidate(recInput);
+      return;
+    }
+    const recPaceInput = event.target.closest('.mseries-rec-pace-input');
+    if (recPaceInput) {
+      recPaceInput.dataset.digits = recPaceInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      recPaceInput.value = seriesFormatRecMask(recPaceInput.dataset.digits);
+      const end = recPaceInput.value.length;
+      recPaceInput.setSelectionRange(end, end);
+      const paceBlock = masterSeriesFindBlock(recPaceInput);
+      paceBlock.recPaceOverride = recPaceInput.dataset.digits;
+      const paceEntry = getMaster().find((e) => e.id === recPaceInput.closest('.athlete-item').dataset.id);
+      masterSeriesUpdateRecMetersNote(recPaceInput, paceBlock, paceEntry);
+      masterSeriesInvalidate(recPaceInput);
+      return;
+    }
+    const recMetersInput = event.target.closest('.mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input');
+    if (recMetersInput) {
+      recMetersInput.value = recMetersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+      const metersBlock = masterSeriesFindBlock(recMetersInput);
+      if (recMetersInput.classList.contains('mseries-rec-meters-walk-input')) {
+        metersBlock.recMetersWalk = recMetersInput.value;
+      } else if (recMetersInput.classList.contains('mseries-rec-meters-run-input')) {
+        metersBlock.recMetersRun = recMetersInput.value;
+      } else {
+        metersBlock.recMeters = recMetersInput.value;
+      }
+      const metersEntry = getMaster().find((e) => e.id === recMetersInput.closest('.athlete-item').dataset.id);
+      masterSeriesUpdateRecMetersNote(recMetersInput, metersBlock, metersEntry);
+      masterSeriesInvalidate(recMetersInput);
       return;
     }
     const input = event.target.closest('.mtest-input');
@@ -8836,7 +9131,11 @@ function milActiveAthletesWithPace() {
       if (!seconds || !meters) {
         return null;
       }
-      return { id: entry.id, name: `${entry.name} ${entry.surname}`.trim() || 'Atleta', T: Math.round((seconds / meters) * 1000) };
+      const T = Math.round((seconds / meters) * 1000);
+      // I militari non hanno un test VAM proprio: per il passo di recupero
+      // in metri (vedi masterSeriesResolveRecovery) si stima dallo stesso T
+      // già usato per i tempi delle ripetute, così resta coerente con quelli.
+      return { id: entry.id, name: `${entry.name} ${entry.surname}`.trim() || 'Atleta', T, vam: MezzofondoCalc.vamFromThousand(T) };
     })
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name, 'it'));
@@ -8864,13 +9163,13 @@ function milSeriesEditorMarkup() {
 // incollata al tempo (es. "400m 1′24″") — mai solo il tempo nudo, altrimenti
 // a riga già fatta non si capisce più a quale distanza si riferisce,
 // soprattutto se il testo va a capo in mezzo a un gruppo.
-function milCompactBlockPairs(block, T, totalKm) {
+function milCompactBlockPairs(block, T, totalKm, vam = null) {
   const distances = masterSeriesParseDistances(block.dist);
-  const rec = seriesParseRecSeconds(block.recDigits);
-  if (!distances.length || !rec) {
+  const resolved = masterSeriesResolveRecovery(block, vam);
+  if (!distances.length || !resolved) {
     return ['<span class="mil-time-pair mil-time-pair-invalid">blocco incompleto</span>'];
   }
-  const effRec = RipeteCalc.effectiveRecovery(rec, block.recActive);
+  const effRec = resolved.effRec;
   return distances.map((dist) => {
     const seconds = RipeteCalc.repeatSecondsForDist(T, dist, totalKm, effRec);
     const time = escapeHtml(RipeteCalc.formatSeconds(seconds));
@@ -8884,7 +9183,7 @@ function milCompactBlockPairs(block, T, totalKm) {
 // separati da un filo tratteggiato.
 function milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly = false } = {}) {
   const timesHtml = blocks
-    .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm).join('')}</span>`)
+    .map((block) => `<span class="mil-block-group">${milCompactBlockPairs(block, athlete.T, totalKm, athlete.vam).join('')}</span>`)
     .join('');
   const delButton = readOnly
     ? ''
@@ -8971,7 +9270,19 @@ function milDefaultTrainingName(blocks) {
     .map((block) => `${Math.max(1, parseInt(block.reps, 10) || 1)}x${masterSeriesParseDistances(block.dist).join('/')}`)
     .join(' + ');
 
-  const internalRecs = [...new Set(blocks.map((block) => seriesFormatRecMask(block.recDigits)).filter(Boolean))];
+  // Per i blocchi col recupero in metri (recDigits resta vuoto) una sigla
+  // breve al posto del tempo, solo per questo nome suggerito — l'utente può
+  // comunque riscriverlo prima di salvare.
+  const internalRecLabel = (block) => {
+    if (block.recDigits) {
+      return seriesFormatRecMask(block.recDigits);
+    }
+    if (block.recMode === 'meters-walk') return `${block.recMeters || 0}m cam.`;
+    if (block.recMode === 'meters-run') return `${block.recMeters || 0}m corsa`;
+    if (block.recMode === 'meters-mixed') return `${block.recMetersWalk || 0}+${block.recMetersRun || 0}m`;
+    return '';
+  };
+  const internalRecs = [...new Set(blocks.map(internalRecLabel).filter(Boolean))];
   const gapRecs = [...new Set(blocks.slice(1).map((block) => seriesFormatRecMask(block.gapBefore.recDigits)).filter(Boolean))];
 
   const recParts = [];
@@ -9005,7 +9316,7 @@ async function handleMilSeriesSave() {
   const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
   const athletes = milActiveAthletesWithPace()
     .filter((athlete) => !milSeriesState.removedAthletes.has(athlete.id))
-    .map((athlete) => ({ id: athlete.id, name: athlete.name, T: athlete.T }));
+    .map((athlete) => ({ id: athlete.id, name: athlete.name, T: athlete.T, vam: athlete.vam }));
 
   const now = getNowParts();
   const training = {
@@ -9099,8 +9410,16 @@ if (milSeriesBody) {
     }
   });
 
+  milSeriesBody.addEventListener('change', (event) => {
+    const recModeInput = event.target.closest('.mseries-rec-mode-input');
+    if (recModeInput) {
+      milSeriesFindBlock(recModeInput).recMode = recModeInput.value;
+      renderMilSeries();
+    }
+  });
+
   milSeriesBody.addEventListener('focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input');
     if (input) {
       input.select();
     }
@@ -9133,6 +9452,21 @@ if (milSeriesBody) {
       const end = recInput.value.length;
       recInput.setSelectionRange(end, end);
       milSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+      return;
+    }
+    const recPaceInput = event.target.closest('.mseries-rec-pace-input');
+    if (recPaceInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      recPaceInput.dataset.digits = (recPaceInput.dataset.digits || '').slice(0, -1);
+      recPaceInput.value = seriesFormatRecMask(recPaceInput.dataset.digits);
+      const end = recPaceInput.value.length;
+      recPaceInput.setSelectionRange(end, end);
+      const block = milSeriesFindBlock(recPaceInput);
+      block.recPaceOverride = recPaceInput.dataset.digits;
+      masterSeriesUpdateRecMetersNote(recPaceInput, block, null);
     }
   });
 
@@ -9167,6 +9501,31 @@ if (milSeriesBody) {
       const end = recInput.value.length;
       recInput.setSelectionRange(end, end);
       milSeriesFindBlock(recInput).recDigits = recInput.dataset.digits;
+      return;
+    }
+    const recPaceInput = event.target.closest('.mseries-rec-pace-input');
+    if (recPaceInput) {
+      recPaceInput.dataset.digits = recPaceInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      recPaceInput.value = seriesFormatRecMask(recPaceInput.dataset.digits);
+      const end = recPaceInput.value.length;
+      recPaceInput.setSelectionRange(end, end);
+      const paceBlock = milSeriesFindBlock(recPaceInput);
+      paceBlock.recPaceOverride = recPaceInput.dataset.digits;
+      masterSeriesUpdateRecMetersNote(recPaceInput, paceBlock, null);
+      return;
+    }
+    const recMetersInput = event.target.closest('.mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input');
+    if (recMetersInput) {
+      recMetersInput.value = recMetersInput.value.replace(/[^0-9]/g, '').slice(0, 5);
+      const metersBlock = milSeriesFindBlock(recMetersInput);
+      if (recMetersInput.classList.contains('mseries-rec-meters-walk-input')) {
+        metersBlock.recMetersWalk = recMetersInput.value;
+      } else if (recMetersInput.classList.contains('mseries-rec-meters-run-input')) {
+        metersBlock.recMetersRun = recMetersInput.value;
+      } else {
+        metersBlock.recMeters = recMetersInput.value;
+      }
+      masterSeriesUpdateRecMetersNote(recMetersInput, metersBlock, null);
     }
   });
 }
