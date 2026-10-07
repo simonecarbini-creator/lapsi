@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07h';
-console.log('[Lapsi] build', APP_BUILD, '— "giorno di forza" (salite/gradoni/balzi) come volume equivalente nei simulatori di ripetute');
+const APP_BUILD = '2026-10-07i';
+console.log('[Lapsi] build', APP_BUILD, '— documentate le nuove regole (recupero in metri, giorno di forza) in "Come funzionano i calcoli"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -10638,6 +10638,13 @@ function renderInfoDoc() {
   const gapMedKm = String(MSERIES_GAP_MED_DEDUCTION).replace('.', ',');
   const gapLongKm = String(MSERIES_GAP_LONG_DEDUCTION).replace('.', ',');
 
+  const strengthRows = RipeteCalc.STRENGTH_EXERCISES.map(([key, label, intensity]) => (
+    `<tr><td>${escapeHtml(label)}</td><td>×${String(intensity).replace('.', ',')}</td></tr>`
+  )).join('');
+  const strengthMetersTypes = Object.keys(RipeteCalc.STRENGTH_METERS_SPEED)
+    .map((key) => RipeteCalc.STRENGTH_EXERCISES.find(([k]) => k === key)[1])
+    .join(', ');
+
   infoBody.innerHTML = `
     <p class="info-lede">Le formule usate nei calcolatori dell'app, lette in diretta dai file che le implementano: se un coefficiente cambia, questa pagina cambia con lui.</p>
 
@@ -10682,6 +10689,32 @@ function renderInfoDoc() {
           <li><b>Volume totale</b>: somma di ripetute × distanza su tutti i blocchi della serie (es. 10×400 + 3×200 = 4,6 km).</li>
           <li><b>Pause lunghe tra le serie</b>: sotto i ${gapMedMin}′ il volume conta per intero nel calcolo del passo; da ${gapMedMin}′ a meno di ${gapLongMin}′ si tolgono ${gapMedKm} km dal volume usato; da ${gapLongMin}′ in su se ne tolgono ${gapLongKm} (per ogni pausa in quella fascia — il volume "reale" della seduta mostrato in cima resta invariato).</li>
           <li><b>Recupero attivo</b> (corsetta blanda invece di stare fermi): vale in media il ${infoPct(RipeteCalc.ACTIVE_REC_LONG_FACTOR)} di un recupero passivo della stessa durata; sotto ${RipeteCalc.ACTIVE_REC_BREAKPOINT}″ l'effetto è più tenue (${infoPct(RipeteCalc.ACTIVE_REC_SHORT_FACTOR)}). Il recupero "equivalente fermo" così ottenuto sostituisce quello vero ovunque sopra (tempo target e soglie del volume), senza altre modifiche alle formule.</li>
+        </ul>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Recupero in metri (tutti i simulatori di ripetute)</summary>
+      <div class="info-section-body">
+        <p>Il recupero tra le ripetute di un blocco si può scrivere anche in metri invece che in minuti, in tre modi:</p>
+        <ul>
+          <li><b>Metri, di corsa lenta</b>: il passo di recupero è quello della zona "Lenta" (vedi sopra) moltiplicato per ${MezzofondoCalc.RECOVERY_PACE_FROM_LENTA_COEF.toString().replace('.', ',')} — un po' più piano della corsa lenta vera e propria. I metri convertiti in tempo con quel passo passano poi dalla stessa conversione "recupero attivo" della riga sopra.</li>
+          <li><b>Metri, camminando</b>: ${MezzofondoCalc.RECOVERY_WALK_SEC_PER_METER.toString().replace('.', ',')}″ per metro, sempre uguale per tutti (poca variabilità tra persone). Qui NON si applica la conversione attivo→fermo: camminare piano è già metabolicamente vicino allo stare fermi.</li>
+          <li><b>Metri, misto</b>: i due sopra sommati, con un campo separato per i metri camminati e per quelli di corsa.</li>
+        </ul>
+        <p>Il passo di recupero stimato si vede sempre accanto al tempo calcolato, con la possibilità di scriverlo a mano al posto della stima. Nel simulatore di gruppo dei militari il calcolo è per singolo atleta, come i tempi delle ripetute: l'editor non mostra un tempo unico, ogni atleta vede il proprio nei risultati.</p>
+      </div>
+    </details>
+
+    <details class="info-section">
+      <summary>Giorno di forza (salite, gradoni, balzi)</summary>
+      <div class="info-section-body">
+        <p>Salite e gradoni, se abilitati nel simulatore, si sommano come volume equivalente a quello delle ripetute (usato solo nel calcolo del passo, non nel volume "reale" mostrato in cima): volume (m) = secondi totali di lavoro × intensità × ${RipeteCalc.STRENGTH_SCALE.toString().replace('.', ',')}. Il ${RipeteCalc.STRENGTH_SCALE.toString().replace('.', ',')} è solo un fattore di scala: un minuto a intensità 1,0 equivale a 210 m di corsa piana.</p>
+        <table class="info-table"><thead><tr><th>Esercizio</th><th>Intensità</th></tr></thead><tbody>${strengthRows}</tbody></table>
+        <ul>
+          <li><b>Secondi totali</b>: durata della singola serie × numero di serie, senza contare i recuperi tra una serie e l'altra.</li>
+          <li><b>Metri, in alternativa ai secondi</b> (solo ${strengthMetersTypes}): convertiti in secondi con una velocità stimata — comoda per chi preferisce pensare in distanza invece che in tempo.</li>
+          <li><b>Discesa di corsa</b>: conta per metà del suo tempo, ma solo se si scende correndo — se si torna giù camminando è recupero e non conta nulla (la discesa di corsa è lavoro eccentrico, quello che lascia più indolenzimento il giorno dopo, anche se nell'immediato "spinge" meno della salita).</li>
         </ul>
       </div>
     </details>
