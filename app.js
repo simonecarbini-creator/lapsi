@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07b';
-console.log('[Lapsi] build', APP_BUILD, '— conteggio atleti militari cliccabile: elenco compatto alfabetico con badge esito');
+const APP_BUILD = '2026-10-07c';
+console.log('[Lapsi] build', APP_BUILD, '— ritmi stimati dal 1000: bordo arancione invece di viola, spiegazione sempre visibile della fonte');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -6789,18 +6789,26 @@ function masterRitmiSectionMarkup(entry) {
     return '';
   }
   // Se c'è il test soglia, il suo passo (misurato) prende il posto di quello
-  // stimato dalla VAM, con il bordo verde per distinguerlo.
+  // stimato dalla VAM, con il bordo verde per distinguerlo. Gli altri tile
+  // restano invece legati alla fonte della VAM: bordo viola se è un test
+  // diretto, arancio (come le ripetute) se è solo stimata dal Tempo sul
+  // 1000 — prima erano sempre viola anche quando stimata, un refuso.
   const latestSoglia = entry.sogliaTests && entry.sogliaTests.length ? entry.sogliaTests[entry.sogliaTests.length - 1] : null;
   const sogliaPaceMin = latestSoglia ? masterSogliaPaceMin(latestSoglia) : null;
+  const vamTileClass = latestVam ? 'calc-out-tile-vam' : 'calc-out-tile-thousand';
   const zoneTiles = MezzofondoCalc.pacesForVam(vam)
     .map(({ label, minutes }) => {
       const measured = label === 'Soglia' && sogliaPaceMin;
-      return `<div class="calc-out-tile ${measured ? 'calc-out-tile-soglia' : 'calc-out-tile-vam'}"><b>${escapeHtml(MezzofondoCalc.formatPace(measured ? sogliaPaceMin : minutes))}</b><span>${escapeHtml(label)}</span></div>`;
+      return `<div class="calc-out-tile ${measured ? 'calc-out-tile-soglia' : vamTileClass}"><b>${escapeHtml(MezzofondoCalc.formatPace(measured ? sogliaPaceMin : minutes))}</b><span>${escapeHtml(label)}</span></div>`;
     })
     .join('');
+  // La frase sotto i tile spiega sempre la fonte, non solo quando si stima
+  // dal 1000: se la Soglia è misurata a parte, lo dice esplicitamente,
+  // perché a differenza degli altri tile non segue la fonte della VAM.
+  const sogliaNote = latestSoglia && sogliaPaceMin ? ' Il valore di Soglia è invece preso direttamente dal test di soglia.' : '';
   const vamHint = !latestVam
-    ? '<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.</div>'
-    : '';
+    ? `<div class="mtest-combined-hint mtest-combined-hint-thousand">Ritmi stimati dal Tempo sul 1000: fai anche il test della VAM per un valore più preciso.${sogliaNote}</div>`
+    : `<div class="mtest-combined-hint mtest-combined-hint-vam">Ritmi stimati dal test della VAM.${sogliaNote}</div>`;
 
   return `
     <div class="mtest-proj-group mtest-ritmi-group">
