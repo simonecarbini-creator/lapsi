@@ -307,6 +307,15 @@ button, input {
   padding: 0 0 6px;
 }
 
+/* Stesso bug di specificità già risolto per .athletes-list[hidden] e
+   .pagination[hidden]: la regola sopra ha la stessa specificità di
+   .training-entry-body[hidden] e la segue nel file, quindi il mese non si
+   richiudeva mai — restava display:flex anche con l'attributo hidden
+   impostato correttamente da toggleTrainingEntry. */
+.training-entry-month > .training-entry-body[hidden] {
+  display: none;
+}
+
 .training-entry-month > .training-entry-body > .training-entry {
   border: none;
   border-radius: 0;
@@ -4750,12 +4759,38 @@ button:active {
   font-style: italic;
 }
 
-.mseries-strength-add-btn {
+/* Un blocco di corsa dentro il giorno di forza: tra le serie di salite o
+   gradoni può esserci una ripetuta in piano — stesso editor (.mseries-block,
+   già con bordo/sfondo suoi) di un blocco normale, solo con un'etichetta
+   sopra per non confonderlo con un esercizio. */
+.mseries-strength-repeat {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mseries-strength-repeat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.mseries-strength-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mseries-strength-add-btn,
+.mseries-strength-add-repeat-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 140px;
   padding: 8px;
   border-radius: 12px;
   border: 1px dashed var(--card-border);
@@ -4765,7 +4800,8 @@ button:active {
   font-weight: 700;
 }
 
-.mseries-strength-add-btn:hover {
+.mseries-strength-add-btn:hover,
+.mseries-strength-add-repeat-btn:hover {
   background: #fff;
 }
 
