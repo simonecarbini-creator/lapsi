@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-08d';
-console.log('[Lapsi] build', APP_BUILD, '— fix chiusura mese in Storico allenamenti, giorno di forza: blocchi di corsa interni, ritorno correndo');
+const APP_BUILD = '2026-10-08e';
+console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: durata in secondi o metri ora mutuamente esclusivi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5860,6 +5860,11 @@ function masterSeriesDefaultStrengthExercise() {
     kind: 'strength',
     id: `mstr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     type: RipeteCalc.STRENGTH_EXERCISES[0][0],
+    // Secondi e metri non si sommano, sono due modi alternativi di dire la
+    // stessa cosa (durata di una serie) — solo uno dei due è editabile alla
+    // volta, scelto da questo campo (ignorato per i tipi senza una velocità
+    // stimata, dove conta solo in secondi).
+    durationMode: 'seconds',
     seconds: '',
     meters: '',
     numSerie: '1',
@@ -5887,12 +5892,27 @@ function masterSeriesStrengthHasDescent(type) {
   return type !== 'saggittali' && type !== 'jumping-squat' && type !== 'skip';
 }
 
+// Se il tipo ha una velocità stimata (vedi RipeteCalc.STRENGTH_METERS_SPEED),
+// per lui secondi e metri sono alternativi — altrimenti conta solo in secondi.
+function masterSeriesStrengthHasMeters(type) {
+  return Object.prototype.hasOwnProperty.call(RipeteCalc.STRENGTH_METERS_SPEED, type);
+}
+
+// Durata di una serie in secondi: dal campo metri se quella è la modalità
+// scelta (e il tipo la prevede), altrimenti dal campo secondi — MAI dalla
+// presenza di un valore nell'uno o nell'altro campo, sono alternativi e
+// solo uno dei due è editabile alla volta (vedi masterSeriesStrengthRowMarkup).
+function masterSeriesStrengthItemSeconds(item) {
+  const useMeters = masterSeriesStrengthHasMeters(item.type) && item.durationMode === 'meters';
+  if (useMeters) {
+    return RipeteCalc.strengthSecondsFromMeters(item.type, parseInt(item.meters, 10) || 0);
+  }
+  return parseFloat(item.seconds) || 0;
+}
+
 // Volume equivalente totale (in metri) di tutti gli esercizi del "giorno di
 // forza", da sommare al volume delle ripetute — 0 se la checkbox non è
-// attiva. Il tipo decide se i metri (quando compilati, al posto dei
-// secondi) hanno una velocità stimata per convertirli (RipeteCalc
-// restituisce 0 secondi altrimenti, quindi quel contributo resta 0 anziché
-// dare un errore silenzioso).
+// attiva.
 function masterSeriesStrengthVolumeMeters(strength) {
   if (!strength || !strength.enabled || !strength.items.length) {
     return 0;
@@ -5903,10 +5923,7 @@ function masterSeriesStrengthVolumeMeters(strength) {
       // qui conta come corsa aggiuntiva, non come "equivalente" stimato.
       return sum + masterSeriesBlockVolume(item);
     }
-    const metersInput = parseInt(item.meters, 10) || 0;
-    const effSeconds = metersInput
-      ? RipeteCalc.strengthSecondsFromMeters(item.type, metersInput)
-      : (parseFloat(item.seconds) || 0);
+    const effSeconds = masterSeriesStrengthItemSeconds(item);
     const numSerie = Math.max(1, parseInt(item.numSerie, 10) || 1);
     const descentRunSeconds = item.descentRun ? (parseFloat(item.descentSeconds) || 0) : 0;
     const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
@@ -5953,17 +5970,14 @@ function masterSeriesUpdateStrengthNote(inputEl, ex) {
   if (!noteEl) {
     return;
   }
-  const metersInput = parseInt(ex.meters, 10) || 0;
-  const effSeconds = metersInput
-    ? RipeteCalc.strengthSecondsFromMeters(ex.type, metersInput)
-    : (parseFloat(ex.seconds) || 0);
+  const effSeconds = masterSeriesStrengthItemSeconds(ex);
   const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
   const descentRunSeconds = ex.descentRun ? (parseFloat(ex.descentSeconds) || 0) : 0;
   const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
   const volume = RipeteCalc.strengthVolumeEquivalent(totalSeconds, ex.type);
   noteEl.textContent = volume > 0
     ? `≈ ${Math.round(volume)} m equivalenti (${RipeteCalc.formatLabel(Math.round(totalSeconds))} di lavoro)`
-    : 'inserisci durata (o metri) e numero di serie';
+    : 'inserisci durata e numero di serie';
 }
 
 // Aggiorna a mano la nota sotto "recupero tra le serie" mentre si digita
@@ -6191,32 +6205,37 @@ function masterSeriesStrengthFieldMarkup(caption, inputHtml) {
 }
 
 function masterSeriesStrengthRowMarkup(ex) {
-  const hasMeters = Object.prototype.hasOwnProperty.call(RipeteCalc.STRENGTH_METERS_SPEED, ex.type);
+  const hasMeters = masterSeriesStrengthHasMeters(ex.type);
   const hasDescent = masterSeriesStrengthHasDescent(ex.type);
-  const metersInput = parseInt(ex.meters, 10) || 0;
-  const effSeconds = metersInput
-    ? RipeteCalc.strengthSecondsFromMeters(ex.type, metersInput)
-    : (parseFloat(ex.seconds) || 0);
+  const durationMode = hasMeters && ex.durationMode === 'meters' ? 'meters' : 'seconds';
+  const effSeconds = masterSeriesStrengthItemSeconds(ex);
   const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
   const descentRunSeconds = ex.descentRun ? (parseFloat(ex.descentSeconds) || 0) : 0;
   const totalSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: effSeconds, numSerie, descentRunSeconds });
   const volume = RipeteCalc.strengthVolumeEquivalent(totalSeconds, ex.type);
   const note = volume > 0
     ? `≈ ${Math.round(volume)} m equivalenti (${RipeteCalc.formatLabel(Math.round(totalSeconds))} di lavoro)`
-    : 'inserisci durata (o metri) e numero di serie';
+    : 'inserisci durata e numero di serie';
   const typeOptions = RipeteCalc.STRENGTH_EXERCISES
     .map(([key, label]) => `<option value="${key}"${ex.type === key ? ' selected' : ''}>${escapeHtml(label)}</option>`)
     .join('');
-  const secondsField = masterSeriesStrengthFieldMarkup('Durata di una serie', `
-    <div class="mseries-strength-field-input">
-      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-seconds-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.seconds)}" placeholder="0" aria-label="Durata di una serie, in secondi" /><span>″</span>
-    </div>
+  // Secondi e metri sono alternativi (la stessa durata di una serie, detta
+  // in due modi), non due valori che si sommano: solo uno dei due input è
+  // mostrato alla volta, scelto da questo mini-select — prima erano
+  // entrambi sempre visibili e compilabili insieme, confusionario.
+  const durationModeSelect = hasMeters ? `
+    <select class="mseries-strength-duration-mode-input" data-ex-id="${ex.id}" aria-label="Come esprimere la durata della serie">
+      <option value="seconds"${durationMode === 'seconds' ? ' selected' : ''}>Secondi</option>
+      <option value="meters"${durationMode === 'meters' ? ' selected' : ''}>Metri</option>
+    </select>
+  ` : '';
+  const durationInput = durationMode === 'meters'
+    ? `<input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-meters-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.meters)}" placeholder="0" aria-label="Lunghezza di una serie, in metri" /><span>m</span>`
+    : `<input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-seconds-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.seconds)}" placeholder="0" aria-label="Durata di una serie, in secondi" /><span>″</span>`;
+  const durationField = masterSeriesStrengthFieldMarkup('Durata di una serie', `
+    ${durationModeSelect}
+    <div class="mseries-strength-field-input">${durationInput}</div>
   `);
-  const metersField = hasMeters ? masterSeriesStrengthFieldMarkup('Oppure, in metri', `
-    <div class="mseries-strength-field-input">
-      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-meters-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.meters)}" placeholder="0" aria-label="Lunghezza di una serie, in metri, in alternativa ai secondi" /><span>m</span>
-    </div>
-  `) : '';
   const numSerieField = masterSeriesStrengthFieldMarkup('Quante serie', `
     <div class="mseries-strength-field-input">
       <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-numserie-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.numSerie)}" placeholder="1" aria-label="Numero di serie" />
@@ -6244,8 +6263,7 @@ function masterSeriesStrengthRowMarkup(ex) {
         <button type="button" class="mseries-strength-del-btn" data-ex-id="${ex.id}" aria-label="Rimuovi esercizio">${MTEST_DEL_ICON}</button>
       </div>
       <div class="mseries-strength-fields">
-        ${secondsField}
-        ${metersField}
+        ${durationField}
         ${numSerieField}
       </div>
       ${descentBlock}
@@ -8627,6 +8645,14 @@ function masterWire(key) {
       masterSeriesFindExercise(strengthTypeInput).type = strengthTypeInput.value;
       state.showResults = false;
       renderMaster();
+      return;
+    }
+    const strengthDurationModeInput = event.target.closest('.mseries-strength-duration-mode-input');
+    if (strengthDurationModeInput) {
+      const state = masterSeriesGetState(strengthDurationModeInput.closest('.athlete-item').dataset.id);
+      masterSeriesFindExercise(strengthDurationModeInput).durationMode = strengthDurationModeInput.value;
+      state.showResults = false;
+      renderMaster();
     }
   });
 
@@ -9850,6 +9876,12 @@ if (milSeriesBody) {
     const strengthTypeInput = event.target.closest('.mseries-strength-type-input');
     if (strengthTypeInput) {
       milSeriesFindExercise(strengthTypeInput).type = strengthTypeInput.value;
+      renderMilSeries();
+      return;
+    }
+    const strengthDurationModeInput = event.target.closest('.mseries-strength-duration-mode-input');
+    if (strengthDurationModeInput) {
+      milSeriesFindExercise(strengthDurationModeInput).durationMode = strengthDurationModeInput.value;
       renderMilSeries();
     }
   });

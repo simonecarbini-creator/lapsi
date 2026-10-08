@@ -4719,6 +4719,18 @@ button:active {
   color: var(--muted);
 }
 
+/* Secondi/metri per la durata di una serie: alternativi, non campi che si
+   sommano — questo mini-select sceglie quale dei due mostrare (vedi
+   masterSeriesStrengthRowMarkup). */
+.mseries-strength-duration-mode-input {
+  padding: 5px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
 .mseries-strength-seconds-input,
 .mseries-strength-meters-input,
 .mseries-strength-numserie-input,
