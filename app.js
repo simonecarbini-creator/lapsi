@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-07i';
-console.log('[Lapsi] build', APP_BUILD, '— documentate le nuove regole (recupero in metri, giorno di forza) in "Come funzionano i calcoli"');
+const APP_BUILD = '2026-10-08a';
+console.log('[Lapsi] build', APP_BUILD, '— storico allenamenti senza scatole annidate, giorno di forza più chiaro, export militari rivisto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -37,7 +37,6 @@ const avatarInput = document.getElementById('avatar');
 const avatarPreview = document.getElementById('avatar-preview');
 const nameInput = document.getElementById('name');
 const surnameInput = document.getElementById('surname');
-const nicknameInput = document.getElementById('nickname');
 const militaryInput = document.getElementById('military');
 const activityInput = document.getElementById('activity');
 const hoursInput = document.getElementById('hours');
@@ -468,7 +467,6 @@ function normalizeAthlete(entry) {
       id: entry.id || `athlete-${Math.random().toString(36).slice(2, 8)}`,
       name: entry.name || '',
       surname: entry.surname || '',
-      nickname: entry.nickname || '',
       military: entry.military || '',
       activity: entry.activity || '1km',
       avatar: entry.avatar || null,
@@ -489,7 +487,6 @@ function normalizeAthlete(entry) {
       id: entry.id || `athlete-${Math.random().toString(36).slice(2, 8)}`,
       name: entry.name || '',
       surname: entry.surname || '',
-      nickname: entry.nickname || '',
       military: entry.military || '',
       activity: entry.activity || '1km',
       avatar: entry.avatar || null,
@@ -2216,7 +2213,6 @@ async function handleSubmit(event) {
   const time = formatTime();
   const now = getNowParts();
   const selectedActivity = activityInput.value || '1km';
-  const nicknameValue = nicknameInput ? nicknameInput.value.trim() : '';
   const athletes = getAthletes();
   const selectedAthleteId = form.dataset.selectedAthleteId;
 
@@ -2231,7 +2227,6 @@ async function handleSubmit(event) {
       id: `athlete-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       name,
       surname,
-      nickname: nicknameValue,
       military: militaryInput.value,
       activity: selectedActivity,
       avatar: currentAvatarData,
@@ -2242,7 +2237,6 @@ async function handleSubmit(event) {
   } else {
     athlete.name = name;
     athlete.surname = surname;
-    athlete.nickname = nicknameValue || athlete.nickname || '';
     athlete.military = militaryInput.value || athlete.military || '';
     athlete.activity = selectedActivity;
     if (currentAvatarData) {
@@ -2317,9 +2311,6 @@ async function handleSubmit(event) {
     }
   });
   initConcorsoDate();
-  if (nicknameInput) {
-    nicknameInput.value = '';
-  }
   militaryInput.value = '';
   currentAvatarData = null;
   avatarInput.value = '';
@@ -2613,8 +2604,6 @@ async function handleEditSubmit(event) {
   const updatedEntry = { ...athletes[targetIndex] };
   updatedEntry.name = updatedName;
   updatedEntry.surname = updatedSurname;
-  const editNicknameInput = editForm.querySelector('[name="edit-nickname"]');
-  updatedEntry.nickname = editNicknameInput ? editNicknameInput.value.trim() : updatedEntry.nickname || '';
   updatedEntry.military = editForm.querySelector('[name="edit-military"]').value;
 
   // Data del concorso: campo indipendente dell'atleta, nessuna relazione con
@@ -2932,8 +2921,14 @@ function csvEscape(value) {
   return /[";\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 }
 
-function buildCsv(headers, rows) {
+// "summaryLine": riga finale facoltativa (es. il totale) — una riga vuota
+// la separa dai dati, poi il testo nella prima cella, per restare un CSV
+// valido anche con quella riga in più.
+function buildCsv(headers, rows, summaryLine) {
   const lines = [headers, ...rows].map((row) => row.map(csvEscape).join(';'));
+  if (summaryLine) {
+    lines.push('', csvEscape(summaryLine));
+  }
   return `﻿${lines.join('\r\n')}`;
 }
 
@@ -2966,23 +2961,34 @@ function masterCsvRow(entry) {
   ];
 }
 
+// Prima data registrata per l'atleta (il più vecchio dei suoi risultati):
+// i militari non hanno un campo "creato il" a parte, ma vengono registrati
+// esattamente nel momento in cui si inserisce il primo risultato, quindi
+// questa data coincide con la registrazione.
+function athleteRegistrationDate(entry) {
+  const records = getAthleteTimeRecords(entry);
+  return records.length ? records[0].date : '';
+}
+
 const DATA_DOMAIN_CSV = {
   athletes: {
     filename: 'lapsi-militari.csv',
-    headers: ['Nome', 'Cognome', 'Soprannome', 'Corpo militare', 'Data concorso', 'Esito concorso', 'Attività', 'Miglior tempo', 'Data miglior tempo', 'Miglior salto (m)', 'Data miglior salto'],
-    rows: (list) => list.map((entry) => {
-      const bestTime = getBestAthleteTime(entry);
-      const bestJump = getBestAthleteJump(entry);
+    headers: ['N.', 'Nome', 'Cognome', 'Corpo militare', 'Data di registrazione', 'Data concorso', 'Esito concorso', 'Attività'],
+    rows: (list) => list.map((entry, index) => {
       const esito = entry.competitionResult === 'passed' ? 'Superato'
         : entry.competitionResult === 'failed' ? 'Non superato'
         : 'In corso';
       return [
-        entry.name || '', entry.surname || '', entry.nickname || '', entry.military || '',
-        entry.concorsoDate || '', esito, entry.activity || '',
-        bestTime ? bestTime.time : '', bestTime ? bestTime.date : '',
-        bestJump ? bestJump.jumpHeight : '', bestJump ? bestJump.date : '',
+        index + 1, entry.name || '', entry.surname || '', entry.military || '',
+        athleteRegistrationDate(entry), entry.concorsoDate || '', esito, entry.activity || '',
       ];
     }),
+    summary: (list) => {
+      const passed = list.filter((e) => e.competitionResult === 'passed').length;
+      const failed = list.filter((e) => e.competitionResult === 'failed').length;
+      const pending = list.length - passed - failed;
+      return `Totale: ${list.length} militari (${passed} superati, ${failed} non superati, ${pending} in corso).`;
+    },
   },
   velocisti: {
     filename: 'lapsi-velocita.csv',
@@ -3029,7 +3035,8 @@ function exportDomainAsCsv(key) {
     alert('Nessun dato da esportare.');
     return;
   }
-  const csv = buildCsv(csvDef.headers, csvDef.rows(list));
+  const summaryLine = csvDef.summary ? csvDef.summary(list) : null;
+  const csv = buildCsv(csvDef.headers, csvDef.rows(list), summaryLine);
   downloadTextFile(csvDef.filename, csv, 'text/csv;charset=utf-8');
 }
 
@@ -3580,9 +3587,6 @@ toggleFiltersButton.addEventListener('click', () => {
 });
 nameInput.addEventListener('input', handleSuggestionInput);
 surnameInput.addEventListener('input', handleSuggestionInput);
-if (nicknameInput) {
-  nicknameInput.addEventListener('input', handleSuggestionInput);
-}
 athleteSuggestions.addEventListener('click', handleListClick);
 
 // ===================== Sezione "Velocisti" =====================
@@ -6116,6 +6120,18 @@ function masterSeriesCheckboxMarkup(inputClass, blockId, checked, labelText) {
 // alternativa metri per i tipi dove c'è una velocità stimata — salite e
 // gradoni di corsa), numero di serie, e per i tipi "con dislivello" la
 // discesa (solo se di corsa, vedi masterSeriesStrengthHasDescent).
+// Un campo con didascalia sopra (non solo un'unità di misura accanto):
+// "non ho capito cosa rappresentano gli input" era il problema, qui si
+// scrive esplicitamente cosa si sta chiedendo.
+function masterSeriesStrengthFieldMarkup(caption, inputHtml) {
+  return `
+    <div class="mseries-strength-field">
+      <span class="mseries-strength-field-label">${escapeHtml(caption)}</span>
+      ${inputHtml}
+    </div>
+  `;
+}
+
 function masterSeriesStrengthRowMarkup(ex) {
   const hasMeters = Object.prototype.hasOwnProperty.call(RipeteCalc.STRENGTH_METERS_SPEED, ex.type);
   const hasDescent = masterSeriesStrengthHasDescent(ex.type);
@@ -6133,6 +6149,36 @@ function masterSeriesStrengthRowMarkup(ex) {
   const typeOptions = RipeteCalc.STRENGTH_EXERCISES
     .map(([key, label]) => `<option value="${key}"${ex.type === key ? ' selected' : ''}>${escapeHtml(label)}</option>`)
     .join('');
+  const secondsField = masterSeriesStrengthFieldMarkup('Durata di una serie', `
+    <div class="mseries-strength-field-input">
+      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-seconds-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.seconds)}" placeholder="0" aria-label="Durata di una serie, in secondi" /><span>″</span>
+    </div>
+  `);
+  const metersField = hasMeters ? masterSeriesStrengthFieldMarkup('Oppure, in metri', `
+    <div class="mseries-strength-field-input">
+      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-meters-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.meters)}" placeholder="0" aria-label="Lunghezza di una serie, in metri, in alternativa ai secondi" /><span>m</span>
+    </div>
+  `) : '';
+  const numSerieField = masterSeriesStrengthFieldMarkup('Quante serie', `
+    <div class="mseries-strength-field-input">
+      <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-numserie-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.numSerie)}" placeholder="1" aria-label="Numero di serie" />
+    </div>
+  `);
+  const descentBlock = hasDescent ? `
+    <div class="mseries-strength-descent-row">
+      ${masterSeriesStrengthFieldMarkup('Discesa, se la fai di corsa', `
+        <div class="mseries-strength-field-input">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-descent-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.descentSeconds)}" placeholder="0" aria-label="Secondi di discesa di corsa" /><span>″</span>
+        </div>
+      `)}
+      <label class="mseries-checkbox mseries-strength-descent-label">
+        <input type="checkbox" class="mseries-strength-descent-run-input" data-ex-id="${ex.id}"${ex.descentRun ? ' checked' : ''} />
+        <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
+        <span class="mseries-checkbox-label">Scendo correndo</span>
+      </label>
+      <p class="mseries-strength-descent-hint">Spunta solo se scendi correndo (conta la metà del tempo): se scendi camminando è recupero, non va contato — lascia la spunta tolta.</p>
+    </div>
+  ` : '';
   return `
     <div class="mseries-strength-row" data-ex-id="${ex.id}">
       <div class="mseries-strength-row-head">
@@ -6140,41 +6186,28 @@ function masterSeriesStrengthRowMarkup(ex) {
         <button type="button" class="mseries-strength-del-btn" data-ex-id="${ex.id}" aria-label="Rimuovi esercizio">${MTEST_DEL_ICON}</button>
       </div>
       <div class="mseries-strength-fields">
-        <div class="mseries-strength-field">
-          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-seconds-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.seconds)}" placeholder="0" aria-label="Secondi a serie" /><span>″/serie</span>
-        </div>
-        ${hasMeters ? `
-        <div class="mseries-strength-field">
-          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-meters-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.meters)}" placeholder="o metri" aria-label="Metri a serie, in alternativa ai secondi" /><span>m/serie</span>
-        </div>` : ''}
-        <div class="mseries-strength-field">
-          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-numserie-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.numSerie)}" placeholder="N" aria-label="Numero di serie" /><span>serie</span>
-        </div>
+        ${secondsField}
+        ${metersField}
+        ${numSerieField}
       </div>
-      ${hasDescent ? `
-      <div class="mseries-strength-descent-row">
-        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-strength-descent-input" data-ex-id="${ex.id}" value="${escapeHtml(ex.descentSeconds)}" placeholder="0" aria-label="Secondi di discesa" /><span>″ discesa</span>
-        <label class="mseries-checkbox mseries-strength-descent-label">
-          <input type="checkbox" class="mseries-strength-descent-run-input" data-ex-id="${ex.id}"${ex.descentRun ? ' checked' : ''} />
-          <span class="mseries-checkbox-box">${MTEST_CHECK_ICON}</span>
-          <span class="mseries-checkbox-label">di corsa (camminando non conta)</span>
-        </label>
-      </div>` : ''}
+      ${descentBlock}
       <div class="mseries-strength-ex-note">${escapeHtml(note)}</div>
     </div>
   `;
 }
 
-// Checkbox "giorno di forza" + elenco esercizi, sotto i blocchi di
-// ripetute — stato di sessione (masterSeriesDefaultStrength), non di un
+// Checkbox "giorno di forza" + elenco esercizi, PRIMA dei blocchi di
+// ripetute (cambia il passo con cui vengono calcolate, è giusto vederlo
+// per primo) — stato di sessione (masterSeriesDefaultStrength), non di un
 // singolo blocco.
 function masterSeriesStrengthMarkup(strength) {
   const totalVolume = masterSeriesStrengthVolumeMeters(strength);
   const body = strength.enabled ? `
     <div class="mseries-strength-body">
+      <p class="mseries-strength-intro">Si somma come volume equivalente a quello delle ripetute qui sotto: cambia il passo con cui vengono calcolate, non il loro volume "vero" mostrato una volta calcolate.</p>
       ${strength.exercises.map(masterSeriesStrengthRowMarkup).join('')}
       <button type="button" class="mseries-strength-add-btn">${MTEST_PLUS_ICON} Aggiungi esercizio</button>
-      ${totalVolume > 0 ? `<div class="mseries-strength-total">Giorno di forza: +${(totalVolume / 1000).toFixed(2).replace('.', ',')} km equivalenti aggiunti al volume.</div>` : ''}
+      ${totalVolume > 0 ? `<div class="mseries-strength-total">Giorno di forza: +${(totalVolume / 1000).toFixed(2).replace('.', ',')} km equivalenti aggiunti al volume delle ripetute.</div>` : ''}
     </div>
   ` : '';
   return `
@@ -6851,10 +6884,10 @@ function masterSeriesBuilderMarkup(entry) {
   return `
     <div class="mtest-proj-group mseries-proj-group">
       <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
+      ${masterSeriesStrengthMarkup(state.strength)}
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
       <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
-      ${masterSeriesStrengthMarkup(state.strength)}
     </div>
   `;
 }
@@ -9407,10 +9440,10 @@ function milSeriesEditorMarkup() {
   return `
     <div class="mil-series-panel">
       <p class="vsp-intro">Configura l'allenamento: vale per tutti gli atleti ancora in corso, ciascuno sul proprio passo.</p>
+      ${masterSeriesStrengthMarkup(milSeriesState.strength)}
       <div class="mseries-blocks">${blocksMarkup}</div>
       <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
       <button type="button" class="mseries-calc-btn" id="mil-series-calc-btn">Calcola serie</button>
-      ${masterSeriesStrengthMarkup(milSeriesState.strength)}
     </div>
   `;
 }

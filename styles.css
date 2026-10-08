@@ -284,22 +284,50 @@ button, input {
   color: var(--text);
 }
 
-/* Corpo di un accordion di mese: ora può contenere sia righe di allenamenti
-   salvati dal simulatore (.mil-training-row) sia voci scritte a mano
-   (.training-entry-manual, annidate) — lo spazio tra le due è dato dal gap,
-   non più da un bordo tra "righe sorelle" dello stesso tipo. */
+/* Un mese (es. "Ottobre 2026"): niente più "scatola dentro scatola" — a
+   tutta larghezza, senza bordo né sfondo propri, solo un filo in fondo a
+   separarlo dal mese successivo. Le voci al suo interno (manuali o dal
+   simulatore) sono anch'esse a tutta larghezza, separate fra loro da un
+   filo invece che da un'altra scatola ciascuna — vedi sotto. */
+.training-entry-month {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.training-entry-month:last-child {
+  border-bottom: none;
+}
+
 .training-entry-month > .training-entry-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px 14px;
+  padding: 0 0 6px;
+}
+
+.training-entry-month > .training-entry-body > .training-entry {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.training-entry-month > .training-entry-body > .training-entry:last-child {
+  border-bottom: none;
+}
+
+.training-entry-month > .training-entry-body > .training-entry > .training-entry-body {
+  border-top: 1px dashed var(--card-border);
 }
 
 .mil-training-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 0;
+  padding: 10px 14px;
 }
 
 .mil-training-date {
@@ -4574,13 +4602,14 @@ button:active {
   margin-top: 4px;
 }
 
-/* "Giorno di forza": checkbox + elenco esercizi, sotto i blocchi di
-   ripetute — stesso bordo tratteggiato di "Aggiungi blocco" per restare
-   visivamente un'aggiunta facoltativa, non un'altra sezione obbligatoria. */
+/* "Giorno di forza": checkbox + elenco esercizi, PRIMA dei blocchi di
+   ripetute (cambia il passo con cui vengono calcolate) — bordo tratteggiato
+   in fondo per restare visivamente un'aggiunta facoltativa, non un'altra
+   sezione obbligatoria. */
 .mseries-strength {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--card-border);
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--card-border);
 }
 
 .mseries-strength-body {
@@ -4588,6 +4617,12 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.mseries-strength-intro {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 .mseries-strength-row {
@@ -4630,11 +4665,25 @@ button:active {
 .mseries-strength-fields {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 10px;
 }
 
+/* Ogni campo ha una didascalia sopra (cosa rappresenta) invece di una sola
+   unità di misura accanto — "non capisco cosa sono questi input" era il
+   problema che questa struttura risolve. */
 .mseries-strength-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mseries-strength-field-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.mseries-strength-field-input {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4657,15 +4706,22 @@ button:active {
 }
 
 .mseries-strength-descent-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--card-border);
 }
 
 .mseries-strength-descent-label {
-  font-size: 0.74rem;
+  display: inline-flex;
+  margin-top: 6px;
+  font-size: 0.78rem;
+}
+
+.mseries-strength-descent-hint {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .mseries-strength-ex-note {
