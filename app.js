@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-08a';
-console.log('[Lapsi] build', APP_BUILD, '— storico allenamenti senza scatole annidate, giorno di forza più chiaro, export militari rivisto');
+const APP_BUILD = '2026-10-08b';
+console.log('[Lapsi] build', APP_BUILD, '— elenco compatto atleti sostituisce davvero le card (bug di specificità CSS), X per tornare indietro');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1885,7 +1885,7 @@ function renderEntries() {
   }
 
   const countEl = document.getElementById('athlete-count');
-  if (countEl) {
+  if (countEl && !athleteCompactActive) {
     countEl.textContent = String(entries.length);
   }
   const titleEl = document.getElementById('athlete-list-title-text');
@@ -2133,6 +2133,11 @@ function renderAthleteCompactList() {
   `;
 }
 
+// Al posto del numero, mentre l'elenco compatto è aperto: stessa "X" usata
+// per chiudere gli overlay, così il pulsante resta un ritorno ovvio alle
+// card invece di dover ricliccare lo stesso numero che non si vede più.
+const ATHLETE_COUNT_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></svg>';
+
 function openAthleteCompactList() {
   const container = document.getElementById('athlete-compact-list');
   const countBtn = document.getElementById('athlete-count');
@@ -2150,31 +2155,56 @@ function openAthleteCompactList() {
   }
   if (countBtn) {
     countBtn.setAttribute('aria-expanded', 'true');
+    countBtn.setAttribute('aria-label', 'Torna alle card');
+    countBtn.innerHTML = ATHLETE_COUNT_CLOSE_ICON;
   }
+  requestAnimationFrame(() => container.classList.add('is-in'));
 }
 
 function closeAthleteCompactList({ focusId = null } = {}) {
   const container = document.getElementById('athlete-compact-list');
   const countBtn = document.getElementById('athlete-count');
   athleteCompactActive = false;
-  if (container) {
-    container.hidden = true;
-  }
-  athletesList.hidden = false;
   if (countBtn) {
     countBtn.setAttribute('aria-expanded', 'false');
+    countBtn.setAttribute('aria-label', "Mostra l'elenco compatto degli atleti");
   }
-  if (focusId) {
-    // Garantisce che l'atleta scelto sia davvero visibile a prescindere da
-    // ricerca/filtri lasciati attivi prima di aprire l'elenco compatto.
-    athleteSearchInput.value = '';
-    activeDistance = FILTER_DEFAULTS.distance;
-    activeSort = FILTER_DEFAULTS.sort;
-    activeOutcome = FILTER_DEFAULTS.outcome;
-    activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
-    pinnedAthleteId = focusId;
+
+  const finishClose = () => {
+    if (container) {
+      container.hidden = true;
+    }
+    athletesList.hidden = false;
+    if (focusId) {
+      // Garantisce che l'atleta scelto sia davvero visibile a prescindere da
+      // ricerca/filtri lasciati attivi prima di aprire l'elenco compatto.
+      athleteSearchInput.value = '';
+      activeDistance = FILTER_DEFAULTS.distance;
+      activeSort = FILTER_DEFAULTS.sort;
+      activeOutcome = FILTER_DEFAULTS.outcome;
+      activeIncludeDecided = FILTER_DEFAULTS.includeDecided;
+      pinnedAthleteId = focusId;
+    }
+    renderEntries();
+  };
+
+  // Dissolvenza in uscita prima di nascondere davvero (hidden=true toglie
+  // il display, niente transizione possibile dopo) — stesso schema di
+  // dismissOverlay: un fallback a tempo nel caso transitionend non parta
+  // (elemento già a opacità 0, nessuna proprietà che cambia davvero).
+  if (container && !container.hidden) {
+    container.classList.remove('is-in');
+    let done = false;
+    const onEnd = () => {
+      if (done) return;
+      done = true;
+      finishClose();
+    };
+    container.addEventListener('transitionend', onEnd, { once: true });
+    setTimeout(onEnd, 220);
+  } else {
+    finishClose();
   }
-  renderEntries();
 }
 
 const athleteCountButton = document.getElementById('athlete-count');

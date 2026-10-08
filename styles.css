@@ -2361,6 +2361,9 @@ button:active {
   cursor: pointer;
   font-family: inherit;
   line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .list-count-btn[aria-expanded='true'] {
@@ -2372,6 +2375,14 @@ button:active {
    sopra. */
 .athlete-compact-list {
   padding: 4px 2px 8px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.athlete-compact-list.is-in {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .athlete-compact-legend {
@@ -2523,6 +2534,14 @@ button:active {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* Senza questa, .athletes-list[hidden] resta visibile: la regola sopra ha
+   la stessa specificità di [hidden] dello user agent e la precede nella
+   cascata — esattamente il bug per cui l'elenco compatto degli atleti
+   compariva SOTTO le card invece che al loro posto. */
+.athletes-list[hidden] {
+  display: none;
 }
 
 /* Filtri aperti: la lista sotto è un'anteprima, va in secondo piano */
