@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-08b';
-console.log('[Lapsi] build', APP_BUILD, '— elenco compatto atleti sostituisce davvero le card (bug di specificità CSS), X per tornare indietro');
+const APP_BUILD = '2026-10-08c';
+console.log('[Lapsi] build', APP_BUILD, '— card aperta dal focus (elenco compatto) centrata invece che a filo del bordo superiore');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -2355,7 +2355,11 @@ async function handleSubmit(event) {
 // vista, così si legge dall'inizio invece di ritrovarsi a metà contenuto.
 function scrollCardIntoView(item) {
   requestAnimationFrame(() => {
-    item.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    // 'center' invece di 'start': con 'start' il bordo superiore della card
+    // (nome compreso) finiva a filo del bordo dello schermo, spesso coperto
+    // da barre del browser/notch — centrata è sempre ben visibile, stesso
+    // criterio già usato altrove in questo file per lo stesso motivo.
+    item.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
 }
 
