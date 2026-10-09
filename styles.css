@@ -4668,10 +4668,17 @@ button:active {
   background: var(--bg-strong);
 }
 
+/* user-select/touch-callout none su tutta la testata (non solo sulla
+   maniglia): col dito è facile sfiorare la select o l'etichetta vicina
+   durante la pressione prolungata, e lì la selezione di sistema vince
+   comunque se non è disattivata anche su quello che sta intorno. */
 .mseries-strength-row-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .mseries-strength-type-input {
@@ -4700,11 +4707,14 @@ button:active {
 
 /* Maniglia per riordinare un box tenendolo premuto (vedi strengthDragStart):
    touch-action none, altrimenti lo scroll della pagina "vince" sul gesto di
-   trascinamento durante la pressione prolungata. */
+   trascinamento durante la pressione prolungata. user-select/touch-callout
+   none, altrimenti su mobile la pressione prolungata viene interpretata
+   come selezione del testo intorno (o il menu "copia") prima ancora che
+   scatti il nostro timer di riordino. */
 .mseries-strength-drag-handle {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 8px;
   padding: 0;
   display: inline-flex;
@@ -4714,20 +4724,61 @@ button:active {
   color: var(--muted);
   touch-action: none;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .mseries-strength-repeat-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
-/* Box "sollevato" durante il trascinamento: si distingue dagli altri mentre
-   lo si sposta sopra di loro. */
+/* Mentre un box è "sollevato" per il trascinamento, anche gli altri box
+   dello stesso elenco si marcano con un bordo tratteggiato: segnala che si
+   è in modalità riordino e dove si può rilasciare. Blocca anche la
+   selezione del testo su tutto l'elenco (non solo sulla maniglia), perché
+   durante il trascinamento il dito può scorrere sopra altro testo. */
+.mseries-strength-body.mseries-strength-drag-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* .mseries-strength-row ha già un bordo proprio; .mseries-strength-repeat
+   no (il suo bordo è quello di .mseries-block annidato, già tratteggiato di
+   default) — il tratteggio "modalità riordino" va quindi rinforzato lì. */
+.mseries-strength-body.mseries-strength-drag-active > .mseries-strength-row {
+  border-style: dashed;
+  border-color: var(--muted);
+}
+
+.mseries-strength-body.mseries-strength-drag-active > .mseries-strength-repeat > .mseries-block {
+  border-color: var(--muted);
+}
+
+/* Il box "sollevato" vero e proprio: tratteggio più marcato, leggermente
+   scalato e con ombra, per distinguerlo da quelli che si limitano a
+   segnalare che sono un punto di rilascio possibile. */
 .mseries-strength-row.mseries-strength-dragging,
 .mseries-strength-repeat.mseries-strength-dragging {
-  opacity: 0.6;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+  transform: scale(1.02);
+  position: relative;
+  z-index: 2;
+}
+
+.mseries-strength-row.mseries-strength-dragging {
+  border-width: 2px;
+  border-color: var(--primary);
+}
+
+.mseries-strength-repeat.mseries-strength-dragging > .mseries-block {
+  border-width: 2px;
+  border-color: var(--primary);
 }
 
 .mseries-strength-fields {

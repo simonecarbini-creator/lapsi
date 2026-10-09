@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-09b';
+const APP_BUILD = '2026-10-09c';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -6017,8 +6017,10 @@ function strengthDragStart(handle, pointerId, getItems) {
   if (navigator.vibrate) {
     navigator.vibrate(15);
   }
+  const container = row.parentElement;
   row.classList.add('mseries-strength-dragging');
-  strengthDragState = { row, container: row.parentElement, pointerId, getItems };
+  container.classList.add('mseries-strength-drag-active');
+  strengthDragState = { row, container, pointerId, getItems };
   try {
     handle.setPointerCapture(pointerId);
   } catch (err) {
@@ -6055,6 +6057,7 @@ function strengthDragEnd(event) {
   }
   const { row, container, getItems } = strengthDragState;
   row.classList.remove('mseries-strength-dragging');
+  container.classList.remove('mseries-strength-drag-active');
   const items = getItems();
   if (items) {
     const order = [...container.children]
@@ -9265,6 +9268,10 @@ function masterWire(key) {
     if (!handle) {
       return;
     }
+    // Blocca subito il gesto nativo di selezione/callout del browser sulla
+    // pressione prolungata: altrimenti su mobile vince quello, selezionando
+    // il testo intorno, prima ancora che scatti il nostro timer.
+    event.preventDefault();
     const pointerId = event.pointerId;
     strengthDragClearHold();
     strengthDragHoldTimer = setTimeout(() => {
@@ -10591,6 +10598,7 @@ if (milSeriesBody) {
     if (!handle) {
       return;
     }
+    event.preventDefault();
     const pointerId = event.pointerId;
     strengthDragClearHold();
     strengthDragHoldTimer = setTimeout(() => {
