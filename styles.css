@@ -4600,13 +4600,20 @@ button:active {
   font-style: italic;
 }
 
+.mseries-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .mseries-add-block-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  width: 100%;
-  margin-top: 10px;
+  flex: 1 1 auto;
+  min-width: 140px;
   padding: 8px;
   border-radius: 12px;
   border: 1px dashed var(--card-border);
@@ -4618,6 +4625,26 @@ button:active {
 
 .mseries-add-block-btn:hover {
   background: var(--bg-strong);
+}
+
+.mseries-block-paste-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mseries-block-paste-btn:hover {
+  background: #fff;
 }
 
 .mseries-calc-btn {
@@ -4729,29 +4756,33 @@ button:active {
   -webkit-touch-callout: none;
 }
 
-.mseries-strength-repeat-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-}
-
 /* Mentre un box è "sollevato" per il trascinamento, anche gli altri box
-   dello stesso elenco si marcano con un bordo tratteggiato: segnala che si
-   è in modalità riordino e dove si può rilasciare. Blocca anche la
+   dello stesso elenco (riordinabili insieme a lui, vedi
+   STRENGTH_DRAG_UNIT_SELECTOR) si marcano con un bordo tratteggiato più
+   leggero: segnala che si è in modalità riordino e dove si può rilasciare,
+   distinto dal bordo più marcato del box sollevato. Blocca anche la
    selezione del testo su tutto l'elenco (non solo sulla maniglia), perché
-   durante il trascinamento il dito può scorrere sopra altro testo. */
-.mseries-strength-body.mseries-strength-drag-active {
+   durante il trascinamento il dito può scorrere sopra altro testo. La
+   transizione sul bordo fa comparire/scomparire il tratteggio con un
+   dissolvenza invece di un salto secco. */
+.mseries-strength-body.mseries-strength-drag-active,
+.mseries-blocks.mseries-strength-drag-active {
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* .mseries-strength-row ha già un bordo proprio; .mseries-strength-repeat
-   no (il suo bordo è quello di .mseries-block annidato, già tratteggiato di
-   default) — il tratteggio "modalità riordino" va quindi rinforzato lì. */
-.mseries-strength-body.mseries-strength-drag-active > .mseries-strength-row {
+.mseries-strength-row,
+.mseries-block,
+.mseries-block-unit {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* .mseries-strength-row e .mseries-block hanno già un bordo proprio;
+   .mseries-strength-repeat e .mseries-block-unit no (il loro bordo è
+   quello di .mseries-block annidato) — il tratteggio "modalità riordino" va
+   quindi rinforzato lì. */
+.mseries-strength-body.mseries-strength-drag-active > .mseries-strength-row,
+.mseries-blocks.mseries-strength-drag-active > .mseries-block-unit > .mseries-block {
   border-style: dashed;
   border-color: var(--muted);
 }
@@ -4760,13 +4791,14 @@ button:active {
   border-color: var(--muted);
 }
 
-/* Il box "sollevato" vero e proprio: tratteggio più marcato, leggermente
-   scalato e con ombra, per distinguerlo da quelli che si limitano a
-   segnalare che sono un punto di rilascio possibile. */
+/* Il box "sollevato" vero e proprio: tratteggio più marcato, tinta di
+   sfondo, leggermente scalato e con ombra — ben distinto da quelli che si
+   limitano a segnalare che sono un punto di rilascio possibile. */
 .mseries-strength-row.mseries-strength-dragging,
-.mseries-strength-repeat.mseries-strength-dragging {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
-  transform: scale(1.02);
+.mseries-strength-repeat.mseries-strength-dragging,
+.mseries-block-unit.mseries-strength-dragging {
+  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.28);
+  transform: scale(1.03);
   position: relative;
   z-index: 2;
 }
@@ -4774,11 +4806,14 @@ button:active {
 .mseries-strength-row.mseries-strength-dragging {
   border-width: 2px;
   border-color: var(--primary);
+  background-color: rgba(17, 24, 39, 0.05);
 }
 
-.mseries-strength-repeat.mseries-strength-dragging > .mseries-block {
+.mseries-strength-repeat.mseries-strength-dragging > .mseries-block,
+.mseries-block-unit.mseries-strength-dragging > .mseries-block {
   border-width: 2px;
   border-color: var(--primary);
+  background-color: rgba(17, 24, 39, 0.05);
 }
 
 .mseries-strength-fields {
@@ -4881,11 +4916,14 @@ button:active {
   font-style: italic;
 }
 
-/* Pulsante "copia" in basso a dx di ogni box (esercizio o blocco di corsa)
-   del giorno di forza — copia l'intero box, vedi masterSeriesStrengthClipboard. */
+/* Copia + maniglia di trascinamento, insieme in basso a destra di ogni box
+   (esercizio, blocco di corsa, blocco di ripetute) — copia a sinistra,
+   maniglia a destra. */
 .mseries-strength-row-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
   margin-top: 6px;
 }
 

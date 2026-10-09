@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-09c';
+const APP_BUILD = '2026-10-09d';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -5977,13 +5977,17 @@ function masterSeriesDefaultStrengthRepeat() {
   return block;
 }
 
-// Copia/incolla di un box del giorno di forza (esercizio o blocco di corsa):
-// un solo "appunto" condiviso da Master, Mezzofondo e Militari — comodo per
-// riusare lo stesso esercizio compilato su più atleti senza riscriverlo,
-// niente di persistito (si perde chiudendo la pagina, come il resto dello
-// stato del simulatore). Solo sessione, non per atleta: copiare da una card
-// e incollare su un'altra (o sui militari) funziona di proposito.
+// Copia/incolla di un box (esercizio di forza, blocco di corsa dentro il
+// giorno di forza, o blocco di ripetute vero e proprio): due "appunti"
+// distinti — uno per gli oggetti del giorno di forza (strength.items), uno
+// per i blocchi di ripetute (state.blocks, hanno un gapBefore che gli
+// oggetti del giorno di forza non hanno, non sono intercambiabili) —
+// condivisi da Master, Mezzofondo e Militari, niente di persistito (si
+// perde chiudendo la pagina, come il resto dello stato del simulatore).
+// Solo sessione, non per atleta: copiare da una card e incollare su
+// un'altra (o sui militari) funziona di proposito.
 let masterSeriesStrengthClipboard = null;
+let masterSeriesBlockClipboard = null;
 
 function masterSeriesCloneStrengthItem(item) {
   const clone = JSON.parse(JSON.stringify(item));
@@ -5991,16 +5995,21 @@ function masterSeriesCloneStrengthItem(item) {
   return clone;
 }
 
-// Riordino dei box del giorno di forza (esercizio o blocco di corsa) con
-// pressione prolungata + trascinamento, lo stesso gesto delle app mobile per
-// riordinare un elenco. navigator.vibrate non è disponibile su iOS Safari
-// (il contesto d'uso principale di questa app): nessun errore, solo niente
-// vibrazione, il drag funziona comunque. Stato di sessione condiviso da
-// Master, Mezzofondo e Militari (come masterSeriesStrengthClipboard sopra),
-// un solo drag può essere in corso alla volta, è più che sufficiente.
+// Riordino dei box (esercizio/blocco di corsa del giorno di forza, o blocco
+// di ripetute con il suo recupero-prima-di-lui) con pressione prolungata +
+// trascinamento, lo stesso gesto delle app mobile per riordinare un
+// elenco. navigator.vibrate non è disponibile su iOS Safari (il contesto
+// d'uso principale di questa app): nessun errore, solo niente vibrazione,
+// il drag funziona comunque. Stato di sessione condiviso da Master,
+// Mezzofondo e Militari (come i clipboard sopra), un solo drag può essere
+// in corso alla volta, è più che sufficiente.
 const STRENGTH_DRAG_HOLD_MS = 350;
+// .mseries-block-unit avvolge un blocco di ripetute insieme al suo
+// recupero-prima-di-lui (vedi masterSeriesBlockUnitMarkup): li trascina
+// insieme, così il recupero segue il blocco a cui appartiene.
+const STRENGTH_DRAG_UNIT_SELECTOR = '.mseries-strength-row, .mseries-strength-repeat, .mseries-block-unit';
 let strengthDragHoldTimer = null;
-let strengthDragState = null; // { row, container, pointerId, getItems }
+let strengthDragState = null; // { row, container, pointerId, getItems, rerender }
 
 function strengthDragClearHold() {
   if (strengthDragHoldTimer) {
@@ -6009,8 +6018,15 @@ function strengthDragClearHold() {
   }
 }
 
-function strengthDragStart(handle, pointerId, getItems) {
-  const row = handle.closest('.mseries-strength-row, .mseries-strength-repeat');
+// Id dell'oggetto rappresentato da un'unità trascinabile, qualunque sia il
+// tipo: data-ex-id per gli oggetti del giorno di forza, data-block-id per
+// i blocchi di ripetute (anche dentro .mseries-block-unit).
+function strengthDragUnitId(el) {
+  return el.dataset.exId || el.dataset.blockId;
+}
+
+function strengthDragStart(handle, pointerId, getItems, rerender) {
+  const row = handle.closest(STRENGTH_DRAG_UNIT_SELECTOR);
   if (!row) {
     return;
   }
@@ -6020,7 +6036,7 @@ function strengthDragStart(handle, pointerId, getItems) {
   const container = row.parentElement;
   row.classList.add('mseries-strength-dragging');
   container.classList.add('mseries-strength-drag-active');
-  strengthDragState = { row, container, pointerId, getItems };
+  strengthDragState = { row, container, pointerId, getItems, rerender };
   try {
     handle.setPointerCapture(pointerId);
   } catch (err) {
@@ -6029,43 +6045,90 @@ function strengthDragStart(handle, pointerId, getItems) {
   }
 }
 
+// Sposta "row" nella sua nuova posizione tra i "siblings" (stessa unità,
+// stesso contenitore) e fa scorrere visivamente quelli che cambiano posto
+// (tecnica FLIP: si misura la posizione prima, si muove, si riapplica la
+// vecchia posizione con una transform e si anima verso zero) — altrimenti
+// lo scambio è un salto istantaneo e non si capisce quale blocco ha preso
+// il posto di quale.
+function strengthDragReposition(container, row, siblings, target) {
+  const firstRects = new Map(siblings.map((el) => [el, el.getBoundingClientRect()]));
+  if (target) {
+    container.insertBefore(row, target);
+  } else {
+    // Mai oltre l'ultimo sibling valido: subito dopo di lui, non in fondo
+    // al contenitore (dove ci sono anche i pulsanti "Aggiungi...").
+    const last = siblings[siblings.length - 1];
+    if (last) {
+      container.insertBefore(row, last.nextSibling);
+    }
+  }
+  siblings.forEach((el) => {
+    const first = firstRects.get(el);
+    const last = el.getBoundingClientRect();
+    const dy = first.top - last.top;
+    if (!dy) {
+      return;
+    }
+    el.style.transition = 'none';
+    el.style.transform = `translateY(${dy}px)`;
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 0.18s ease';
+      el.style.transform = '';
+      el.addEventListener('transitionend', () => {
+        el.style.transition = '';
+      }, { once: true });
+    });
+  });
+}
+
 function strengthDragMove(event) {
   if (!strengthDragState || event.pointerId !== strengthDragState.pointerId) {
     return;
   }
   event.preventDefault();
   const { row, container } = strengthDragState;
-  const siblings = [...container.children].filter((el) => el !== row
-    && (el.classList.contains('mseries-strength-row') || el.classList.contains('mseries-strength-repeat')));
+  const siblings = [...container.children].filter((el) => el !== row && el.matches(STRENGTH_DRAG_UNIT_SELECTOR));
   const y = event.clientY;
-  const target = siblings.find((sib) => y < sib.getBoundingClientRect().top + sib.getBoundingClientRect().height / 2);
-  if (target) {
-    container.insertBefore(row, target);
-  } else {
-    container.appendChild(row);
+  const target = siblings.find((sib) => y < sib.getBoundingClientRect().top + sib.getBoundingClientRect().height / 2) || null;
+  // Niente da fare se "row" è già nella posizione che occuperebbe: evita di
+  // rimisurare/animare tutto a ogni singolo pointermove (molto frequenti)
+  // quando il dito non ha ancora attraversato nessuna soglia nuova.
+  const desiredNext = target || (siblings.length ? siblings[siblings.length - 1].nextSibling : row.nextSibling);
+  if (desiredNext === row.nextSibling) {
+    return;
   }
+  strengthDragReposition(container, row, siblings, target);
 }
 
 // A fine trascinamento l'ordine nel DOM è già quello voluto (spostato pezzo
-// per pezzo da strengthDragMove): qui si riporta solo quell'ordine
-// nell'array vero (state.strength.items), altrimenti il prossimo render
-// completo lo rimetterebbe com'era prima.
+// per pezzo da strengthDragMove): si riporta quell'ordine nell'array vero
+// (state.blocks o state.strength.items) e poi si rifà un render completo
+// (anche se l'ordine non fosse cambiato, è innocuo) — serve soprattutto
+// per i blocchi di ripetute: il recupero-prima-di-lui va mostrato solo dal
+// secondo blocco in poi, e dopo un riordino "quale è il secondo" cambia.
 function strengthDragEnd(event) {
   strengthDragClearHold();
   if (!strengthDragState || (event && event.pointerId !== strengthDragState.pointerId)) {
     return;
   }
-  const { row, container, getItems } = strengthDragState;
+  const { row, container, getItems, rerender } = strengthDragState;
   row.classList.remove('mseries-strength-dragging');
   container.classList.remove('mseries-strength-drag-active');
   const items = getItems();
+  let changed = false;
   if (items) {
     const order = [...container.children]
-      .filter((el) => el.classList.contains('mseries-strength-row') || el.classList.contains('mseries-strength-repeat'))
-      .map((el) => el.dataset.exId);
+      .filter((el) => el.matches(STRENGTH_DRAG_UNIT_SELECTOR))
+      .map((el) => strengthDragUnitId(el));
+    const before = items.map((it) => it.id).join('|');
     items.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    changed = before !== items.map((it) => it.id).join('|');
   }
   strengthDragState = null;
+  if (changed && rerender) {
+    rerender();
+  }
 }
 
 // Attivare "giorno di forza" toglie il blocco di ripetute precompilato: non
@@ -6602,7 +6665,6 @@ function masterSeriesStrengthRowMarkup(ex) {
   return `
     <div class="mseries-strength-row" data-ex-id="${ex.id}">
       <div class="mseries-strength-row-head">
-        <button type="button" class="mseries-strength-drag-handle" aria-label="Tieni premuto per riordinare" title="Tieni premuto per riordinare">${MTEST_DRAG_ICON}</button>
         <select class="mseries-strength-type-input" data-ex-id="${ex.id}" aria-label="Tipo di esercizio">${typeOptions}</select>
         <button type="button" class="mseries-strength-del-btn" data-ex-id="${ex.id}" aria-label="Rimuovi esercizio">${MTEST_DEL_ICON}</button>
       </div>
@@ -6612,7 +6674,7 @@ function masterSeriesStrengthRowMarkup(ex) {
       </div>
       ${descentBlock}
       <div class="mseries-strength-ex-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
-      ${masterSeriesStrengthCopyRowMarkup(ex.id)}
+      ${masterSeriesDragCopyFooterMarkup()}
     </div>
   `;
 }
@@ -6630,12 +6692,8 @@ function masterSeriesStrengthItemMarkup(item, vam) {
   if (item.kind === 'repeat') {
     return `
       <div class="mseries-strength-repeat" data-ex-id="${item.id}">
-        <div class="mseries-strength-repeat-head">
-          <button type="button" class="mseries-strength-drag-handle" aria-label="Tieni premuto per riordinare" title="Tieni premuto per riordinare">${MTEST_DRAG_ICON}</button>
-          <div class="mseries-strength-repeat-label">Blocco di corsa</div>
-        </div>
+        <div class="mseries-strength-repeat-label">Blocco di corsa</div>
         ${masterSeriesBlockRowMarkup(item, 1, vam, true)}
-        ${masterSeriesStrengthCopyRowMarkup(item.id)}
       </div>
     `;
   }
@@ -6644,10 +6702,16 @@ function masterSeriesStrengthItemMarkup(item, vam) {
 
 // Pulsante "copia" in basso a dx di ogni box del giorno di forza (esercizio
 // o blocco di corsa) — vedi masterSeriesStrengthClipboard.
-function masterSeriesStrengthCopyRowMarkup(exId) {
+// Pulsanti "copia" + "tieni premuto per riordinare", in basso a destra di
+// OGNI box trascinabile (esercizio di forza, blocco di corsa, blocco di
+// ripetute) — niente id da passare: il click handler risale da sé al box
+// giusto con closest(STRENGTH_DRAG_UNIT_SELECTOR), esattamente come fa il
+// drag stesso.
+function masterSeriesDragCopyFooterMarkup() {
   return `
     <div class="mseries-strength-row-footer">
-      <button type="button" class="mseries-strength-copy-btn" data-ex-id="${exId}" aria-label="Copia" title="Copia">${MTEST_COPY_ICON}</button>
+      <button type="button" class="mseries-strength-copy-btn" aria-label="Copia" title="Copia">${MTEST_COPY_ICON}</button>
+      <button type="button" class="mseries-strength-drag-handle" aria-label="Tieni premuto per riordinare" title="Tieni premuto per riordinare">${MTEST_DRAG_ICON}</button>
     </div>
   `;
 }
@@ -6790,6 +6854,7 @@ function masterSeriesBlockRowMarkup(block, index, vam = null, canDelete = index 
         ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
       </div>
       ` : masterSeriesRecMetersRowMarkup(block, vam)}
+      ${masterSeriesDragCopyFooterMarkup()}
     </div>
   `;
 }
@@ -6856,6 +6921,19 @@ function masterSeriesGapMarkup(block) {
         ${masterSeriesCheckboxMarkup('mseries-gap-rec-active-input', block.id, gap.recActive, 'attivo')}
       </div>
       <div class="mseries-gap-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
+    </div>
+  `;
+}
+
+// Un blocco di ripetute insieme al suo "recupero tra le serie" (se mostrato,
+// solo dal secondo blocco in poi): un'unica unità trascinabile, così
+// riordinando i blocchi il recupero segue quello a cui appartiene, invece
+// di restare un elemento separato nell'elenco — vedi STRENGTH_DRAG_UNIT_SELECTOR.
+function masterSeriesBlockUnitMarkup(block, index, vam, canDelete) {
+  return `
+    <div class="mseries-block-unit" data-block-id="${block.id}">
+      ${index > 0 ? masterSeriesGapMarkup(block) : ''}
+      ${masterSeriesBlockRowMarkup(block, index, vam, canDelete)}
     </div>
   `;
 }
@@ -7383,7 +7461,7 @@ function masterSeriesBuilderMarkup(entry) {
   }
 
   const blocksMarkup = state.blocks
-    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, vam, index !== 0 || state.strength.enabled)}`)
+    .map((block, index) => masterSeriesBlockUnitMarkup(block, index, vam, index !== 0 || state.strength.enabled))
     .join('');
 
   return `
@@ -7391,7 +7469,12 @@ function masterSeriesBuilderMarkup(entry) {
       <span class="mtest-proj-group-label mtest-proj-group-label-thousand">Ripetute</span>
       ${masterSeriesStrengthMarkup(state.strength, vam)}
       <div class="mseries-blocks">${blocksMarkup}</div>
-      ${state.strength.enabled ? '' : `<button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>`}
+      ${state.strength.enabled ? '' : `
+        <div class="mseries-add-row">
+          <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+          ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" data-id="${entry.id}">${MTEST_COPY_ICON} Incolla</button>` : ''}
+        </div>
+      `}
       <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
     </div>
   `;
@@ -8773,11 +8856,23 @@ async function handleMasterListClick(event) {
 
   const strengthCopyBtn = event.target.closest('.mseries-strength-copy-btn');
   if (strengthCopyBtn) {
-    const state = masterSeriesGetState(strengthCopyBtn.closest('.athlete-item').dataset.id);
-    const item = state.strength.items.find((it) => it.id === strengthCopyBtn.dataset.exId);
-    if (item) {
-      masterSeriesStrengthClipboard = masterSeriesCloneStrengthItem(item);
-      renderMaster();
+    const unit = strengthCopyBtn.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+    if (unit) {
+      const state = masterSeriesGetState(strengthCopyBtn.closest('.athlete-item').dataset.id);
+      const id = strengthDragUnitId(unit);
+      if (unit.classList.contains('mseries-block-unit')) {
+        const block = state.blocks.find((b) => b.id === id);
+        if (block) {
+          masterSeriesBlockClipboard = masterSeriesCloneStrengthItem(block);
+          renderMaster();
+        }
+      } else {
+        const item = state.strength.items.find((it) => it.id === id);
+        if (item) {
+          masterSeriesStrengthClipboard = masterSeriesCloneStrengthItem(item);
+          renderMaster();
+        }
+      }
     }
     return;
   }
@@ -8786,6 +8881,15 @@ async function handleMasterListClick(event) {
   if (strengthPasteBtn && masterSeriesStrengthClipboard) {
     const state = masterSeriesGetState(strengthPasteBtn.closest('.athlete-item').dataset.id);
     state.strength.items.push(masterSeriesCloneStrengthItem(masterSeriesStrengthClipboard));
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const blockPasteBtn = event.target.closest('.mseries-block-paste-btn');
+  if (blockPasteBtn && masterSeriesBlockClipboard) {
+    const state = masterSeriesGetState(blockPasteBtn.closest('.athlete-item').dataset.id);
+    state.blocks.push(masterSeriesCloneStrengthItem(masterSeriesBlockClipboard));
     state.showResults = false;
     renderMaster();
     return;
@@ -9275,8 +9379,13 @@ function masterWire(key) {
     const pointerId = event.pointerId;
     strengthDragClearHold();
     strengthDragHoldTimer = setTimeout(() => {
+      const unit = handle.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+      if (!unit) {
+        return;
+      }
       const state = masterSeriesGetState(handle.closest('.athlete-item').dataset.id);
-      strengthDragStart(handle, pointerId, () => state.strength.items);
+      const getItems = unit.classList.contains('mseries-block-unit') ? () => state.blocks : () => state.strength.items;
+      strengthDragStart(handle, pointerId, getItems, renderMaster);
     }, STRENGTH_DRAG_HOLD_MS);
   });
   masterOn(key, masterListEl, 'pointermove', strengthDragMove);
@@ -10045,14 +10154,19 @@ function milSeriesFindExercise(inputEl) {
 
 function milSeriesEditorMarkup() {
   const blocksMarkup = milSeriesState.blocks
-    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, null, index !== 0 || milSeriesState.strength.enabled)}`)
+    .map((block, index) => masterSeriesBlockUnitMarkup(block, index, null, index !== 0 || milSeriesState.strength.enabled))
     .join('');
   return `
     <div class="mil-series-panel">
       <p class="vsp-intro">Configura l'allenamento: vale per tutti gli atleti ancora in corso, ciascuno sul proprio passo.</p>
       ${masterSeriesStrengthMarkup(milSeriesState.strength)}
       <div class="mseries-blocks">${blocksMarkup}</div>
-      ${milSeriesState.strength.enabled ? '' : `<button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>`}
+      ${milSeriesState.strength.enabled ? '' : `
+        <div class="mseries-add-row">
+          <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+          ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" id="mil-series-block-paste">${MTEST_COPY_ICON} Incolla</button>` : ''}
+        </div>
+      `}
       <button type="button" class="mseries-calc-btn" id="mil-series-calc-btn">Calcola serie</button>
     </div>
   `;
@@ -10372,10 +10486,22 @@ if (milSeriesBody) {
 
     const strengthCopyBtn = event.target.closest('.mseries-strength-copy-btn');
     if (strengthCopyBtn) {
-      const item = milSeriesState.strength.items.find((it) => it.id === strengthCopyBtn.dataset.exId);
-      if (item) {
-        masterSeriesStrengthClipboard = masterSeriesCloneStrengthItem(item);
-        renderMilSeries();
+      const unit = strengthCopyBtn.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+      if (unit) {
+        const id = strengthDragUnitId(unit);
+        if (unit.classList.contains('mseries-block-unit')) {
+          const block = milSeriesState.blocks.find((b) => b.id === id);
+          if (block) {
+            masterSeriesBlockClipboard = masterSeriesCloneStrengthItem(block);
+            renderMilSeries();
+          }
+        } else {
+          const item = milSeriesState.strength.items.find((it) => it.id === id);
+          if (item) {
+            masterSeriesStrengthClipboard = masterSeriesCloneStrengthItem(item);
+            renderMilSeries();
+          }
+        }
       }
       return;
     }
@@ -10383,6 +10509,13 @@ if (milSeriesBody) {
     const strengthPasteBtn = event.target.closest('.mseries-strength-paste-btn');
     if (strengthPasteBtn && masterSeriesStrengthClipboard) {
       milSeriesState.strength.items.push(masterSeriesCloneStrengthItem(masterSeriesStrengthClipboard));
+      renderMilSeries();
+      return;
+    }
+
+    const blockPasteBtn = event.target.closest('.mseries-block-paste-btn');
+    if (blockPasteBtn && masterSeriesBlockClipboard) {
+      milSeriesState.blocks.push(masterSeriesCloneStrengthItem(masterSeriesBlockClipboard));
       renderMilSeries();
       return;
     }
@@ -10602,7 +10735,12 @@ if (milSeriesBody) {
     const pointerId = event.pointerId;
     strengthDragClearHold();
     strengthDragHoldTimer = setTimeout(() => {
-      strengthDragStart(handle, pointerId, () => milSeriesState.strength.items);
+      const unit = handle.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+      if (!unit) {
+        return;
+      }
+      const getItems = unit.classList.contains('mseries-block-unit') ? () => milSeriesState.blocks : () => milSeriesState.strength.items;
+      strengthDragStart(handle, pointerId, getItems, renderMilSeries);
     }, STRENGTH_DRAG_HOLD_MS);
   });
   milSeriesBody.addEventListener('pointermove', strengthDragMove);
