@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-09d';
+const APP_BUILD = '2026-10-09e';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -11608,7 +11608,7 @@ function renderInfoDoc() {
         <ul>
           <li><b>Metri, in alternativa ai secondi</b> (solo ${strengthMetersTypes}): convertiti in secondi con una velocità stimata — comoda per chi preferisce pensare in distanza invece che in tempo. Gli esercizi a ripetizioni non hanno un equivalente in metri.</li>
           <li><b>Discesa dai gradoni</b> (solo ${strengthGradoniTypes}): una delle 3 discese qui sotto, calcolata come un esercizio a sé — propria intensità, proprie ripetizioni, proprio eccentrico — e sommata a quella dell'esercizio principale, mai mescolata nello stesso totale.</li>
-          <li><b>Ritorno correndo</b> (solo ${strengthSalitaTypes}): un "Ritorno in corsa blanda" a intensità fissa 0,5, indipendente da quella della salita appena fatta — anche qui un pezzo a sé, non uno sconto sul tempo della salita. Se il ritorno è a piedi non conta nulla.</li>
+          <li><b>Ritorno correndo</b> (solo ${strengthSalitaTypes}): un "Ritorno in corsa blanda" a intensità fissa 0,5, indipendente da quella della salita appena fatta — anche qui un pezzo a sé, non uno sconto sul tempo della salita. La sua durata si ricava dalla distanza della salita stessa e dal passo di ritorno scritto (mm′ss″/km), con la stessa formula del recupero in metri qui sopra — non da un tempo scritto a mano. Se il ritorno è a piedi non conta nulla.</li>
         </ul>
         <table class="info-table"><thead><tr><th>Discesa (solo gradoni)</th><th>Intensità</th><th>Sec/rip</th><th>Eccentrico</th></tr></thead><tbody>${strengthDescentRows}</tbody></table>
         <p>La colonna <b>Eccentrico</b> non entra nel volume: si somma a parte su tutti i pezzi della seduta (esercizio + discesa/ritorno) e segnala quanto la seduta scarica sui 2 giorni successivi — una discesa ha intensità bassa (costa poco "a caldo") ma eccentrico alto (indolenzisce il giorno dopo), per questo sono due colonne separate invece di un numero solo.</p>
