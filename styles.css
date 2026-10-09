@@ -4501,9 +4501,17 @@ button:active {
   margin-top: 8px;
 }
 
-.mseries-rec-label {
+/* Etichetta sopra la select del tipo di recupero — prima stava incollata
+   solo al campo del tempo, e con le altre modalità (metri) spariva: ora
+   introduce l'intera sezione, qualunque sia la modalità scelta sotto. */
+.mseries-rec-section-label {
+  display: block;
+  margin-top: 10px;
   font-size: 0.75rem;
+  font-weight: 700;
   color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .mseries-rec-input {
@@ -4521,7 +4529,7 @@ button:active {
    sostituiscono .mseries-block-rec-row: metri (uno o due), passo di
    recupero (editabile) e la nota col tempo calcolato. */
 .mseries-rec-mode-row {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .mseries-rec-mode-input {

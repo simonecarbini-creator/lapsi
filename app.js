@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-08e';
-console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: durata in secondi o metri ora mutuamente esclusivi');
+const APP_BUILD = '2026-10-08f';
+console.log('[Lapsi] build', APP_BUILD, '— "Programma una data" al salvataggio, blocco di corsa cancellabile col giorno di forza, label Recupero riordinata');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1730,6 +1730,86 @@ function showPrompt(message, { detail = '', placeholder = '', defaultValue = '',
       if (event.key === 'Escape') {
         close(false);
       } else if (event.key === 'Enter') {
+        close(true);
+      }
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) {
+        close(false);
+      }
+      const choiceButton = event.target.closest('[data-choice]');
+      if (choiceButton) {
+        close(choiceButton.dataset.choice === 'ok');
+      }
+    });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-open');
+      input.focus();
+      input.select();
+    });
+  });
+}
+
+// Variante di showPrompt per salvare un allenamento: oltre al nome, una
+// checkbox "Programma una data" (stesso schema checkbox+date-picker
+// nascosto di resultDateFieldHtml) per scegliere un giorno diverso da oggi
+// — futuro per preparare un allenamento in anticipo, passato per registrarne
+// uno dimenticato. Risolve con { name, date } (date in formato it, dd/mm/yyyy)
+// oppure null se annullato.
+function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaultValue = '', confirmText = 'Salva', cancelText = 'Annulla', maxLength = 60 } = {}) {
+  document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
+
+  return new Promise((resolve) => {
+    const todayNativeValue = todayNativeDateValue();
+    const checkIcon = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
+    const overlay = document.createElement('div');
+    overlay.className = 'app-overlay app-confirm';
+    overlay.innerHTML = `
+      <div class="app-confirm-box" role="dialog" aria-modal="true">
+        <div class="app-confirm-text">${escapeHtml(message)}</div>
+        ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
+        <input type="text" class="app-prompt-input" maxlength="${maxLength}" autocomplete="off" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(defaultValue)}" />
+        <label class="result-date-toggle">
+          <input type="checkbox" class="result-date-checkbox mseries-schedule-checkbox" />
+          <span class="result-date-box" aria-hidden="true">${checkIcon}</span>
+          <span class="result-date-text">Programma una data</span>
+        </label>
+        <input class="native-date result-date-field mseries-schedule-date" type="date" value="${todayNativeValue}" hidden />
+        <div class="app-confirm-actions">
+          <button type="button" class="app-btn app-btn-success" data-choice="ok">${escapeHtml(confirmText)}</button>
+          <button type="button" class="app-btn app-btn-ghost" data-choice="cancel">${escapeHtml(cancelText)}</button>
+        </div>
+      </div>
+    `;
+    const input = overlay.querySelector('.app-prompt-input');
+    const scheduleCheckbox = overlay.querySelector('.mseries-schedule-checkbox');
+    const scheduleDate = overlay.querySelector('.mseries-schedule-date');
+    scheduleCheckbox.addEventListener('change', () => {
+      scheduleDate.hidden = !scheduleCheckbox.checked;
+      if (scheduleCheckbox.checked) {
+        scheduleDate.focus();
+      }
+    });
+
+    let settled = false;
+    const close = (accepted) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      document.removeEventListener('keydown', onKey);
+      const text = input.value.trim() || defaultValue.trim();
+      const date = scheduleCheckbox.checked && scheduleDate.value ? isoDateToIt(scheduleDate.value) : shortYearDate(getNowParts().date);
+      dismissOverlay(overlay, () => resolve(accepted ? { name: text, date } : null));
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        close(false);
+      } else if (event.key === 'Enter' && event.target !== scheduleDate) {
         close(true);
       }
     };
@@ -6286,7 +6366,7 @@ function masterSeriesStrengthItemMarkup(item, vam) {
     return `
       <div class="mseries-strength-repeat" data-ex-id="${item.id}">
         <div class="mseries-strength-repeat-label">Blocco di corsa</div>
-        ${masterSeriesBlockRowMarkup(item, 1, vam)}
+        ${masterSeriesBlockRowMarkup(item, 1, vam, true)}
       </div>
     `;
   }
@@ -6377,7 +6457,12 @@ function masterSeriesRecMetersRowMarkup(block, vam) {
   `;
 }
 
-function masterSeriesBlockRowMarkup(block, index, vam = null) {
+// canDelete: il primo blocco (index 0) normalmente non si può cancellare
+// (ce ne vuole sempre almeno uno) — tranne quando è attivo il giorno di
+// forza, dove può bastare la sola forza senza nessuna ripetuta vera e
+// propria, quindi diventa cancellabile anche lui (vedi i due punti di
+// chiamata su state.blocks, che passano state.strength.enabled).
+function masterSeriesBlockRowMarkup(block, index, vam = null, canDelete = index !== 0) {
   const mode = block.recMode || 'time';
   return `
     <div class="mseries-block" data-block-id="${block.id}">
@@ -6388,8 +6473,9 @@ function masterSeriesBlockRowMarkup(block, index, vam = null) {
           <input type="text" inputmode="numeric" autocomplete="off" class="mseries-dist-input" data-block-id="${block.id}" value="${escapeHtml(block.dist)}" placeholder="es. 400" aria-label="Distanze" />
           <button type="button" class="mseries-dist-slash-btn" data-block-id="${block.id}" aria-label="Inserisci /">/</button>
         </div>
-        <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${index === 0 ? ' disabled' : ''}>${MTEST_DEL_ICON}</button>
+        <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${canDelete ? '' : ' disabled'}>${MTEST_DEL_ICON}</button>
       </div>
+      <span class="mseries-rec-section-label">recupero</span>
       <div class="mseries-rec-mode-row">
         <select class="mseries-rec-mode-input" data-block-id="${block.id}" aria-label="Tipo di recupero">
           <option value="time"${mode === 'time' ? ' selected' : ''}>Tempo</option>
@@ -6400,7 +6486,6 @@ function masterSeriesBlockRowMarkup(block, index, vam = null) {
       </div>
       ${mode === 'time' ? `
       <div class="mseries-block-rec-row">
-        <span class="mseries-rec-label">recupero</span>
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
         ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
       </div>
@@ -6763,15 +6848,16 @@ async function handleMasterTrainingSave(button) {
   const defaultName = state.blocks
     .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
     .join(' + ');
-  const name = await showPrompt('Nome dell\'allenamento', {
+  const result = await showTrainingSavePrompt('Nome dell\'allenamento', {
     detail: 'Lo ritroverai nello storico allenamenti.',
     placeholder: 'es. Ripetute soglia',
     defaultValue: defaultName,
     confirmText: 'Salva',
   });
-  if (name === null) {
+  if (result === null) {
     return;
   }
+  const { name } = result;
 
   const blocks = [];
   for (const block of state.blocks) {
@@ -6809,7 +6895,7 @@ async function handleMasterTrainingSave(button) {
   const now = getNowParts();
   const training = {
     id: `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    date: shortYearDate(now.date),
+    date: result.date,
     createdAt: now.iso,
     name,
     thousand: latestThousand.value,
@@ -6974,7 +7060,7 @@ function masterSeriesBuilderMarkup(entry) {
   }
 
   const blocksMarkup = state.blocks
-    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, vam)}`)
+    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, vam, index !== 0 || state.strength.enabled)}`)
     .join('');
 
   return `
@@ -9553,7 +9639,7 @@ function milSeriesFindExercise(inputEl) {
 
 function milSeriesEditorMarkup() {
   const blocksMarkup = milSeriesState.blocks
-    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index)}`)
+    .map((block, index) => `${index > 0 ? masterSeriesGapMarkup(block) : ''}${masterSeriesBlockRowMarkup(block, index, null, index !== 0 || milSeriesState.strength.enabled)}`)
     .join('');
   return `
     <div class="mil-series-panel">
@@ -9717,13 +9803,13 @@ function milDefaultTrainingName(blocks) {
 // torna a un blocco vuoto.
 async function handleMilSeriesSave() {
   const defaultName = milDefaultTrainingName(milSeriesState.blocks);
-  const name = await showPrompt("Nome dell'allenamento", {
-    detail: 'Lo ritroverai in Storico allenamenti, nel mese in corso, con i tempi per atleta.',
+  const result = await showTrainingSavePrompt("Nome dell'allenamento", {
+    detail: 'Lo ritroverai in Storico allenamenti, nel mese scelto, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
     defaultValue: defaultName,
     confirmText: 'Salva',
   });
-  if (name === null) {
+  if (result === null) {
     return;
   }
   const totalMeters = milSeriesState.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
@@ -9737,8 +9823,12 @@ async function handleMilSeriesSave() {
   const now = getNowParts();
   const training = {
     id: `miltr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    name,
-    date: shortYearDate(now.date),
+    name: result.name,
+    // La data dell'allenamento (quella con cui compare in Storico
+    // allenamenti) può essere diversa da oggi — "Programma una data" nel
+    // prompt di salvataggio, per allenamenti futuri o inseriti in ritardo.
+    // createdAt resta sempre il momento vero del salvataggio.
+    date: result.date,
     createdAt: now.iso,
     blocks: milSeriesState.blocks,
     strength: milSeriesState.strength,
