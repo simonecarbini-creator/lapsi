@@ -4742,7 +4742,9 @@ button:active {
 .mseries-strength-seconds-input,
 .mseries-strength-meters-input,
 .mseries-strength-numserie-input,
-.mseries-strength-descent-input {
+.mseries-strength-descent-input,
+.mseries-strength-reps-input,
+.mseries-strength-descent-reps-input {
   width: 60px;
   padding: 6px 8px;
   border: 1px solid var(--card-border);
@@ -4751,6 +4753,16 @@ button:active {
   text-align: center;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+}
+
+.mseries-strength-descent-type-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.8rem;
+  color: var(--text);
 }
 
 .mseries-strength-descent-row {
@@ -4830,6 +4842,16 @@ button:active {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text);
+}
+
+/* Carico eccentrico: avvisa quanto la seduta scarica sui 2 giorni
+   successivi, non quanto costa oggi (quello è il volume sopra) — colore
+   diverso apposta, non è la stessa informazione. */
+.mseries-strength-eccentric {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #c0392b;
 }
 
 /* Volume a sx, reload a dx: cliccarlo torna alla vista con i blocchi da

@@ -81,30 +81,59 @@ che si ritocca un coefficiente in <code>ripetute-calc.js</code>.</p>
   assertEqual(RipeteCalc.isValidRec(90), true, 'isValidRec(90) === true');
   assertEqual(RipeteCalc.isValidRec(100), false, 'isValidRec(100) === false');
 
-  // --- "Giorno di forza": volume equivalente di salite/gradoni/balzi ---
+  // --- "Giorno di forza": volume equivalente + carico eccentrico ---
   assertEqual(RipeteCalc.strengthIntensity('gradoni-corsa'), 2.2, 'strengthIntensity("gradoni-corsa") === 2.2');
   assertEqual(RipeteCalc.strengthIntensity('non-esiste'), null, 'strengthIntensity("non-esiste") === null');
-
-  // 10 serie da 20" di gradoni = 200" totali, senza i recuperi (caso dalla spec).
-  const gradoniSeconds = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 20, numSerie: 10 });
-  assertEqual(gradoniSeconds, 200, '10x20" di gradoni === 200" totali');
-  assertEqual(Math.round(RipeteCalc.strengthVolumeEquivalent(gradoniSeconds, 'gradoni-corsa')), 1540, 'volEquivalente(200", gradoni-corsa) === 1540 m');
 
   // 1 minuto a intensità 1,0 deve valere 210 m (il senso del fattore 3,5).
   assertEqual(60 * 1.0 * RipeteCalc.STRENGTH_SCALE, 210, "1' a intensità 1,0 === 210 m");
 
-  // Discesa di corsa: conta a metà; se non c'è (camminata) non va passata.
-  const withDescent = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 0, numSerie: 1, descentRunSeconds: 10 });
-  assertEqual(withDescent, 5, 'discesa di corsa di 10" conta per 5"');
-  const noDescent = RipeteCalc.strengthExerciseSeconds({ serieSeconds: 20, numSerie: 3 });
-  assertEqual(noDescent, 60, 'senza discesa, 3x20" === 60" (nessun contributo extra)');
+  // Numeri di controllo dati dall'utente (esercizi a ripetizioni).
+  function strengthPiece(key, reps, numSerie) {
+    const serieSeconds = RipeteCalc.strengthSecondsFromReps(reps, key);
+    const total = RipeteCalc.strengthPieceSeconds(serieSeconds, numSerie);
+    return { total, vol: RipeteCalc.strengthVolumeEquivalent(total, key), ecc: RipeteCalc.strengthEccentricoSeconds(total, key) };
+  }
+  assertEqual(Math.round(strengthPiece('bulgaro-saltato', 10, 5).vol), 2240, '5x10 bulgaro saltato per gamba === 2240 m (esatto)');
+  assertEqual(Math.round(strengthPiece('jump-squat-1g', 8, 4).vol), 1344, '4x8 jumping squat per gamba === 1344 m');
+  assertEqual(Math.round(strengthPiece('gradoni-corsa', 30, 8).vol), 739, '8x30 gradoni di corsa === 739 m');
 
-  // Metri -> secondi per gli esercizi che accettano la distanza.
+  // Il conteggio "per gamba"/"per lato" raddoppia i secondi (si lavorano
+  // entrambe), "totale" no.
+  assertEqual(RipeteCalc.strengthSecondsFromReps(10, 'bulgaro-saltato'), 40, '10 rip. bulgaro saltato (per gamba) === 40" (20 x2)');
+  assertEqual(RipeteCalc.strengthSecondsFromReps(20, 'sagittali-alt'), 36, '20 rip. sagittali alternati (totale) === 36" (nessun raddoppio)');
+
+  // Carico eccentrico combinato (esempio dato dall'utente): 6x15 balzi a
+  // squat + 6x15 discesa a mezzo squat === 342 (esatto).
+  const balzi = strengthPiece('balzi-squat', 15, 6);
+  const discesaMezzoSquat = strengthPiece('discesa-mezzo-squat', 15, 6);
+  assertEqual(Math.round(balzi.ecc + discesaMezzoSquat.ecc), 342, 'carico eccentrico 6x15 balzi + 6x15 discesa a mezzo squat === 342');
+  assertEqual(Math.round(discesaMezzoSquat.vol), 302, '6x15 discesa a mezzo squat === 302 m (~300)');
+
+  // Le 3 salite restano a tempo diretto (secPerRip 0, conteggio 'secondi').
+  assertEqual(RipeteCalc.strengthFindDef('salita-media')[4], 'secondi', 'salita-media si conta a tempo, non a ripetizioni');
+  assertEqual(RipeteCalc.strengthFindDef('gradoni-corsa')[4], 'totale', 'gradoni-corsa si conta a ripetizioni (totale)');
+
+  // Le 3 discese e il ritorno in corsa blanda si trovano anche loro, pur
+  // non essendo nella select principale (STRENGTH_EXERCISES).
+  assertEqual(!!RipeteCalc.strengthFindDef('discesa-skip'), true, 'strengthFindDef trova anche le discese');
+  assertEqual(RipeteCalc.strengthIntensity('ritorno-blando'), 0.5, 'intensità del ritorno in corsa blanda === 0,5');
+  assertEqual(RipeteCalc.STRENGTH_EXERCISES.some(([k]) => k === 'discesa-skip'), false, 'le discese non sono nella select principale');
+
+  // Tipi "da gradoni" vs "salite" — dove compaiono discesa/ritorno.
+  assertEqual(RipeteCalc.STRENGTH_GRADONI_TYPES.includes('skip-gradini'), true, 'skip-gradini è un tipo "da gradoni"');
+  assertEqual(RipeteCalc.STRENGTH_GRADONI_TYPES.includes('sagittali-alt'), false, 'sagittali-alt non è un tipo "da gradoni" (sul posto)');
+  assertEqual(RipeteCalc.STRENGTH_SALITA_TYPES.includes('salita-ripida'), true, 'salita-ripida è una salita');
+
+  // Metri -> secondi, solo per le 3 salite (non più gradoni-corsa, ora a
+  // ripetizioni).
   assertEqual(Math.round(RipeteCalc.strengthSecondsFromMeters('salita-media', 100) * 100) / 100, 41.67, 'strengthSecondsFromMeters("salita-media", 100) ≈ 41,67"');
-  assertEqual(RipeteCalc.strengthSecondsFromMeters('jumping-squat', 100), 0, 'strengthSecondsFromMeters su un esercizio senza velocità stimata === 0');
+  assertEqual(RipeteCalc.strengthSecondsFromMeters('gradoni-corsa', 100), 0, 'gradoni-corsa non ha più un equivalente in metri (è a ripetizioni)');
 
-  assertEqual(RipeteCalc.strengthVolumeEquivalent(0, 'skip'), 0, 'strengthVolumeEquivalent(0, ...) === 0');
+  assertEqual(RipeteCalc.strengthVolumeEquivalent(0, 'skip-gradini'), 0, 'strengthVolumeEquivalent(0, ...) === 0');
   assertEqual(RipeteCalc.strengthVolumeEquivalent(100, 'non-esiste'), 0, 'strengthVolumeEquivalent con chiave sconosciuta === 0');
+  assertEqual(RipeteCalc.strengthEccentricoLabel(100), 'leggero, nessun vincolo', 'eccentrico 100 === leggero');
+  assertEqual(RipeteCalc.strengthEccentricoLabel(700), 'molto alto, rivedi la seduta', 'eccentrico 700 === molto alto');
 
   // --- render ---
   const list = document.getElementById('results');

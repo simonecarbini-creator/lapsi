@@ -152,35 +152,89 @@
   }
 
   // "Giorno di forza": salite/gradoni/balzi aggiunti come volume
-  // equivalente alle ripetute della stessa seduta. [chiave, etichetta,
-  // intensità]. Il fattore 3.5 nella formula sotto è solo di scala: un
-  // minuto a intensità 1.0 equivale a 210 m di corsa piana.
+  // equivalente alle ripetute della stessa seduta. Ogni voce è
+  // [chiave, etichetta, intensità, secPerRip, conteggio, eccentrico].
+  // Il fattore 3.5 nella formula del volume è solo di scala: un minuto a
+  // intensità 1.0 equivale a 210 m di corsa piana.
+  // "conteggio" dice come si esprime la durata di una serie:
+  //  - 'secondi': tempo diretto (o metri, solo per le 3 salite — vedi
+  //    STRENGTH_METERS_SPEED), come il "giorno di forza" di prima.
+  //  - 'per-gamba' / 'per-lato' / 'totale': a ripetizioni — l'allenatore
+  //    scrive "8 ripetizioni" invece di un tempo, il sistema lo converte:
+  //    secondi = ripetizioni * secPerRip * (2 se per-gamba/per-lato, il
+  //    fattore vale sulla durata — il monopodalico costa più del doppio
+  //    tempo per lavorare entrambe le gambe, non il doppio "sforzo" a
+  //    ripetizione, quello lo dice solo l'intensità).
+  // "eccentrico" non entra nel volume: si somma a parte (vedi
+  // strengthEccentricoSeconds/strengthEccentricoLabel) e segnala quanto
+  // la seduta scarica sui 2 giorni successivi — una discesa ha intensità
+  // bassa (costa poco "a caldo") ma eccentrico alto (fa male il giorno
+  // dopo), motivo per cui sono due colonne separate e non un numero solo.
   const STRENGTH_EXERCISES = [
-    ['salita-dolce', 'Salita dolce (3-5%)', 1.3],
-    ['salita-media', 'Salita media (6-9%)', 1.6],
-    ['salita-ripida', 'Salita ripida (10-15%)', 2.0],
-    ['gradoni-corsa', 'Gradoni di corsa', 2.2],
-    ['gradoni-balzi-1', 'Gradoni a balzi, un gradone', 2.8],
-    ['gradoni-balzi-2', 'Gradoni a balzi, due gradoni', 3.2],
-    ['saggittali', 'Balzi sagittali sul posto', 2.4],
-    ['jumping-squat', 'Jumping squat', 3.0],
-    ['skip', 'Skip, andature', 1.8],
+    ['jump-squat-1g', 'Jumping squat monopodalico', 3.0, 2.0, 'per-gamba', 1.5],
+    ['sagittali-alt', 'Sagittali alternati', 2.4, 1.8, 'totale', 1.5],
+    ['sagittali-1g', 'Sagittali stessa gamba', 2.6, 1.7, 'per-gamba', 1.6],
+    ['bulgaro-saltato', 'Squat bulgaro saltato', 3.2, 2.0, 'per-gamba', 2.0],
+    ['gradoni-laterale', 'Gradoni in salita laterale', 2.0, 0.6, 'per-lato', 0.8],
+    ['gradoni-corsa', 'Gradoni di corsa veloce', 2.2, 0.4, 'totale', 0.5],
+    ['balzi-squat', 'Balzi a squat gradone-gradone', 2.8, 1.3, 'totale', 1.2],
+    ['balzi-squat-1g', 'Balzi a squat gradone-gradone monopodalici', 3.6, 1.5, 'per-gamba', 1.6],
+    ['saltelli-rigidi', 'Saltelli piedi pari ginocchia bloccate', 2.0, 0.5, 'totale', 1.0],
+    ['skip-gradini', 'Skip veloce sui gradini', 2.4, 0.35, 'totale', 0.6],
+    ['salita-dolce', 'Salita dolce 3-5%', 1.3, 0, 'secondi', 0.3],
+    ['salita-media', 'Salita media 6-9%', 1.6, 0, 'secondi', 0.3],
+    ['salita-ripida', 'Salita ripida 10-15%', 2.0, 0, 'secondi', 0.3],
   ];
+
+  // Le 3 discese dai gradoni, scelte come ritorno quando l'esercizio è uno
+  // dei tipi "da gradoni" (vedi STRENGTH_GRADONI_TYPES) — non compaiono
+  // nella select principale, solo in quella del ritorno.
+  const STRENGTH_DESCENTS = [
+    ['discesa-veloce', 'Discesa veloce, un piede per gradone', 0.8, 0.35, 'totale', 2.2],
+    ['discesa-mezzo-squat', 'Discesa a mezzo squat', 1.2, 0.8, 'totale', 2.8],
+    ['discesa-skip', 'Discesa gradini', 1.0, 0.4, 'totale', 2.0],
+  ];
+
+  // Ritorno "in corsa blanda" dopo una salita: intensità fissa (0,5),
+  // indipendente da quella della salita appena fatta — unico "esercizio" di
+  // ritorno per le 3 salite (quelle con gradoni usano invece una delle 3
+  // discese sopra). Tempo diretto in secondi, non a ripetizioni.
+  const STRENGTH_RETURN_JOG = ['ritorno-blando', 'Ritorno in corsa blanda', 0.5, 0, 'secondi', 1.0];
+
+  // Tipi "da gradoni", dove ha senso scegliere una delle 3 discese come
+  // ritorno (ci si è fisicamente saliti sopra, si può anche scendere in
+  // modi diversi) — gli altri tipi a ripetizioni sono "sul posto", niente
+  // dislivello da ridiscendere.
+  const STRENGTH_GRADONI_TYPES = ['gradoni-laterale', 'gradoni-corsa', 'balzi-squat', 'balzi-squat-1g', 'skip-gradini'];
+  // Le 3 salite, dove invece ha senso solo il "Ritorno correndo" (in corsa
+  // blanda) o niente (si torna camminando, non conta).
+  const STRENGTH_SALITA_TYPES = ['salita-dolce', 'salita-media', 'salita-ripida'];
+
   const STRENGTH_SCALE = 3.5;
 
-  // Velocità stimata (m/s) per convertire metri -> secondi, solo per gli
-  // esercizi dove ha senso pensare in distanza invece che in tempo (salite
-  // e gradoni di corsa) — stima approssimativa, pensata per essere
-  // ritoccata qui se non rispecchia il ritmo reale.
+  // Velocità stimata (m/s) per convertire metri -> secondi, solo per le 3
+  // salite (dove ha senso pensare in distanza invece che in tempo) — stima
+  // approssimativa, pensata per essere ritoccata qui se non rispecchia il
+  // ritmo reale. Gli esercizi a ripetizioni non hanno un equivalente in
+  // metri, solo in secondi diretti o ripetizioni.
   const STRENGTH_METERS_SPEED = {
     'salita-dolce': 2.8,
     'salita-media': 2.4,
     'salita-ripida': 2.0,
-    'gradoni-corsa': 1.5,
   };
 
+  // Cerca una voce per chiave in tutte e tre le liste (esercizi principali,
+  // discese, ritorno in corsa) — da qui in poi un pezzo del giorno di forza
+  // si identifica solo con questa chiave, senza dover sapere a quale lista
+  // appartiene.
+  function strengthFindDef(key) {
+    return STRENGTH_EXERCISES.find((d) => d[0] === key)
+      || STRENGTH_DESCENTS.find((d) => d[0] === key)
+      || (STRENGTH_RETURN_JOG[0] === key ? STRENGTH_RETURN_JOG : null);
+  }
+
   function strengthIntensity(key) {
-    const found = STRENGTH_EXERCISES.find(([k]) => k === key);
+    const found = strengthFindDef(key);
     return found ? found[2] : null;
   }
 
@@ -189,20 +243,50 @@
     return speed && meters > 0 ? meters / speed : 0;
   }
 
-  // Secondi totali di lavoro di un esercizio: durata della singola serie
-  // (o la stima dai metri) per il numero di serie, SENZA i recuperi, più
-  // l'eventuale discesa di corsa (dimezzata: la discesa camminando non
-  // conta, vedi app.js dove si sceglie se includerla).
-  function strengthExerciseSeconds({ serieSeconds = 0, numSerie = 1, descentRunSeconds = 0 }) {
+  // Secondi di una singola serie dalle ripetizioni: ripetizioni * secPerRip,
+  // raddoppiati se il conteggio è per gamba/per lato (si lavorano entrambe,
+  // il doppio del tempo — l'intensità già dice quanto costa la singola
+  // ripetizione, qui si somma solo quante volte si ripete davvero).
+  function strengthSecondsFromReps(reps, key) {
+    const def = strengthFindDef(key);
+    if (!def) return 0;
+    const countMode = def[4];
+    const factor = countMode === 'per-gamba' || countMode === 'per-lato' ? 2 : 1;
+    return Math.max(0, reps || 0) * def[3] * factor;
+  }
+
+  // Secondi totali di lavoro di un "pezzo" (l'esercizio principale, la
+  // discesa scelta, o il ritorno in corsa — tutti calcolati separatamente,
+  // mai sommati in un unico totale prima di applicare l'intensità, perché
+  // ciascuno ha la propria): durata di una serie (secondi diretti, o dalle
+  // ripetizioni) per il numero di serie.
+  function strengthPieceSeconds(serieSeconds, numSerie) {
     const reps = Math.max(1, numSerie || 1);
-    return Math.max(0, serieSeconds) * reps + Math.max(0, descentRunSeconds) * 0.5;
+    return Math.max(0, serieSeconds || 0) * reps;
   }
 
   // Volume equivalente (in metri, stessa unità delle ripetute) di un
-  // esercizio di forza: secondiTotali * intensità * 3.5.
+  // singolo pezzo: secondiTotali * intensità * 3.5.
   function strengthVolumeEquivalent(totalSeconds, key) {
     const intensity = strengthIntensity(key);
     return intensity && totalSeconds > 0 ? totalSeconds * intensity * STRENGTH_SCALE : 0;
+  }
+
+  // Contributo di un pezzo al carico eccentrico della seduta: secondiTotali
+  // * eccentrico — si somma su tutti i pezzi di tutti gli esercizi (vedi
+  // strengthEccentricoLabel per la lettura del totale).
+  function strengthEccentricoSeconds(totalSeconds, key) {
+    const def = strengthFindDef(key);
+    return def && totalSeconds > 0 ? totalSeconds * def[5] : 0;
+  }
+
+  // Soglie di lettura del carico eccentrico totale della seduta (somma di
+  // strengthEccentricoSeconds su tutti i pezzi) sui 2 giorni successivi.
+  function strengthEccentricoLabel(value) {
+    if (value < 150) return 'leggero, nessun vincolo';
+    if (value < 350) return 'medio, evita qualità il giorno dopo';
+    if (value < 600) return 'alto, due giorni di scarico';
+    return 'molto alto, rivedi la seduta';
   }
 
   return {
@@ -228,11 +312,19 @@
     isValidVol,
     isValidRec,
     STRENGTH_EXERCISES,
+    STRENGTH_DESCENTS,
+    STRENGTH_RETURN_JOG,
+    STRENGTH_GRADONI_TYPES,
+    STRENGTH_SALITA_TYPES,
     STRENGTH_SCALE,
     STRENGTH_METERS_SPEED,
+    strengthFindDef,
     strengthIntensity,
     strengthSecondsFromMeters,
-    strengthExerciseSeconds,
+    strengthSecondsFromReps,
+    strengthPieceSeconds,
     strengthVolumeEquivalent,
+    strengthEccentricoSeconds,
+    strengthEccentricoLabel,
   };
 });
