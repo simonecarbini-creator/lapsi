@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-08f';
-console.log('[Lapsi] build', APP_BUILD, '— "Programma una data" al salvataggio, blocco di corsa cancellabile col giorno di forza, label Recupero riordinata');
+const APP_BUILD = '2026-10-08g';
+console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: il blocco di corsa precompilato si toglie da solo, si rimette se si spegne a zero blocchi');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5966,6 +5966,24 @@ function masterSeriesDefaultStrengthRepeat() {
   return block;
 }
 
+// Attivare "giorno di forza" toglie il blocco di ripetute precompilato: non
+// è detto che un giorno di forza abbia anche della corsa, e se serve si
+// aggiunge con "Aggiungi blocco di corsa" (dentro il giorno di forza) o
+// "Aggiungi blocco" (fuori). Tocca solo il caso comune — un unico blocco,
+// ancora quello di partenza — mai se ce ne sono già più d'uno, già
+// chiaramente voluti dall'utente. Disattivarlo con zero blocchi ne rimette
+// uno: altrimenti non ci sarebbe più nulla da calcolare.
+function masterSeriesApplyStrengthToggle(state) {
+  if (state.strength.enabled && state.blocks.length === 1) {
+    state.blocks = [];
+  } else if (!state.strength.enabled && !state.blocks.length) {
+    state.blocks = [masterSeriesDefaultBlock()];
+  }
+  if (state.strength.enabled && !state.strength.items.length) {
+    state.strength.items.push(masterSeriesDefaultStrengthExercise());
+  }
+}
+
 // Tipi di esercizio dove ha senso la discesa (si scende da qualcosa): tutto
 // tranne i balzi "sul posto" (saggittali, jumping squat) e lo skip in piano.
 function masterSeriesStrengthHasDescent(type) {
@@ -8415,9 +8433,7 @@ async function handleMasterListClick(event) {
   if (strengthToggle) {
     const state = masterSeriesGetState(strengthToggle.closest('.athlete-item').dataset.id);
     state.strength.enabled = strengthToggle.checked;
-    if (state.strength.enabled && !state.strength.items.length) {
-      state.strength.items.push(masterSeriesDefaultStrengthExercise());
-    }
+    masterSeriesApplyStrengthToggle(state);
     state.showResults = false;
     renderMaster();
     return;
@@ -9920,9 +9936,7 @@ if (milSeriesBody) {
     const strengthToggle = event.target.closest('.mseries-strength-toggle');
     if (strengthToggle) {
       milSeriesState.strength.enabled = strengthToggle.checked;
-      if (milSeriesState.strength.enabled && !milSeriesState.strength.items.length) {
-        milSeriesState.strength.items.push(masterSeriesDefaultStrengthExercise());
-      }
+      masterSeriesApplyStrengthToggle(milSeriesState);
       renderMilSeries();
       return;
     }
