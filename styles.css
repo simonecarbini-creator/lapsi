@@ -4698,6 +4698,38 @@ button:active {
   color: #c0392b;
 }
 
+/* Maniglia per riordinare un box tenendolo premuto (vedi strengthDragStart):
+   touch-action none, altrimenti lo scroll della pagina "vince" sul gesto di
+   trascinamento durante la pressione prolungata. */
+.mseries-strength-drag-handle {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--muted);
+  touch-action: none;
+  cursor: grab;
+}
+
+.mseries-strength-repeat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Box "sollevato" durante il trascinamento: si distingue dagli altri mentre
+   lo si sposta sopra di loro. */
+.mseries-strength-row.mseries-strength-dragging,
+.mseries-strength-repeat.mseries-strength-dragging {
+  opacity: 0.6;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
 .mseries-strength-fields {
   display: flex;
   flex-wrap: wrap;
@@ -4727,22 +4759,8 @@ button:active {
   color: var(--muted);
 }
 
-/* Secondi/metri per la durata di una serie: alternativi, non campi che si
-   sommano — questo mini-select sceglie quale dei due mostrare (vedi
-   masterSeriesStrengthRowMarkup). */
-.mseries-strength-duration-mode-input {
-  padding: 5px 8px;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  background: #fff;
-  font-size: 0.72rem;
-  color: var(--text);
-}
-
-.mseries-strength-seconds-input,
 .mseries-strength-meters-input,
 .mseries-strength-numserie-input,
-.mseries-strength-descent-input,
 .mseries-strength-reps-input,
 .mseries-strength-descent-reps-input {
   width: 60px;
@@ -4753,6 +4771,27 @@ button:active {
   text-align: center;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Passo di ritorno di una salita (mm'ss"/km): più largo dei campi sopra,
+   stessa larghezza di .mseries-rec-pace-input per lo stesso motivo (ci sta
+   "5′30″" senza tagliarlo). */
+.mseries-strength-descent-pace-input {
+  width: 84px;
+  padding: 6px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: #fff;
+  text-align: center;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mseries-strength-descent-pace-note {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-style: italic;
 }
 
 .mseries-strength-descent-type-input {
@@ -4789,6 +4828,50 @@ button:active {
   font-size: 0.74rem;
   color: var(--muted);
   font-style: italic;
+}
+
+/* Pulsante "copia" in basso a dx di ogni box (esercizio o blocco di corsa)
+   del giorno di forza — copia l'intero box, vedi masterSeriesStrengthClipboard. */
+.mseries-strength-row-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.mseries-strength-copy-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--muted);
+}
+
+.mseries-strength-copy-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
+}
+
+.mseries-strength-paste-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 140px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.mseries-strength-paste-btn:hover {
+  background: #fff;
 }
 
 /* Un blocco di corsa dentro il giorno di forza: tra le serie di salite o
@@ -4920,6 +5003,19 @@ button:active {
   border-radius: 10px;
   font-size: 0.78rem;
   color: #c0392b;
+}
+
+/* Previsione di un "blocco di corsa" del giorno di forza, tra i risultati:
+   stessa etichetta dell'editor (.mseries-strength-repeat-label) sopra il
+   riquadro tempi, così si distingue dalle ripetute vere e proprie sotto. */
+.mseries-strength-repeat-result .mseries-strength-repeat-label {
+  margin-bottom: 6px;
+}
+
+.mseries-strength-repeat-result + .mseries-strength-repeat-result,
+.mseries-strength-repeat-result + .mseries-result-block,
+.mseries-result-block + .mseries-strength-repeat-result {
+  margin-top: 10px;
 }
 
 /* Riga del tempo reale su cui si basano le proiezioni */
