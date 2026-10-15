@@ -98,6 +98,18 @@ che si ritocca un coefficiente in <code>ripetute-calc.js</code>.</p>
   assertEqual(Math.round(strengthPiece('jump-squat-1g', 8, 4).vol), 1344, '4x8 jumping squat per gamba === 1344 m');
   assertEqual(Math.round(strengthPiece('gradoni-corsa', 30, 8).vol), 739, '8x30 gradoni di corsa === 739 m');
 
+  // Jumping squat bipodalico (esempio dato dall'utente): 4x15 === 90" sotto
+  // sforzo, 819 m equivalenti (90*2,6*3,5, l'utente aveva arrotondato a
+  // "~820"), 108 di carico eccentrico (esatto). Lo stesso 4x15 ma
+  // monopodalico (jump-squat-1g, "per gamba" raddoppia i secondi, non le
+  // ripetizioni) sale a 2520 m — molto più del bipodalico, anche se non
+  // ai 3150 stimati a mente dall'utente: vedi la spiegazione in chat.
+  const jumpSquat = strengthPiece('jump-squat', 15, 4);
+  assertEqual(jumpSquat.total, 90, '4x15 jumping squat (totale, no raddoppio) === 90" sotto sforzo');
+  assertEqual(Math.round(jumpSquat.vol), 819, '4x15 jumping squat === 819 m equivalenti (esatto, ~820 a mente)');
+  assertEqual(Math.round(jumpSquat.ecc), 108, '4x15 jumping squat === 108 di carico eccentrico (esatto)');
+  assertEqual(Math.round(strengthPiece('jump-squat-1g', 15, 4).vol), 2520, '4x15 jumping squat monopodalico (per gamba) === 2520 m, molto più del bipodalico');
+
   // Il conteggio "per gamba"/"per lato" raddoppia i secondi (si lavorano
   // entrambe), "totale" no.
   assertEqual(RipeteCalc.strengthSecondsFromReps(10, 'bulgaro-saltato'), 40, '10 rip. bulgaro saltato (per gamba) === 40" (20 x2)');

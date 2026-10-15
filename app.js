@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-09e';
+const APP_BUILD = '2026-10-15a';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -1260,15 +1260,18 @@ function isoDateToIt(iso) {
   return `${d}/${m}/${y}`;
 }
 
-// dd/mm/yyyy -> yyyy-mm-dd, per precompilare <input type="date"> quando si
-// vuole mostrare una data già salvata (nessun uso attuale in scrittura, solo
-// eventuali riletture future del form).
+// dd/mm/yyyy (o dd/mm/yy, come shortYearDate) -> yyyy-mm-dd, per precompilare
+// <input type="date"> con una data già salvata — es. la data originale di
+// un allenamento, riaprendolo per modificarlo.
 function itDateToIso(it) {
-  const match = String(it || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const match = String(it || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (!match) {
     return '';
   }
-  const [, d, m, y] = match;
+  let [, d, m, y] = match;
+  if (y.length < 4) {
+    y = String(2000 + Number(y));
+  }
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
 }
 
@@ -1760,10 +1763,14 @@ function showPrompt(message, { detail = '', placeholder = '', defaultValue = '',
 // — futuro per preparare un allenamento in anticipo, passato per registrarne
 // uno dimenticato. Risolve con { name, date } (date in formato it, dd/mm/yyyy)
 // oppure null se annullato.
-function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaultValue = '', confirmText = 'Salva', cancelText = 'Annulla', maxLength = 60 } = {}) {
+function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaultValue = '', defaultDate = '', confirmText = 'Salva', cancelText = 'Annulla', maxLength = 60 } = {}) {
   document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
 
   return new Promise((resolve) => {
+    // defaultDate (se passata, formato it. "gg/mm/aa" — es. modificando un
+    // allenamento già salvato) pre-spunta "Programma una data" sulla data
+    // originale, altrimenti si parte da oggi con la spunta tolta.
+    const defaultNativeDate = defaultDate ? itDateToIso(defaultDate) : null;
     const todayNativeValue = todayNativeDateValue();
     const checkIcon = '<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
     const overlay = document.createElement('div');
@@ -1774,11 +1781,11 @@ function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaul
         ${detail ? `<div class="app-confirm-sub">${escapeHtml(detail)}</div>` : ''}
         <input type="text" class="app-prompt-input" maxlength="${maxLength}" autocomplete="off" placeholder="${escapeHtml(placeholder)}" value="${escapeHtml(defaultValue)}" />
         <label class="result-date-toggle">
-          <input type="checkbox" class="result-date-checkbox mseries-schedule-checkbox" />
+          <input type="checkbox" class="result-date-checkbox mseries-schedule-checkbox"${defaultNativeDate ? ' checked' : ''} />
           <span class="result-date-box" aria-hidden="true">${checkIcon}</span>
           <span class="result-date-text">Programma una data</span>
         </label>
-        <input class="native-date result-date-field mseries-schedule-date" type="date" value="${todayNativeValue}" hidden />
+        <input class="native-date result-date-field mseries-schedule-date" type="date" value="${defaultNativeDate || todayNativeValue}"${defaultNativeDate ? '' : ' hidden'} />
         <div class="app-confirm-actions">
           <button type="button" class="app-btn app-btn-success" data-choice="ok">${escapeHtml(confirmText)}</button>
           <button type="button" class="app-btn app-btn-ghost" data-choice="cancel">${escapeHtml(cancelText)}</button>
@@ -1802,7 +1809,12 @@ function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaul
       }
       settled = true;
       document.removeEventListener('keydown', onKey);
-      const text = input.value.trim() || defaultValue.trim();
+      // Un nome vuoto (giorno di forza senza blocchi di corsa, suggerimento
+      // di default anch'esso vuoto, e l'utente non scrive nulla) non deve
+      // passare: un allenamento salvato senza nome viene scartato in
+      // lettura altrove (readMilTrainings), sembrando "sparito" invece che
+      // mai salvato per davvero.
+      const text = input.value.trim() || defaultValue.trim() || 'Allenamento';
       const date = scheduleCheckbox.checked && scheduleDate.value ? isoDateToIt(scheduleDate.value) : shortYearDate(getNowParts().date);
       dismissOverlay(overlay, () => resolve(accepted ? { name: text, date } : null));
     };
@@ -5880,6 +5892,7 @@ const MTEST_CALC_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hi
 const MTEST_CHECK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg>';
 const MTEST_RELOAD_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>';
 const MTEST_DEL_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 10v6M14 10v6" /></svg>';
+const MTEST_EDIT_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>';
 const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
@@ -7085,6 +7098,10 @@ function normalizeMasterTraining(record) {
     });
     return {
       id: block.id || `mtb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      // "repeat" per i blocchi di corsa salvati dal giorno di forza (vedi
+      // handleMasterTrainingSave) — solo per l'etichetta nello storico
+      // (masterTrainingCardMarkup), non tocca nessun calcolo.
+      kind: block.kind === 'repeat' ? 'repeat' : undefined,
       reps,
       dist: String(block.dist || ''),
       recDigits: String(block.recDigits || ''),
@@ -7112,6 +7129,13 @@ function normalizeMasterTraining(record) {
     thousand: String(record.thousand || ''),
     totalKm: Number(record.totalKm) || 0,
     blocks,
+    // Riepilogo congelato del giorno di forza (solo esercizi, vedi
+    // handleMasterTrainingSave) e configurazione grezza per poterlo
+    // riaprire nel simulatore e modificarlo (vedi handleMasterTrainingEdit).
+    strengthVolume: Number(record.strengthVolume) || 0,
+    strengthEccentrico: Number(record.strengthEccentrico) || 0,
+    rawBlocks: Array.isArray(record.rawBlocks) ? record.rawBlocks : null,
+    rawStrength: record.rawStrength && typeof record.rawStrength === 'object' ? record.rawStrength : null,
   };
 }
 
@@ -7155,32 +7179,46 @@ function masterTrainingRecLabel(block) {
 // cestino; aperta i dettagli, con stima sopra e tempo fatto sotto in formato
 // ridotto.
 function masterTrainingCardMarkup(training, open) {
-  const summary = training.blocks.map(masterTrainingBlockLabel).join(' + ');
-  const displayName = training.name || summary;
-  const blocksMarkup = training.blocks.map((block) => {
+  const blocks = training.blocks || [];
+  const summary = blocks.map(masterTrainingBlockLabel).join(' + ');
+  const displayName = training.name || summary || 'Giorno di forza';
+  const blocksMarkup = blocks.map((block) => {
     const recLabel = masterTrainingRecLabel(block);
     const cells = block.estimates.map((estimate, di) => `
       <div class="mtrain-cell">
         <div class="calc-out-tile calc-out-tile-thousand"><b>${escapeHtml(RipeteCalc.formatSeconds(estimate.seconds))}</b><span>${estimate.dist} m</span></div>
         <div class="mtrain-cell-inputs">${mtrainInputsMarkup(training, block, estimate, di)}</div>
       </div>`).join('');
-    const header = training.blocks.length > 1
+    const repeatTag = block.kind === 'repeat' ? '<div class="mtrain-block-tag">Blocco di corsa</div>' : '';
+    const header = blocks.length > 1
       ? `<div class="mtrain-block-head"><b>${escapeHtml(masterTrainingBlockLabel(block))}</b><span>${escapeHtml(recLabel)}</span></div>`
       : '';
-    return `<div class="mtrain-block">${header}<div class="mtrain-cells">${cells}</div></div>`;
+    return `<div class="mtrain-block">${repeatTag}${header}<div class="mtrain-cells">${cells}</div></div>`;
   }).join('');
-  const single = training.blocks.length === 1
-    ? ` · ${escapeHtml(masterTrainingRecLabel(training.blocks[0]))}`
+  const single = blocks.length === 1
+    ? ` · ${escapeHtml(masterTrainingRecLabel(blocks[0]))}`
+    : '';
+  // Volume/eccentrico dei soli esercizi di forza (i blocchi di corsa sono già
+  // nelle tile sopra, con la loro distanza vera) — vedi handleMasterTrainingSave.
+  const strengthVolume = Number(training.strengthVolume) || 0;
+  const strengthEccentrico = Number(training.strengthEccentrico) || 0;
+  const strengthSummary = strengthVolume > 0 || strengthEccentrico > 0
+    ? `<div class="mtrain-sub mtrain-strength-sub">Giorno di forza: +${(strengthVolume / 1000).toFixed(2).replace('.', ',')} km, carico eccentrico ${Math.round(strengthEccentrico)} (${escapeHtml(RipeteCalc.strengthEccentricoLabel(strengthEccentrico))}).</div>`
+    : '';
+  const volumeSummary = blocks.length
+    ? `<div class="mtrain-sub">${escapeHtml(summary)} · Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>`
     : '';
   return `
     <details class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}" data-section-key="train-${escapeHtml(training.id)}"${open ? ' open' : ''}>
       <summary class="mtrain-summary">
         <span class="mtrain-date">${escapeHtml(training.date)}</span>
         <span class="mtrain-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
+        <button type="button" class="mtrain-edit" data-train="${escapeHtml(training.id)}" aria-label="Modifica questo allenamento">${MTEST_EDIT_ICON}</button>
         <button type="button" class="mtrain-del" data-train="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
       </summary>
       <div class="mtrain-body">
-        <div class="mtrain-sub">${escapeHtml(summary)} · Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>
+        ${volumeSummary}
+        ${strengthSummary}
         ${blocksMarkup}
       </div>
     </details>`;
@@ -7221,15 +7259,36 @@ async function handleMasterTrainingSave(button) {
   const state = masterSeriesGetState(athleteId);
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
   const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm);
+  // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie
+  // (stesso oggetto di un blocco normale): entrano anche loro nelle tile
+  // con tempo stimato, prima dei blocchi principali (stesso ordine della
+  // card e dei risultati) — altrimenti, salvando un allenamento con solo
+  // esercizi/corsa dentro il giorno di forza, lo storico restava vuoto.
+  const strengthTotals = state.strength.enabled ? masterSeriesStrengthTotals(state.strength) : { volume: 0, eccentrico: 0 };
+  const strengthKm = strengthTotals.volume / 1000;
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
+  const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
+  const blocksForEstimates = [...repeatItems, ...state.blocks];
+  // Volume/eccentrico dei soli ESERCIZI (non dei blocchi di corsa, già
+  // mostrati per intero come tile sopra con la loro distanza vera): la
+  // riga di riepilogo sotto non deve contare due volte lo stesso volume.
+  const exerciseOnlyTotals = state.strength.enabled
+    ? state.strength.items.filter((item) => item.kind !== 'repeat').reduce((totals, item) => {
+      const calc = masterSeriesStrengthItemCalc(item);
+      return { volume: totals.volume + calc.volume, eccentrico: totals.eccentrico + calc.eccentrico };
+    }, { volume: 0, eccentrico: 0 })
+    : { volume: 0, eccentrico: 0 };
 
-  const defaultName = state.blocks
+  const editingId = state.editingTrainingId || null;
+  const editingTraining = editingId ? (entry.trainings || []).find((t) => t.id === editingId) : null;
+  const defaultName = editingTraining ? editingTraining.name : blocksForEstimates
     .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
     .join(' + ');
   const result = await showTrainingSavePrompt('Nome dell\'allenamento', {
     detail: 'Lo ritroverai nello storico allenamenti.',
     placeholder: 'es. Ripetute soglia',
     defaultValue: defaultName,
+    defaultDate: editingTraining ? editingTraining.date : undefined,
     confirmText: 'Salva',
   });
   if (result === null) {
@@ -7238,7 +7297,7 @@ async function handleMasterTrainingSave(button) {
   const { name } = result;
 
   const blocks = [];
-  for (const block of state.blocks) {
+  for (const block of blocksForEstimates) {
     const distances = masterSeriesParseDistances(block.dist);
     const resolved = masterSeriesResolveRecovery(block, vam);
     if (!distances.length || !resolved) {
@@ -7257,6 +7316,7 @@ async function handleMasterTrainingSave(button) {
     // confronto sotto i riquadri giusti.
     blocks.push({
       id: block.id,
+      kind: block.kind === 'repeat' ? 'repeat' : undefined,
       reps,
       dist: block.dist,
       recDigits: block.recDigits,
@@ -7272,20 +7332,63 @@ async function handleMasterTrainingSave(button) {
   }
   const now = getNowParts();
   const training = {
-    id: `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    id: editingTraining ? editingTraining.id : `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     date: result.date,
-    createdAt: now.iso,
+    createdAt: editingTraining ? editingTraining.createdAt : now.iso,
     name,
     thousand: latestThousand.value,
     totalKm,
     blocks,
+    // Volume/eccentrico del solo giorno di forza (esercizi, non i blocchi di
+    // corsa già contati sopra): un riepilogo congelato, vedi masterTrainingCardMarkup.
+    strengthVolume: exerciseOnlyTotals.volume,
+    strengthEccentrico: exerciseOnlyTotals.eccentrico,
+    // Configurazione "grezza" (non congelata in stime/tempi fatti), per
+    // poterlo riaprire nel simulatore e modificarlo — vedi handleMasterTrainingEdit.
+    rawBlocks: JSON.parse(JSON.stringify(state.blocks)),
+    rawStrength: JSON.parse(JSON.stringify(state.strength)),
   };
-  entries[index] = { ...entry, trainings: [...(entry.trainings || []), training] };
+  const trainings = editingTraining
+    ? (entry.trainings || []).map((t) => (t.id === editingTraining.id ? training : t))
+    : [...(entry.trainings || []), training];
+  entries[index] = { ...entry, trainings };
   await saveMaster(entries);
   state.savedTrainingId = training.id;
   state.compare = false;
+  state.editingTrainingId = null;
   renderMaster();
-  showToast('Allenamento salvato!');
+  showToast(editingTraining ? 'Allenamento aggiornato!' : 'Allenamento salvato!');
+}
+
+// Riapre nel simulatore un allenamento già salvato (blocchi + giorno di
+// forza, configurazione grezza non congelata — vedi rawBlocks/rawStrength):
+// "Salva allenamento" aggiornerà questa stessa voce invece di crearne una
+// nuova, finché non si annulla chiudendo la card o cambiando atleta.
+function handleMasterTrainingEdit(button) {
+  const card = button.closest('.athlete-item');
+  const athleteId = card.dataset.id;
+  const entry = getMaster().find((e) => e.id === athleteId);
+  const training = entry && (entry.trainings || []).find((t) => t.id === button.dataset.train);
+  if (!training) {
+    return;
+  }
+  const state = masterSeriesGetState(athleteId);
+  state.blocks = training.rawBlocks
+    ? JSON.parse(JSON.stringify(training.rawBlocks))
+    : training.blocks.filter((b) => b.kind !== 'repeat').map((b) => ({ ...b }));
+  state.strength = training.rawStrength
+    ? JSON.parse(JSON.stringify(training.rawStrength))
+    : masterSeriesDefaultStrength();
+  state.showResults = false;
+  state.savedTrainingId = null;
+  state.compare = false;
+  state.editingTrainingId = training.id;
+  masterExpandedPanels.add(athleteId);
+  renderMaster();
+  const freshCard = document.querySelector(`.athlete-item[data-id="${athleteId}"]`);
+  if (freshCard) {
+    scrollCardIntoView(freshCard);
+  }
 }
 
 async function handleMasterTrainingDelete(button) {
@@ -7454,7 +7557,8 @@ function masterSeriesBuilderMarkup(entry) {
             ? (compareOn
               ? `<button type="button" class="mseries-finish-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva risultati</button>`
               : `<button type="button" class="mseries-compare-btn" data-id="${entry.id}">Confronta</button>`)
-            : `<button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} Salva allenamento</button>`}
+            : `<button type="button" class="mseries-save-btn" data-id="${entry.id}">${MTEST_CHECK_ICON} ${state.editingTrainingId ? 'Aggiorna allenamento' : 'Salva allenamento'}</button>`}
+          ${state.editingTrainingId ? `<button type="button" class="mseries-cancel-edit-btn" data-id="${entry.id}">Annulla modifica</button>` : ''}
         </div>
       </div>
     `;
@@ -8679,6 +8783,21 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const cancelEditBtn = event.target.closest('.mseries-cancel-edit-btn');
+  if (cancelEditBtn) {
+    const state = masterSeriesGetState(cancelEditBtn.dataset.id);
+    state.editingTrainingId = null;
+    renderMaster();
+    return;
+  }
+
+  const trainingEditBtn = event.target.closest('.mtrain-edit');
+  if (trainingEditBtn) {
+    event.preventDefault();
+    handleMasterTrainingEdit(trainingEditBtn);
+    return;
+  }
+
   const trainingDelBtn = event.target.closest('.mtrain-del');
   if (trainingDelBtn) {
     event.preventDefault();
@@ -9804,10 +9923,23 @@ function trainingMonthGroups() {
 function milTrainingSimRowMarkup(training) {
   const chevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const blocks = Array.isArray(training.blocks) ? training.blocks : [];
+  // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie:
+  // entrano anche loro nelle previsioni per atleta, prima dei blocchi
+  // principali — altrimenti un allenamento fatto solo di giorno di forza
+  // (o che finiva con uno di questi blocchi) restava vuoto nello storico,
+  // pur avendo salvato tutto (vedi handleMilSeriesSave).
+  const strength = training.strength && training.strength.enabled ? training.strength : null;
+  const repeatItems = strength ? (strength.items || []).filter((item) => item.kind === 'repeat') : [];
+  const resultBlocks = [...repeatItems, ...blocks];
   const athletes = Array.isArray(training.athletes) ? training.athletes : [];
   const totalKm = Number(training.totalKm) || 0;
-  const bodyMarkup = (blocks.length && athletes.length)
-    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly: true })).join('')}</div>`
+  const athletesMarkup = (resultBlocks.length && athletes.length)
+    ? `<div class="mil-ath-compact-list">${athletes.map((athlete) => milAthleteCompactRowMarkup(athlete, resultBlocks, totalKm, { readOnly: true })).join('')}</div>`
+    : '';
+  const { volumeLine, eccentricLine } = strength ? masterSeriesStrengthSummaryLines(strength) : { volumeLine: '', eccentricLine: '' };
+  const strengthSummaryMarkup = strength ? `${volumeLine}${eccentricLine}` : '';
+  const bodyMarkup = (athletesMarkup || strengthSummaryMarkup)
+    ? `${strengthSummaryMarkup}${athletesMarkup}`
     : '<div class="mil-ath-empty">Nessun dettaglio salvato per questo allenamento.</div>';
 
   const item = document.createElement('div');
@@ -9818,6 +9950,7 @@ function milTrainingSimRowMarkup(training) {
       <span class="mil-training-date">${escapeHtml(trainingDateLabel(training.date))}</span>
       <span class="mil-training-name" title="${escapeHtml(training.name)}">${escapeHtml(training.name)}</span>
       <button type="button" class="training-entry-toggle" aria-expanded="false" aria-label="Apri/chiudi dettagli">${chevron}</button>
+      <button type="button" class="mil-training-edit" data-id="${escapeHtml(training.id)}" aria-label="Modifica questo allenamento">${MTEST_EDIT_ICON}</button>
       <button type="button" class="mil-training-del" data-id="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
     </div>
     <div class="training-entry-body" hidden>${bodyMarkup}</div>
@@ -10051,6 +10184,24 @@ if (trainingNotesList) {
       return;
     }
 
+    const milEditBtn = event.target.closest('.mil-training-edit');
+    if (milEditBtn) {
+      const training = readMilTrainings().find((t) => t.id === milEditBtn.dataset.id);
+      if (!training) {
+        return;
+      }
+      milSeriesState = {
+        blocks: Array.isArray(training.blocks) ? JSON.parse(JSON.stringify(training.blocks)) : [masterSeriesDefaultBlock()],
+        showResults: false,
+        removedAthletes: new Set(),
+        strength: training.strength ? JSON.parse(JSON.stringify(training.strength)) : masterSeriesDefaultStrength(),
+        editingTrainingId: training.id,
+      };
+      closeTrainingNotes();
+      openMilSeries();
+      return;
+    }
+
     const milDelBtn = event.target.closest('.mil-training-del');
     if (milDelBtn) {
       const row = milDelBtn.closest('.mil-training-row');
@@ -10260,7 +10411,8 @@ function milSeriesResultsMarkup() {
         </div>
         ${state.strength.enabled ? strengthEccentricLine : ''}
         <div class="mil-ath-list">${athletesMarkup}</div>
-        <button type="button" class="mseries-save-btn" id="mil-series-save-btn">${MTEST_CHECK_ICON} Salva allenamento</button>
+        <button type="button" class="mseries-save-btn" id="mil-series-save-btn">${MTEST_CHECK_ICON} ${state.editingTrainingId ? 'Aggiorna allenamento' : 'Salva allenamento'}</button>
+        ${state.editingTrainingId ? '<button type="button" class="mseries-cancel-edit-btn" id="mil-series-cancel-edit-btn">Annulla modifica</button>' : ''}
       </div>
     </div>
   `;
@@ -10322,7 +10474,9 @@ function milDefaultTrainingName(blocks) {
     return '';
   };
   const internalRecs = [...new Set(blocks.map(internalRecLabel).filter(Boolean))];
-  const gapRecs = [...new Set(blocks.slice(1).map((block) => seriesFormatRecMask(block.gapBefore.recDigits)).filter(Boolean))];
+  // I blocchi di corsa del giorno di forza non hanno gapBefore (vedi
+  // masterSeriesDefaultStrengthRepeat): block.gapBefore può mancare.
+  const gapRecs = [...new Set(blocks.slice(1).map((block) => (block.gapBefore ? seriesFormatRecMask(block.gapBefore.recDigits) : '')).filter(Boolean))];
 
   const recParts = [];
   if (internalRecs.length) {
@@ -10340,11 +10494,18 @@ function milDefaultTrainingName(blocks) {
 // (vedi milTrainingSimRowMarkup), non nel simulatore stesso. Il simulatore
 // torna a un blocco vuoto.
 async function handleMilSeriesSave() {
-  const defaultName = milDefaultTrainingName(milSeriesState.blocks);
+  const editingId = milSeriesState.editingTrainingId || null;
+  const existingTrainings = readMilTrainings();
+  const editingTraining = editingId ? existingTrainings.find((t) => t.id === editingId) : null;
+  const repeatItemsForName = milSeriesState.strength.enabled
+    ? milSeriesState.strength.items.filter((item) => item.kind === 'repeat')
+    : [];
+  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...milSeriesState.blocks]);
   const result = await showTrainingSavePrompt("Nome dell'allenamento", {
     detail: 'Lo ritroverai in Storico allenamenti, nel mese scelto, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
     defaultValue: defaultName,
+    defaultDate: editingTraining ? editingTraining.date : undefined,
     confirmText: 'Salva',
   });
   if (result === null) {
@@ -10360,24 +10521,27 @@ async function handleMilSeriesSave() {
 
   const now = getNowParts();
   const training = {
-    id: `miltr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    id: editingTraining ? editingTraining.id : `miltr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     name: result.name,
     // La data dell'allenamento (quella con cui compare in Storico
     // allenamenti) può essere diversa da oggi — "Programma una data" nel
     // prompt di salvataggio, per allenamenti futuri o inseriti in ritardo.
-    // createdAt resta sempre il momento vero del salvataggio.
+    // createdAt resta sempre il momento vero del salvataggio, tranne
+    // modificando un allenamento già salvato: lì si tiene quello originale.
     date: result.date,
-    createdAt: now.iso,
+    createdAt: editingTraining ? editingTraining.createdAt : now.iso,
     blocks: milSeriesState.blocks,
     strength: milSeriesState.strength,
     totalKm,
     athletes,
   };
-  saveMilTrainings([...readMilTrainings(), training]);
+  saveMilTrainings(editingTraining
+    ? existingTrainings.map((t) => (t.id === editingTraining.id ? training : t))
+    : [...existingTrainings, training]);
 
   milSeriesState = { blocks: [masterSeriesDefaultBlock()], showResults: false, removedAthletes: new Set(), strength: masterSeriesDefaultStrength() };
   renderMilSeries();
-  showToast('Allenamento salvato!');
+  showToast(editingTraining ? 'Allenamento aggiornato!' : 'Allenamento salvato!');
 }
 
 if (milSeriesBody) {
@@ -10434,6 +10598,13 @@ if (milSeriesBody) {
     const saveBtn = event.target.closest('#mil-series-save-btn');
     if (saveBtn) {
       await handleMilSeriesSave();
+      return;
+    }
+
+    const cancelEditBtn = event.target.closest('#mil-series-cancel-edit-btn');
+    if (cancelEditBtn) {
+      milSeriesState.editingTrainingId = null;
+      renderMilSeries();
       return;
     }
 

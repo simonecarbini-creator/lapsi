@@ -171,6 +171,7 @@
   // bassa (costa poco "a caldo") ma eccentrico alto (fa male il giorno
   // dopo), motivo per cui sono due colonne separate e non un numero solo.
   const STRENGTH_EXERCISES = [
+    ['jump-squat', 'Jumping squat', 2.6, 1.5, 'totale', 1.2],
     ['jump-squat-1g', 'Jumping squat monopodalico', 3.0, 2.0, 'per-gamba', 1.5],
     ['sagittali-alt', 'Sagittali alternati', 2.4, 1.8, 'totale', 1.5],
     ['sagittali-1g', 'Sagittali stessa gamba', 2.6, 1.7, 'per-gamba', 1.6],

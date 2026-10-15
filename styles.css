@@ -356,6 +356,7 @@ button, input {
   color: var(--text);
 }
 
+.mil-training-edit,
 .mil-training-del {
   flex-shrink: 0;
   width: 26px;
@@ -365,6 +366,14 @@ button, input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.mil-training-edit {
+  background: var(--bg-strong);
+  color: var(--muted);
+}
+
+.mil-training-del {
   background: #fdeaea;
   color: #c0392b;
 }
@@ -655,6 +664,14 @@ button, input {
   font-size: 0.85rem;
   line-height: 1.55;
   color: var(--text);
+  /* Le tabelle con più colonne (es. il giorno di forza, 5 colonne con nomi
+     lunghi) possono essere più larghe dello schermo su mobile: scorrono in
+     orizzontale solo qui dentro, invece di far sbordare tutta la pagina. */
+  overflow-x: auto;
+}
+
+.info-table {
+  min-width: max-content;
 }
 
 .info-section-body p {
@@ -6312,6 +6329,21 @@ button:active {
   color: #fff;
 }
 
+/* Compare quando si sta modificando un allenamento già salvato (vedi
+   handleMasterTrainingEdit): niente di più di un link discreto, non è
+   un'azione "pericolosa" quanto Elimina, solo meno invadente di Salva. */
+.mseries-cancel-edit-btn {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-decoration: underline;
+}
+
 .mseries-finish-btn {
   width: 100%;
   margin-top: 12px;
@@ -6439,6 +6471,7 @@ button:active {
   color: var(--muted);
 }
 
+.mtrain-edit,
 .mtrain-del {
   width: 24px;
   height: 24px;
@@ -6448,12 +6481,31 @@ button:active {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.mtrain-edit {
+  background: var(--bg-strong);
+  color: var(--muted);
+}
+
+.mtrain-del {
   background: #fdeaea;
   color: #c0392b;
 }
 
 .mtrain-block {
   margin-top: 8px;
+}
+
+/* Etichetta sopra un "blocco di corsa" salvato dentro un giorno di forza —
+   stessa dicitura/stile del simulatore (.mseries-strength-repeat-label). */
+.mtrain-block-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 2px;
 }
 
 .mtrain-block-head {
