@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-15a';
+const APP_BUILD = '2026-10-17a';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -2550,9 +2550,26 @@ async function handleCompetitionBadgeClick(badgeButton) {
   showToast(choice === 'passed' ? 'Segnato come superato!' : 'Segnato come non superato!');
 }
 
+// Risale al pulsante-freccia che apre/chiude le proiezioni di una card,
+// sia che il click sia arrivato sulla freccia stessa sia sul nome
+// dell'atleta (.v2-name) — comodo bersaglio più grande, usato identico
+// nelle tre sezioni con questa struttura di card (Settore giovanile,
+// Velocità, Master/Mezzofondo/C. Militari).
+function resolveProjectionToggle(event) {
+  const target = event.target.closest('.projection-toggle, .v2-name');
+  if (!target) {
+    return null;
+  }
+  if (target.classList.contains('v2-name')) {
+    const item = target.closest('.athlete-item');
+    return item ? item.querySelector('.projection-toggle') : null;
+  }
+  return target;
+}
+
 async function handleListClick(event) {
   const deleteButton = event.target.closest('.delete-btn');
-  const projectionButton = event.target.closest('.projection-toggle');
+  const projectionButton = resolveProjectionToggle(event);
   const editButton = event.target.closest('.edit-btn');
   const cancelButton = event.target.closest('.cancel-edit-btn');
   const suggestionButton = event.target.closest('.suggestion-item');
@@ -3749,12 +3766,14 @@ const velSortChips = document.getElementById('vel-sort-chips');
 const velFiltersApplyButton = document.getElementById('vel-filters-apply');
 const velFiltersResetButton = document.getElementById('vel-filters-reset');
 const velPaginationNav = document.getElementById('vel-pagination');
+const velCompactListEl = document.getElementById('vel-compact-list');
 
 let cachedVelocisti = [];
 let velActiveSpecialty = VEL_FILTER_DEFAULTS.specialty;
 let velActiveSort = VEL_FILTER_DEFAULTS.sort;
 let velFilterSnapshot = null;
 let velCurrentPage = 1;
+let velCompactActive = false;
 let currentVelAvatarData = null;
 
 function getVelocisti() {
@@ -4408,6 +4427,99 @@ function renderVelocisti() {
   renderVelPagination(entries.length);
 }
 
+// Conteggio cliccabile, stesso comportamento di Master/Mezzofondo e di
+// Settore giovanile: elenco compatto (solo nome, nessun distintivo) al
+// posto delle card.
+function velOpenCompactList() {
+  if (!velCompactListEl || !velCountEl) {
+    return;
+  }
+  velCompactActive = true;
+  const sorted = [...getVelocisti()].sort((a, b) => {
+    const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+    const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+    return aName.localeCompare(bName, 'it');
+  });
+  velCompactListEl.innerHTML = sorted.length
+    ? sorted.map((entry) => `
+        <button type="button" class="athlete-compact-row" data-id="${entry.id}">
+          <span class="athlete-compact-name">${escapeHtml(entry.name)} ${escapeHtml(entry.surname)}</span>
+        </button>
+      `).join('')
+    : '<div class="athlete-compact-empty">Nessun velocista ancora registrato.</div>';
+  velCompactListEl.hidden = false;
+  velList.hidden = true;
+  velEmptyState.style.display = 'none';
+  if (velPaginationNav) {
+    velPaginationNav.hidden = true;
+  }
+  velCountEl.setAttribute('aria-expanded', 'true');
+  velCountEl.setAttribute('aria-label', 'Torna alle card');
+  velCountEl.innerHTML = ATHLETE_COUNT_CLOSE_ICON;
+  requestAnimationFrame(() => velCompactListEl.classList.add('is-in'));
+}
+
+function velCloseCompactList({ focusId = null } = {}) {
+  if (!velCompactListEl || !velCountEl) {
+    return;
+  }
+  velCompactActive = false;
+  velCountEl.setAttribute('aria-expanded', 'false');
+  velCountEl.setAttribute('aria-label', "Mostra l'elenco compatto degli atleti");
+
+  const finishClose = () => {
+    velCompactListEl.hidden = true;
+    renderVelocisti();
+    if (focusId) {
+      requestAnimationFrame(() => {
+        const item = velList.querySelector(`.athlete-item[data-id="${focusId}"]`);
+        if (!item) {
+          return;
+        }
+        const toggle = item.querySelector('.projection-toggle');
+        if (toggle && toggle.getAttribute('aria-expanded') !== 'true') {
+          toggle.click();
+        } else {
+          scrollCardIntoView(item);
+        }
+      });
+    }
+  };
+
+  if (!velCompactListEl.hidden) {
+    velCompactListEl.classList.remove('is-in');
+    let done = false;
+    const onEnd = () => {
+      if (done) return;
+      done = true;
+      finishClose();
+    };
+    velCompactListEl.addEventListener('transitionend', onEnd, { once: true });
+    setTimeout(onEnd, 220);
+  } else {
+    finishClose();
+  }
+}
+
+if (velCountEl) {
+  velCountEl.addEventListener('click', () => {
+    if (velCompactActive) {
+      velCloseCompactList();
+    } else {
+      velOpenCompactList();
+    }
+  });
+}
+if (velCompactListEl) {
+  velCompactListEl.addEventListener('click', (event) => {
+    const row = event.target.closest('.athlete-compact-row');
+    if (!row) {
+      return;
+    }
+    velCloseCompactList({ focusId: row.dataset.id });
+  });
+}
+
 // ----- Test sprint e profilo (card Velocisti) -----
 // Stato solo di UI (non persistito), stesso schema della card Master: id dei
 // pannelli "→" aperti e stato aperto/chiuso delle sezioni <details>, altrimenti
@@ -5006,7 +5118,7 @@ async function handleVelListClick(event) {
   const deleteButton = event.target.closest('.delete-btn');
   const editButton = event.target.closest('.edit-btn');
   const cancelButton = event.target.closest('.cancel-edit-btn');
-  const projectionButton = event.target.closest('.projection-toggle');
+  const projectionButton = resolveProjectionToggle(event);
   const editSectionToggle = event.target.closest('.edit-section-toggle');
   const resultDelButton = event.target.closest('.vel-result-del');
   const testDelButton = event.target.closest('.vel-test-del');
@@ -5526,6 +5638,8 @@ function masterBuildVars(prefix, storageKey) {
     masterListEl: el('list'),
     masterEmptyState: el('empty-state'),
     masterCountEl: el('count'),
+    masterCompactListEl: el('compact-list'),
+    masterCompactActive: false,
     masterSearchInput: el('search'),
     masterToggleSearchButton: el('toggle-search'),
     masterSearchPanel: el('search-panel'),
@@ -5552,7 +5666,7 @@ let masterActiveKey = 'master';
 let {
   STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
   masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
-  masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+  masterListEl, masterEmptyState, masterCountEl, masterCompactListEl, masterCompactActive, masterSearchInput, masterToggleSearchButton,
   masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
   masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
   cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
@@ -5565,7 +5679,7 @@ function masterUse(key) {
   MASTER_INSTANCES[masterActiveKey].vars = {
     STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
     masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
-    masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+    masterListEl, masterEmptyState, masterCountEl, masterCompactListEl, masterCompactActive, masterSearchInput, masterToggleSearchButton,
     masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
     masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
     cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
@@ -5574,7 +5688,7 @@ function masterUse(key) {
   ({
     STORAGE_KEY_MASTER, masterOpenRegisterButton, masterCloseRegisterButton, masterRegisterScreen,
     masterForm, masterNameInput, masterSurnameInput, masterAvatarInput, masterAvatarPreview,
-    masterListEl, masterEmptyState, masterCountEl, masterSearchInput, masterToggleSearchButton,
+    masterListEl, masterEmptyState, masterCountEl, masterCompactListEl, masterCompactActive, masterSearchInput, masterToggleSearchButton,
     masterSearchPanel, masterToggleFiltersButton, masterFiltersPanel, masterSortChips,
     masterFiltersApplyButton, masterFiltersResetButton, masterPaginationNav,
     cachedMaster, masterActiveSort, masterFilterSnapshot, masterCurrentPage, currentMasterAvatarData,
@@ -6791,7 +6905,7 @@ function masterSeriesRecMetersNote(block, vam) {
   }
   const effLabel = RipeteCalc.formatLabel(Math.round(resolved.effRec));
   if (resolved.mode === 'meters-walk') {
-    return `tempo di recupero: ${effLabel}`;
+    return `tempo di recupero stimato: ${effLabel}`;
   }
   const paceLabel = resolved.pace ? `${MezzofondoCalc.formatPace(resolved.pace)}/km` : '--';
   const rawLabel = RipeteCalc.formatLabel(Math.round(resolved.rawSeconds || 0));
@@ -6867,9 +6981,34 @@ function masterSeriesBlockRowMarkup(block, index, vam = null, canDelete = index 
         ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
       </div>
       ` : masterSeriesRecMetersRowMarkup(block, vam)}
+      ${masterSeriesBlockVolumeNoteMarkup(block)}
       ${masterSeriesDragCopyFooterMarkup()}
     </div>
   `;
+}
+
+// Volume di QUESTO blocco (ripetizioni × distanze), sotto il recupero —
+// aggiornato a mano mentre si digita ripetizioni/distanze (vedi
+// masterSeriesUpdateBlockVolumeNote), così si vede subito quanto "pesa"
+// il blocco senza dover prima calcolare la serie.
+function masterSeriesBlockVolumeNoteText(block) {
+  const meters = masterSeriesBlockVolume(block);
+  return meters > 0 ? `Volume: ${(meters / 1000).toFixed(2).replace('.', ',')} km` : '';
+}
+
+function masterSeriesBlockVolumeNoteMarkup(block) {
+  const note = masterSeriesBlockVolumeNoteText(block);
+  return `<div class="mseries-block-volume-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>`;
+}
+
+function masterSeriesUpdateBlockVolumeNote(inputEl, block) {
+  const noteEl = inputEl.closest('.mseries-block').querySelector('.mseries-block-volume-note');
+  if (!noteEl) {
+    return;
+  }
+  const note = masterSeriesBlockVolumeNoteText(block);
+  noteEl.textContent = note;
+  noteEl.hidden = !note;
 }
 
 // Soglie del recupero tra le serie che riducono il volume usato nel calcolo
@@ -7580,6 +7719,7 @@ function masterSeriesBuilderMarkup(entry) {
         </div>
       `}
       <button type="button" class="mseries-calc-btn" data-id="${entry.id}">Calcola serie</button>
+      ${state.editingTrainingId ? `<button type="button" class="mseries-cancel-edit-btn" data-id="${entry.id}">Annulla modifica</button>` : ''}
     </div>
   `;
 }
@@ -8636,9 +8776,11 @@ function renderMaster() {
       : `<span class="v2-avatar v2-avatar-initials">${escapeHtml(getInitials(entry.name, entry.surname))}</span>`;
 
     const tilesMarkup = masterRaceResultsSummaryMarkup(entry);
-    const stravaMarkup = entry.strava
+    // Niente Strava per il mezzofondo, per ora: stessa card del Master, solo
+    // senza questo riferimento (richiesta esplicita, da rivedere più avanti).
+    const stravaMarkup = masterActiveKey === 'mezzofondo' ? '' : (entry.strava
       ? `<a class="v2-strava v2-strava-active" href="${escapeHtml(entry.strava)}" target="_blank" rel="noopener noreferrer" aria-label="Apri il profilo Strava" title="Apri il profilo Strava">${STRAVA_ICON}</a>`
-      : `<span class="v2-strava v2-strava-inactive" aria-hidden="true" title="Nessun collegamento Strava">${STRAVA_ICON}</span>`;
+      : `<span class="v2-strava v2-strava-inactive" aria-hidden="true" title="Nessun collegamento Strava">${STRAVA_ICON}</span>`);
 
     item.innerHTML = `
       <span class="v2-accent" aria-hidden="true"></span>
@@ -9088,7 +9230,7 @@ async function handleMasterListClick(event) {
     return;
   }
 
-  const projectionButton = event.target.closest('.projection-toggle');
+  const projectionButton = resolveProjectionToggle(event);
   if (projectionButton) {
     const item = projectionButton.closest('.athlete-item');
     const panel = item.querySelector('.projection-panel');
@@ -9151,10 +9293,101 @@ async function handleMasterListClick(event) {
 // Collega tutti i listener dell'istanza indicata (Master o Mezzofondo): gli
 // elementi e le variabili sono quelli dell'istanza attiva al momento della
 // chiamata, e ogni handler riattiva la sua istanza quando scatta.
+// Conteggio cliccabile (Master/Mezzofondo): elenco compatto al posto delle
+// card, stesso comportamento di quello già in Settore giovanile — ma senza
+// i distintivi di esito concorso (non esistono qui), solo nome. Cliccare un
+// nome chiude l'elenco e apre la card di quell'atleta.
+function masterOpenCompactList() {
+  if (!masterCompactListEl || !masterCountEl) {
+    return;
+  }
+  masterCompactActive = true;
+  const sorted = [...getMaster()].sort((a, b) => {
+    const aName = `${a.name} ${a.surname}`.trim().toLowerCase();
+    const bName = `${b.name} ${b.surname}`.trim().toLowerCase();
+    return aName.localeCompare(bName, 'it');
+  });
+  masterCompactListEl.innerHTML = sorted.length
+    ? sorted.map((entry) => `
+        <button type="button" class="athlete-compact-row" data-id="${entry.id}">
+          <span class="athlete-compact-name">${escapeHtml(entry.name)} ${escapeHtml(entry.surname)}</span>
+        </button>
+      `).join('')
+    : '<div class="athlete-compact-empty">Nessun atleta ancora registrato.</div>';
+  masterCompactListEl.hidden = false;
+  masterListEl.hidden = true;
+  masterEmptyState.style.display = 'none';
+  if (masterPaginationNav) {
+    masterPaginationNav.hidden = true;
+  }
+  masterCountEl.setAttribute('aria-expanded', 'true');
+  masterCountEl.setAttribute('aria-label', 'Torna alle card');
+  masterCountEl.innerHTML = ATHLETE_COUNT_CLOSE_ICON;
+  requestAnimationFrame(() => masterCompactListEl.classList.add('is-in'));
+}
+
+function masterCloseCompactList({ focusId = null } = {}) {
+  if (!masterCompactListEl || !masterCountEl) {
+    return;
+  }
+  masterCompactActive = false;
+  masterCountEl.setAttribute('aria-expanded', 'false');
+  masterCountEl.setAttribute('aria-label', "Mostra l'elenco compatto degli atleti");
+
+  const finishClose = () => {
+    masterCompactListEl.hidden = true;
+    renderMaster();
+    if (focusId) {
+      requestAnimationFrame(() => {
+        const item = masterListEl.querySelector(`.athlete-item[data-id="${focusId}"]`);
+        if (!item) {
+          return;
+        }
+        const toggle = item.querySelector('.projection-toggle');
+        if (toggle && toggle.getAttribute('aria-expanded') !== 'true') {
+          toggle.click();
+        } else {
+          scrollCardIntoView(item);
+        }
+      });
+    }
+  };
+
+  if (!masterCompactListEl.hidden) {
+    masterCompactListEl.classList.remove('is-in');
+    let done = false;
+    const onEnd = () => {
+      if (done) return;
+      done = true;
+      finishClose();
+    };
+    masterCompactListEl.addEventListener('transitionend', onEnd, { once: true });
+    setTimeout(onEnd, 220);
+  } else {
+    finishClose();
+  }
+}
+
 function masterWire(key) {
   masterUse(key);
   masterOn(key, masterListEl, 'click', handleMasterListClick);
   masterOn(key, masterListEl, 'submit', handleMasterEditSubmit);
+
+  masterOn(key, masterCountEl, 'click', () => {
+    if (masterCompactActive) {
+      masterCloseCompactList();
+    } else {
+      masterOpenCompactList();
+    }
+  });
+
+  masterOn(key, masterCompactListEl, 'click', (event) => {
+    const row = event.target.closest('.athlete-compact-row');
+    if (!row) {
+      return;
+    }
+    masterCloseCompactList({ focusId: row.dataset.id });
+  });
 
   // Ricorda quale delle tre <details> (Test/Allenamenti/Risultati gare) resta
   // aperta/chiusa tra un renderMaster() e l'altro. Capture (terzo parametro
@@ -9353,14 +9586,18 @@ function masterWire(key) {
     const repsInput = event.target.closest('.mseries-reps-input');
     if (repsInput) {
       repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
-      masterSeriesFindBlock(repsInput).reps = repsInput.value;
+      const repsBlock = masterSeriesFindBlock(repsInput);
+      repsBlock.reps = repsInput.value;
+      masterSeriesUpdateBlockVolumeNote(repsInput, repsBlock);
       masterSeriesInvalidate(repsInput);
       return;
     }
     const distInput = event.target.closest('.mseries-dist-input');
     if (distInput) {
       distInput.value = distInput.value.replace(/[^0-9/]/g, '');
-      masterSeriesFindBlock(distInput).dist = distInput.value;
+      const distBlock = masterSeriesFindBlock(distInput);
+      distBlock.dist = distInput.value;
+      masterSeriesUpdateBlockVolumeNote(distInput, distBlock);
       masterSeriesInvalidate(distInput);
       return;
     }
@@ -9878,6 +10115,26 @@ function trainingDateLabel(dateStr) {
   return weekday ? `${weekday} ${dateStr}` : dateStr;
 }
 
+// Lunedì della settimana di una data (chiave comparabile, per separare le
+// voci di un mese in gruppi settimanali — vedi createMonthGroupElement).
+// Null se la data non si legge, così quelle voci non spezzano nulla.
+function weekStartKey(dateStr) {
+  const t = parseItDate(dateStr);
+  if (t === null) {
+    return null;
+  }
+  const d = new Date(t);
+  d.setHours(0, 0, 0, 0);
+  const isoWeekday = d.getDay() === 0 ? 7 : d.getDay(); // Lun=1 ... Dom=7
+  d.setDate(d.getDate() - (isoWeekday - 1));
+  return d.getTime();
+}
+
+function weekStartLabel(weekStartTime) {
+  const d = new Date(weekStartTime);
+  return `Settimana dal ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // Anteprima in solo testo (senza tag) del contenuto html di una voce
 // manuale, troncata via CSS (text-overflow) una volta mostrata — qui si
 // toglie solo la formattazione, non la lunghezza.
@@ -9977,7 +10234,20 @@ function createMonthGroupElement(group, expanded) {
   if (!group.items.length) {
     body.innerHTML = '<div class="mil-training-empty">Nessun allenamento in questo mese.</div>';
   } else {
+    // Un separatore quando la settimana cambia da una voce all'altra (le
+    // voci sono già in ordine di data decrescente) — solo per orientarsi
+    // dentro un mese con molti allenamenti, non tocca il raggruppamento
+    // reale (resta tutto nello stesso mese).
+    let lastWeek;
     group.items.forEach((item) => {
+      const week = weekStartKey(item.date);
+      if (week !== null && week !== lastWeek) {
+        const divider = document.createElement('div');
+        divider.className = 'training-week-divider';
+        divider.textContent = weekStartLabel(week);
+        body.appendChild(divider);
+        lastWeek = week;
+      }
       if (item.kind === 'sim') {
         body.appendChild(milTrainingSimRowMarkup(item));
       } else {
@@ -10319,6 +10589,7 @@ function milSeriesEditorMarkup() {
         </div>
       `}
       <button type="button" class="mseries-calc-btn" id="mil-series-calc-btn">Calcola serie</button>
+      ${milSeriesState.editingTrainingId ? '<button type="button" class="mseries-cancel-edit-btn" id="mil-series-cancel-edit-btn">Annulla modifica</button>' : ''}
     </div>
   `;
 }
@@ -10461,16 +10732,20 @@ function milDefaultTrainingName(blocks) {
     .map((block) => `${Math.max(1, parseInt(block.reps, 10) || 1)}x${masterSeriesParseDistances(block.dist).join('/')}`)
     .join(' + ');
 
-  // Per i blocchi col recupero in metri (recDigits resta vuoto) una sigla
-  // breve al posto del tempo, solo per questo nome suggerito — l'utente può
-  // comunque riscriverlo prima di salvare.
+  // Per i blocchi col recupero in metri, una sigla breve al posto del tempo
+  // — solo per questo nome suggerito, l'utente può comunque riscriverlo
+  // prima di salvare. Il controllo va sulla MODALITÀ attiva, non sulla sola
+  // presenza di recDigits: quel campo mantiene il suo valore di default
+  // ('1\'30"') anche passando a un'altra modalità, quindi da solo non basta
+  // a dire che il recupero è davvero "a tempo".
   const internalRecLabel = (block) => {
-    if (block.recDigits) {
-      return seriesFormatRecMask(block.recDigits);
+    const mode = block.recMode || 'time';
+    if (mode === 'time') {
+      return block.recDigits ? seriesFormatRecMask(block.recDigits) : '';
     }
-    if (block.recMode === 'meters-walk') return `${block.recMeters || 0}m cam.`;
-    if (block.recMode === 'meters-run') return `${block.recMeters || 0}m corsa`;
-    if (block.recMode === 'meters-mixed') return `${block.recMetersWalk || 0}+${block.recMetersRun || 0}m`;
+    if (mode === 'meters-walk') return `${block.recMeters || 0}m cam.`;
+    if (mode === 'meters-run') return `${block.recMeters || 0}m corsa`;
+    if (mode === 'meters-mixed') return `${block.recMetersWalk || 0}+${block.recMetersRun || 0}m`;
     return '';
   };
   const internalRecs = [...new Set(blocks.map(internalRecLabel).filter(Boolean))];
@@ -10791,13 +11066,17 @@ if (milSeriesBody) {
     const repsInput = event.target.closest('.mseries-reps-input');
     if (repsInput) {
       repsInput.value = repsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
-      milSeriesFindBlock(repsInput).reps = repsInput.value;
+      const repsBlock = milSeriesFindBlock(repsInput);
+      repsBlock.reps = repsInput.value;
+      masterSeriesUpdateBlockVolumeNote(repsInput, repsBlock);
       return;
     }
     const distInput = event.target.closest('.mseries-dist-input');
     if (distInput) {
       distInput.value = distInput.value.replace(/[^0-9/]/g, '');
-      milSeriesFindBlock(distInput).dist = distInput.value;
+      const distBlock = milSeriesFindBlock(distInput);
+      distBlock.dist = distInput.value;
+      masterSeriesUpdateBlockVolumeNote(distInput, distBlock);
       return;
     }
     const gapRecInput = event.target.closest('.mseries-gap-rec-input');
@@ -10990,6 +11269,94 @@ async function checkExpiredConcorsi() {
   }
 
   renderEntries();
+}
+
+// Settimane dall'ultimo test di un atleta, oltre le quali vale la pena
+// rifarlo — a metà tra le 6 e le 8 chieste, un numero solo invece di un
+// intervallo per non dover decidere ogni volta quale soglia applicare.
+const TEST_REMINDER_WEEKS = 7;
+const TEST_REMINDER_MS = TEST_REMINDER_WEEKS * 7 * 24 * 60 * 60 * 1000;
+const TEST_REMINDER_SHOWN_KEY = 'lapsi-test-reminder-shown-on';
+
+// Data più recente tra più elenchi di test (vamTests/sogliaTests/..., o
+// "times"/"tests" secondo la sezione) — null se l'atleta non ha ancora
+// nessun test, così chi non ha mai testato non viene segnalato (non c'è
+// "l'ultima volta" da confrontare).
+function latestTestMs(testArrays) {
+  let latest = null;
+  testArrays.forEach((arr) => {
+    (Array.isArray(arr) ? arr : []).forEach((t) => {
+      const ms = parseItDate(t && t.date);
+      if (ms !== null && (latest === null || ms > latest)) {
+        latest = ms;
+      }
+    });
+  });
+  return latest;
+}
+
+function readRawStorageList(key) {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+// Alert giornaliero (non per atleta: sarebbe troppo invasivo con più
+// categorie insieme) con l'elenco di chi ha l'ultimo test più vecchio di
+// TEST_REMINDER_WEEKS, in qualunque categoria — Settore giovanile (il
+// test è il tempo sull'attività, "times"), Velocisti ("tests"/"sprintTests"),
+// Master e Mezzofondo (vamTests/sogliaTests/thousandTests). I Militari
+// condividono gli stessi atleti del Settore giovanile (vedi
+// milActiveAthletesWithPace), quindi sono già coperti da quello.
+async function checkStaleTests() {
+  const todayKey = todayNativeDateValue();
+  if (localStorage.getItem(TEST_REMINDER_SHOWN_KEY) === todayKey) {
+    return;
+  }
+
+  const now = Date.now();
+  const stale = [];
+
+  getAthletes().forEach((entry) => {
+    const latest = latestTestMs([entry.times]);
+    if (latest !== null && now - latest >= TEST_REMINDER_MS) {
+      stale.push(`${entry.name} ${entry.surname}`.trim() || 'Atleta');
+    }
+  });
+
+  readVelocisti().forEach((entry) => {
+    const latest = latestTestMs([entry.tests, entry.sprintTests]);
+    if (latest !== null && now - latest >= TEST_REMINDER_MS) {
+      stale.push(`${entry.name} ${entry.surname}`.trim() || 'Atleta');
+    }
+  });
+
+  ['lapsi-master', 'lapsi-mezzofondo'].forEach((storageKey) => {
+    readRawStorageList(storageKey).map(normalizeMasterAthlete).filter(Boolean).forEach((entry) => {
+      const latest = latestTestMs([entry.vamTests, entry.sogliaTests, entry.thousandTests]);
+      if (latest !== null && now - latest >= TEST_REMINDER_MS) {
+        stale.push(`${entry.name} ${entry.surname}`.trim() || 'Atleta');
+      }
+    });
+  });
+
+  localStorage.setItem(TEST_REMINDER_SHOWN_KEY, todayKey);
+
+  if (!stale.length) {
+    return;
+  }
+
+  const uniqueStale = [...new Set(stale)];
+  await showChoice('Test da rifare', {
+    detailHtml: `L'ultimo test di questi atleti risale a più di ${TEST_REMINDER_WEEKS} settimane fa:<ul class="app-confirm-list">${uniqueStale.map((name) => `<li>${escapeHtml(name)}</li>`).join('')}</ul>`,
+    options: [
+      { value: 'ok', label: 'Ho capito', className: 'app-btn-success' },
+    ],
+  });
 }
 
 // ===== Calcolatori di andature: hub + tre moduli (solo militari) =====
@@ -11847,6 +12214,7 @@ async function initializeApp() {
   masterUse('master');
   readMaster();
   renderMaster();
+  await checkStaleTests();
 }
 
 initializeApp();

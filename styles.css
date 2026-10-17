@@ -328,6 +328,25 @@ button, input {
   border-bottom: none;
 }
 
+/* Separatore di settimana dentro un mese (vedi createMonthGroupElement):
+   bordo colorato invece del filo grigio tra le voci, e più spazio sopra,
+   per orientarsi senza dover contare le date una per una. */
+.training-week-divider {
+  margin-top: 14px;
+  padding-top: 10px;
+  padding-left: 14px;
+  border-top: 2px solid var(--thousand-color);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--thousand-color);
+}
+
+.training-entry-month > .training-entry-body > .training-week-divider:first-child {
+  margin-top: 0;
+}
+
 .training-entry-month > .training-entry-body > .training-entry > .training-entry-body {
   border-top: 1px dashed var(--card-border);
 }
@@ -4518,6 +4537,15 @@ button:active {
   margin-top: 8px;
 }
 
+/* Volume di questo blocco (ripetizioni × distanze), sotto il recupero —
+   aggiornato mentre si digita, vedi masterSeriesUpdateBlockVolumeNote. */
+.mseries-block-volume-note {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* Etichetta sopra la select del tipo di recupero — prima stava incollata
    solo al campo del tempo, e con le altre modalità (metri) spariva: ora
    introduce l'intera sezione, qualunque sia la modalità scelta sotto. */
@@ -5774,6 +5802,16 @@ button:active {
   color: var(--muted);
 }
 
+/* Elenco nomi nell'alert "Test da rifare" (vedi checkStaleTests). */
+.app-confirm-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 .app-confirm-actions {
   display: flex;
   gap: 10px;
@@ -6410,9 +6448,31 @@ button:active {
   border-color: #e5484d;
 }
 
-/* Storico allenamenti: stessa disposizione, formato ridotto. */
+/* Storico allenamenti: stessa disposizione del generico "storico di un
+   test" (.mtest-history), ma più evidente — passava inosservato, qui
+   l'etichetta è più grande e scura, con un riquadro proprio invece di un
+   filo tratteggiato sopra, altrimenti si confondeva con lo sfondo. */
 .mtrain-history {
-  margin-top: 12px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mtrain-history > .mtest-history-summary {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  gap: 8px;
+}
+
+.mtrain-history > .mtest-history-summary::before {
+  font-size: 1.1rem;
+}
+
+.mtrain-history[open] > .mtest-history-summary {
+  margin-bottom: 4px;
 }
 
 .mtrain-card {
@@ -6524,17 +6584,17 @@ button:active {
 .mtrain-cells {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 10px;
 }
 
 .mtrain-card-sm .mtrain-cell {
   flex-basis: 64px;
-  gap: 3px;
+  gap: 6px;
 }
 
 .mtrain-card-sm .mtrain-cell-inputs {
   grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
-  gap: 3px;
+  gap: 6px;
 }
 
 .mtrain-card-sm .calc-out-tile {
@@ -6550,7 +6610,7 @@ button:active {
 }
 
 .mtrain-card-sm .mtrain-done-input {
-  padding: 4px 2px;
+  padding: 9px 4px;
   font-size: 0.7rem;
 }
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it" data-build="2026-10-15a">
+<html lang="it" data-build="2026-10-17a">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
@@ -349,11 +349,12 @@
             </svg>
             Velocisti registrati
           </h2>
-          <span class="list-count" id="vel-count">0</span>
+          <button type="button" class="list-count list-count-btn" id="vel-count" aria-label="Mostra l'elenco compatto degli atleti" aria-expanded="false">0</button>
         </div>
         <div id="vel-empty-state" class="empty-state">Nessun velocista ancora registrato.</div>
         <ul id="vel-list" class="athletes-list" aria-live="polite"></ul>
         <nav id="vel-pagination" class="pagination" hidden aria-label="Paginazione velocisti"></nav>
+        <div id="vel-compact-list" class="athlete-compact-list" hidden></div>
       </section>
 
       <footer class="app-footer">
@@ -432,11 +433,12 @@
             </svg>
             Master
           </h2>
-          <span class="list-count" id="master-count">0</span>
+          <button type="button" class="list-count list-count-btn" id="master-count" aria-label="Mostra l'elenco compatto degli atleti" aria-expanded="false">0</button>
         </div>
         <div id="master-empty-state" class="empty-state">Nessun atleta master ancora registrato.</div>
         <ul id="master-list" class="athletes-list" aria-live="polite"></ul>
         <nav id="master-pagination" class="pagination" hidden aria-label="Paginazione master"></nav>
+        <div id="master-compact-list" class="athlete-compact-list" hidden></div>
       </section>
 
       <footer class="app-footer">
