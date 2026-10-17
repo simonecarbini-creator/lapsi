@@ -1,4 +1,4 @@
-const APP_BUILD = '2026-10-17a';
+const APP_BUILD = '2026-10-17b';
 console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
@@ -8665,10 +8665,12 @@ function createMasterEditForm(entry) {
         </div>
       </div>
     </div>
+    ${masterActiveKey === 'mezzofondo' ? '' : `
     <div class="field-group">
       <label>Strava</label>
       <input name="edit-master-strava" type="url" inputmode="url" placeholder="https://www.strava.com/athletes/..." autocomplete="off" value="${escapeHtml(entry.strava || '')}" />
     </div>
+    `}
     <div class="edit-actions">
       <button type="submit" class="primary-btn save-edit-btn">Salva</button>
       <button type="button" class="secondary-btn cancel-edit-btn">Annulla</button>
@@ -8733,7 +8735,13 @@ async function handleMasterEditSubmit(event) {
   const updatedEntry = { ...entries[targetIndex] };
   updatedEntry.name = updatedName;
   updatedEntry.surname = updatedSurname;
-  updatedEntry.strava = editForm.querySelector('[name="edit-master-strava"]').value.trim();
+  // Niente campo Strava nel form del mezzofondo (vedi createMasterEditForm):
+  // lascia il valore com'era, invece di azzerarlo leggendo un input che lì
+  // non esiste.
+  const stravaField = editForm.querySelector('[name="edit-master-strava"]');
+  if (stravaField) {
+    updatedEntry.strava = stravaField.value.trim();
+  }
 
   const editAvatarData = editForm.dataset.editAvatarData || '';
   if (editAvatarData) {
@@ -11272,11 +11280,14 @@ async function checkExpiredConcorsi() {
 }
 
 // Settimane dall'ultimo test di un atleta, oltre le quali vale la pena
-// rifarlo — a metà tra le 6 e le 8 chieste, un numero solo invece di un
-// intervallo per non dover decidere ogni volta quale soglia applicare.
-const TEST_REMINDER_WEEKS = 7;
+// rifarlo.
+const TEST_REMINDER_WEEKS = 6;
 const TEST_REMINDER_MS = TEST_REMINDER_WEEKS * 7 * 24 * 60 * 60 * 1000;
-const TEST_REMINDER_SHOWN_KEY = 'lapsi-test-reminder-shown-on';
+// Non un semplice "mostrato oggi" ma una data fino a cui tacere: "Ho
+// capito" rimanda a domani (si rifà la domanda, può essere cambiata idea
+// nel frattempo), "Rimanda di 1/2 settimane" spinge la data più in là —
+// a scelta di chi usa l'app, non fissa come prima.
+const TEST_REMINDER_SNOOZE_KEY = 'lapsi-test-reminder-snooze-until';
 
 // Data più recente tra più elenchi di test (vamTests/sogliaTests/..., o
 // "times"/"tests" secondo la sezione) — null se l'atleta non ha ancora
@@ -11314,7 +11325,8 @@ function readRawStorageList(key) {
 // milActiveAthletesWithPace), quindi sono già coperti da quello.
 async function checkStaleTests() {
   const todayKey = todayNativeDateValue();
-  if (localStorage.getItem(TEST_REMINDER_SHOWN_KEY) === todayKey) {
+  const snoozeUntil = localStorage.getItem(TEST_REMINDER_SNOOZE_KEY);
+  if (snoozeUntil && todayKey < snoozeUntil) {
     return;
   }
 
@@ -11344,19 +11356,34 @@ async function checkStaleTests() {
     });
   });
 
-  localStorage.setItem(TEST_REMINDER_SHOWN_KEY, todayKey);
-
   if (!stale.length) {
     return;
   }
 
+  // Finché non si risponde, la domanda resta valida anche a cavallo di
+  // mezzanotte (nessuna data di silenzio ancora impostata) — si rifà al
+  // prossimo controllo se il popup viene chiuso senza scegliere.
   const uniqueStale = [...new Set(stale)];
-  await showChoice('Test da rifare', {
+  // Stesso calcolo (data locale, non UTC) di todayNativeDateValue, per
+  // restare confrontabile con quella con un semplice confronto di stringhe.
+  const addDays = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const choice = await showChoice('Test da rifare', {
     detailHtml: `L'ultimo test di questi atleti risale a più di ${TEST_REMINDER_WEEKS} settimane fa:<ul class="app-confirm-list">${uniqueStale.map((name) => `<li>${escapeHtml(name)}</li>`).join('')}</ul>`,
     options: [
       { value: 'ok', label: 'Ho capito', className: 'app-btn-success' },
+      { value: 'snooze1', label: 'Rimanda di 1 settimana', className: 'app-btn-ghost' },
+      { value: 'snooze2', label: 'Rimanda di 2 settimane', className: 'app-btn-ghost' },
     ],
   });
+
+  const snoozeUntilNext = choice === 'snooze1' ? addDays(7)
+    : choice === 'snooze2' ? addDays(14)
+    : addDays(1); // "Ho capito" o chiuso senza scegliere: richiede di nuovo da domani.
+  localStorage.setItem(TEST_REMINDER_SNOOZE_KEY, snoozeUntilNext);
 }
 
 // ===== Calcolatori di andature: hub + tre moduli (solo militari) =====
