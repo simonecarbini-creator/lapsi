@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21h';
-console.log('[Lapsi] build', APP_BUILD, '— PB colorato in oro, popup dettagli gara, note in textarea');
+const APP_BUILD = '2026-10-21i';
+console.log('[Lapsi] build', APP_BUILD, '— pettorale sempre bianco, data spostata sulla riga delle icone');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8617,9 +8617,9 @@ function masterRaceListMarkup(entry) {
   const listMarkup = results.length
     ? results.map((race) => {
       const title = race.name || RACE_TYPE_LABELS[race.type] || race.type;
-      const meta = [RACE_TYPE_LABELS[race.type] || race.type, race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+      const meta = [RACE_TYPE_LABELS[race.type] || race.type, race.location].filter(Boolean).map(escapeHtml).join(' · ');
       const isPb = bestIds.has(race.id);
-      const bibMarkup = race.bib ? `<span class="race-bib${isPb ? ' race-bib-pb' : ''}" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
+      const bibMarkup = race.bib ? `<span class="race-bib" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
       const linkMarkup = race.link ? `<a class="race-entry-link" href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Link risultato</a>` : '';
       return `
         <div class="race-entry race-entry-master${race.id === editingId ? ' race-entry-editing' : ''}">
@@ -8633,6 +8633,7 @@ function masterRaceListMarkup(entry) {
           </div>
           ${linkMarkup}
           <div class="race-entry-actions">
+            <span class="race-entry-date">${escapeHtml(shortYearDate(race.date) || race.date || '')}</span>
             <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
             <button type="button" class="race-entry-view" data-id="${escapeHtml(race.id)}" aria-label="Vedi dettagli gara">${MTEST_SEARCH_ICON}</button>
             <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
@@ -8841,7 +8842,7 @@ async function handleMasterRaceView(athleteId, raceId) {
     rows.push(['Luogo', escapeHtml(race.location)]);
   }
   if (race.bib) {
-    rows.push(['Pettorale', `<span class="race-bib${isPb ? ' race-bib-pb' : ''}">${escapeHtml(race.bib)}</span>`]);
+    rows.push(['Pettorale', `<span class="race-bib">${escapeHtml(race.bib)}</span>`]);
   }
   if (race.link) {
     rows.push(['Link', `<a href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Apri il risultato</a>`]);

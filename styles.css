@@ -3400,8 +3400,14 @@ button:active {
 
 .race-entry-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 6px;
+}
+
+.race-entry-date {
+  margin-right: auto;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 /* Pettorale: font "cicciotto" (grassissimo, condensato) per somigliare a un
@@ -3421,12 +3427,6 @@ button:active {
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   color: var(--text);
-}
-
-.race-bib-pb {
-  background: #fdf6e3;
-  border-color: #9a6b0c;
-  color: #9a6b0c;
 }
 
 /* ===== Popup dettagli gara (icona lente in elenco): usa l'overlay già
