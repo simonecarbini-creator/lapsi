@@ -3253,6 +3253,31 @@ button:active {
   transform: rotate(45deg);
 }
 
+/* Mentre si modifica una gara esistente (click sulla matita in elenco): il
+   bordo e l'icona passano al colore già usato come accento nella card
+   (lo stesso del lampo/orologio) — altrimenti il form si apre identico a
+   quando si aggiunge un risultato nuovo, e non è ovvio che si sta
+   correggendo quello giusto. */
+.race-form-section-editing {
+  border-style: solid;
+  border-color: var(--thousand-color);
+  background: rgba(255, 92, 58, 0.06);
+}
+
+.race-form-section-editing > .mtest-section-summary {
+  color: var(--thousand-color);
+}
+
+.race-form-section-editing > .mtest-section-summary::before {
+  content: '✎';
+  background: var(--thousand-color);
+  font-size: 0.68rem;
+}
+
+.race-form-section-editing[open] > .mtest-section-summary::before {
+  transform: none;
+}
+
 .race-form-section > .mtest-section-body {
   padding: 4px 10px 12px;
 }
@@ -3287,7 +3312,11 @@ button:active {
 
 .race-entry-head {
   display: flex;
-  align-items: center;
+  /* flex-start (non center): il pettorale affianca il nome della gara sulla
+     prima riga, senza "fluttuare" centrato su nome+meta insieme — sotto
+     restano libere tipologia/luogo/data, allineate a sinistra come il
+     nome. */
+  align-items: flex-start;
   gap: 8px;
 }
 

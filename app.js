@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21d';
-console.log('[Lapsi] build', APP_BUILD, '— card chiusa gare di nuovo a righe, PB nell\'elenco, note tolte dalla lista, accordion "+"');
+const APP_BUILD = '2026-10-21e';
+console.log('[Lapsi] build', APP_BUILD, '— form gara: chiusura dopo modifica, effetto editing, pettorale accanto al nome, fix tempo con ora singola');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5794,6 +5794,28 @@ function formatRaceResultMask(digits, type) {
   return `${d.slice(0, -2)}'${d.slice(-2)}"`;
 }
 
+// Ricostruisce le cifre "grezze" di un risultato già salvato, da rimettere
+// in formatRaceResultMask quando si riapre il form per modificarlo. Per le
+// distanze lunghe NON basta togliere i caratteri non numerici (dist.replace
+// (/[^0-9]/g, '')): lo slot delle ore nella maschera è fisso a 2 cifre, e
+// un'ora scritta con una sola cifra (es. "3h11'37"", maratona sotto le 10
+// ore — il caso normale) finirebbe scalata di una posizione, mescolando
+// ore/minuti/secondi (tipo "31h13'7""). Qui le ore vengono completate con
+// lo zero davanti prima di tornare a un'unica stringa di cifre.
+function raceResultToDigits(result, type) {
+  const str = String(result || '').trim().replace(/[’‘]/g, "'").replace(/[”“]/g, '"');
+  if (RACE_LONG_TYPES.has(type)) {
+    const m = str.match(/^(\d+)h(\d{1,2})?'?(\d{1,2})?["″]?$/);
+    if (m) {
+      const hh = m[1].padStart(2, '0').slice(-2);
+      const mm = (m[2] || '').padStart(2, '0');
+      const ss = (m[3] || '').padStart(2, '0');
+      return `${hh}${mm}${ss}`;
+    }
+  }
+  return str.replace(/[^0-9]/g, '');
+}
+
 // Il "select" della distanza sta nello stesso .race-form del campo
 // risultato: usato dai listener di input/keydown/change per sapere quale
 // formato applicare senza doverlo passare a mano.
@@ -8638,7 +8660,7 @@ function masterRaceResultsSectionMarkup(entry) {
   const { years } = masterRaceFilteredResults(entry);
 
   const defaultType = editingRace ? editingRace.type : RACE_TYPES[0][0];
-  const resultDigits = editingRace ? editingRace.result.replace(/[^0-9]/g, '') : '';
+  const resultDigits = editingRace ? raceResultToDigits(editingRace.result, defaultType) : '';
   const typeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === defaultType ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
   const filterTypeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === filters.type ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
   const filterYearOptions = years.map((y) => `<option value="${y}"${String(y) === filters.year ? ' selected' : ''}>${y}</option>`).join('');
@@ -8647,8 +8669,8 @@ function masterRaceResultsSectionMarkup(entry) {
     : '';
 
   return `
-    <details class="mtest-section race-form-section" data-section-key="race-form"${editingId || masterSectionIsOpen(entry.id, 'race-form', false) ? ' open' : ''}>
-      <summary class="mtest-section-summary">Aggiungi risultato gara</summary>
+    <details class="mtest-section race-form-section${editingId ? ' race-form-section-editing' : ''}" data-section-key="race-form"${editingId || masterSectionIsOpen(entry.id, 'race-form', false) ? ' open' : ''}>
+      <summary class="mtest-section-summary">${editingId ? 'Modifica risultato gara' : 'Aggiungi risultato gara'}</summary>
       <div class="mtest-section-body">
         <div class="race-form" data-id="${entry.id}"${editingId ? ` data-editing-id="${escapeHtml(editingId)}"` : ''}>
           <div class="field-row">
@@ -8762,6 +8784,13 @@ async function handleMasterRaceAdd(addBtn) {
   entries[index] = { ...entries[index], raceResults: nextList };
   await saveMaster(entries);
   masterRaceEditing.delete(athleteId);
+  // Dopo una modifica il form si richiude da solo: si apre già su quella
+  // gara, una volta sistemata non c'è motivo di tenerlo davanti all'elenco.
+  // Aggiungendone una nuova invece resta aperto, comodo per inserirne più di
+  // una di fila.
+  if (editingId) {
+    masterSectionOpen.set(`${athleteId}:race-form`, false);
+  }
   renderMaster();
   showToast('Salvato!');
 }
@@ -9231,8 +9260,16 @@ async function handleMasterListClick(event) {
   const raceEditButton = event.target.closest('.race-entry-edit');
   if (raceEditButton) {
     const card = raceEditButton.closest('.athlete-item');
-    masterRaceEditing.set(card.dataset.id, raceEditButton.dataset.id);
+    const athleteId = card.dataset.id;
+    masterRaceEditing.set(athleteId, raceEditButton.dataset.id);
     renderMaster();
+    // Il form è sopra l'elenco: senza scroll, modificando una gara più in
+    // basso nella lista l'accordion si apre fuori dallo schermo e sembra
+    // non essere successo nulla.
+    const form = document.querySelector(`.athlete-item[data-id="${athleteId}"] .race-form-section`);
+    if (form) {
+      form.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
     return;
   }
 
