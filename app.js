@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21c';
-console.log('[Lapsi] build', APP_BUILD, '— fix importa dati su iPhone: il selettore file non si apriva');
+const APP_BUILD = '2026-10-21d';
+console.log('[Lapsi] build', APP_BUILD, '— card chiusa gare di nuovo a righe, PB nell\'elenco, note tolte dalla lista, accordion "+"');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8508,6 +8508,21 @@ function masterRaceBest(results, type) {
   return best;
 }
 
+// Id dei risultati che sono il personal best su 10k/mezza/maratona (stessi
+// 3 traguardi della card chiusa, vedi MASTER_BEST_TIME_TYPES): usato per
+// mostrare il badge PB nell'elenco completo di "Risultati gare", sulla riga
+// giusta invece che in un riepilogo a parte.
+function masterRaceBestIds(allResults) {
+  const ids = new Set();
+  MASTER_BEST_TIME_TYPES.forEach((type) => {
+    const best = masterRaceBest(allResults, type);
+    if (best) {
+      ids.add(best.race.id);
+    }
+  });
+  return ids;
+}
+
 // Card chiusa: i migliori tempi su 10 km, mezza e maratona (i 3 traguardi
 // più comuni per chi corre su strada) invece dell'elenco degli ultimi
 // risultati — una card chiusa dice "quanto sei forte", non "cosa hai fatto
@@ -8518,29 +8533,22 @@ const MASTER_BEST_TIME_TYPES = ['10k', 'mezza', 'maratona'];
 function masterRaceResultsSummaryMarkup(entry) {
   const results = entry.raceResults || [];
   if (!results.length) {
-    return '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato gara</div></div>';
+    return '<div class="v2-race-list"><div class="v2-tile-empty">Nessun risultato gara</div></div>';
   }
-  const pb = '<span class="v2-pb">PB</span>';
-  const tiles = MASTER_BEST_TIME_TYPES.map((type) => {
+  const rows = MASTER_BEST_TIME_TYPES.map((type) => {
     const label = RACE_TYPE_LABELS[type] || type;
     const best = masterRaceBest(results, type);
-    if (!best) {
-      return `
-        <div class="v2-tile v2-tile-race-best">
-          <div class="v2-tile-head"><span class="v2-tile-ic">${MTEST_TROPHY_ICON}</span>${escapeHtml(label)}</div>
-          <div class="v2-tile-val v2-tile-val-sm">--</div>
-        </div>
-      `;
-    }
+    const timeBlock = best
+      ? `<span class="v2-race-result">${escapeHtml(best.race.result)}</span><span class="v2-race-meta">${escapeHtml(shortYearDate(best.race.date))}</span>`
+      : '<span class="v2-race-result v2-race-result-empty">--</span>';
     return `
-      <div class="v2-tile v2-tile-race-best">
-        <div class="v2-tile-head"><span class="v2-tile-ic">${MTEST_TROPHY_ICON}</span>${escapeHtml(label)} ${pb}</div>
-        <div class="v2-tile-val v2-tile-val-sm">${escapeHtml(best.race.result)}</div>
-        <div class="v2-tile-sub">${escapeHtml(shortYearDate(best.race.date))}</div>
+      <div class="v2-race-row">
+        <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(label)}</span>${best ? '<span class="v2-pb">PB</span>' : ''}</span>
+        <span class="v2-race-time-block">${timeBlock}</span>
       </div>
     `;
   }).join('');
-  return `<div class="v2-tiles">${tiles}</div>`;
+  return `<div class="v2-race-list">${rows}</div>`;
 }
 
 // Sezione "Risultati gare": form per aggiungerne uno, dentro un accordion
@@ -8582,13 +8590,14 @@ function masterRaceFilteredResults(entry) {
 function masterRaceListMarkup(entry) {
   const { allResults, results } = masterRaceFilteredResults(entry);
   const editingId = masterRaceEditing.get(entry.id) || null;
+  const bestIds = masterRaceBestIds(allResults);
   const listMarkup = results.length
     ? results.map((race) => {
       const title = race.name || RACE_TYPE_LABELS[race.type] || race.type;
       const meta = [RACE_TYPE_LABELS[race.type] || race.type, race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
       const bibMarkup = race.bib ? `<span class="race-bib" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
       const linkMarkup = race.link ? `<a class="race-entry-link" href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Link risultato</a>` : '';
-      const noteMarkup = race.note ? `<div class="race-entry-note">${escapeHtml(race.note)}</div>` : '';
+      const pbMarkup = bestIds.has(race.id) ? '<span class="v2-pb race-entry-pb">PB</span>' : '';
       return `
         <div class="race-entry race-entry-master${race.id === editingId ? ' race-entry-editing' : ''}">
           <div class="race-entry-head">
@@ -8598,9 +8607,9 @@ function masterRaceListMarkup(entry) {
               <span class="race-entry-meta">${meta || '—'}</span>
             </div>
             <span class="race-entry-result">${escapeHtml(race.result)}</span>
+            ${pbMarkup}
           </div>
           ${linkMarkup}
-          ${noteMarkup}
           <div class="race-entry-actions">
             <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
             <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>

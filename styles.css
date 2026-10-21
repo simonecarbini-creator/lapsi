@@ -3214,15 +3214,43 @@ button:active {
 
 /* ===== Gare Master: accordion "Aggiungi risultato gara", filtri sopra
    l'elenco (anno/distanza/cerca) ed elenco con layout a più righe (nome,
-   pettorale, link, note) invece della singola riga di Velocità. ===== */
+   pettorale, link) invece della singola riga di Velocità. ===== */
 .race-form-section {
-  border: 1px solid var(--card-border);
+  border: 1px dashed var(--card-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.5);
+  background: transparent;
 }
 
+/* Diverso dalle altre <details> del pannello (niente sfondo pieno, niente
+   freccia "›" che ruota): un "+" tondo che diventa una "×" aperto, più
+   riconoscibile come azione "aggiungi" e non come un'altra sezione da
+   consultare. */
 .race-form-section > .mtest-section-summary {
-  padding: 10px 12px;
+  padding: 9px 12px;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.race-form-section > .mtest-section-summary::before {
+  content: '+';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.86rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.race-form-section[open] > .mtest-section-summary::before {
+  transform: rotate(45deg);
 }
 
 .race-form-section > .mtest-section-body {
@@ -3295,10 +3323,9 @@ button:active {
   text-decoration: underline;
 }
 
-.race-entry-note {
-  font-size: 0.76rem;
-  font-style: italic;
-  color: var(--muted);
+.race-entry-pb {
+  flex-shrink: 0;
+  margin-left: 6px;
 }
 
 .race-entry-actions {
@@ -3847,6 +3874,11 @@ button:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.v2-race-result-empty {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .v2-actions {
