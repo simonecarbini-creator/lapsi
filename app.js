@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21a';
-console.log('[Lapsi] build', APP_BUILD, '— riepilogo allenamento nello storico, gare con accordion/filtri/pettorale, rifiniture ripetute e giorno di forza');
+const APP_BUILD = '2026-10-21b';
+console.log('[Lapsi] build', APP_BUILD, '— nuova categoria gare 15 km');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5741,6 +5741,7 @@ const RACE_TYPES = [
   ['50k', '50 km'],
   ['maratona', 'Maratona'],
   ['mezza', 'Mezza maratona'],
+  ['15k', '15 km'],
   ['10k', '10 km'],
   ['5k', '5 km'],
   ['3k', '3 km'],
