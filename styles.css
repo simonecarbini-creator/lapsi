@@ -3212,6 +3212,120 @@ button:active {
   color: #c0392b;
 }
 
+/* ===== Gare Master: accordion "Aggiungi risultato gara", filtri sopra
+   l'elenco (anno/distanza/cerca) ed elenco con layout a più righe (nome,
+   pettorale, link, note) invece della singola riga di Velocità. ===== */
+.race-form-section {
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.race-form-section > .mtest-section-summary {
+  padding: 10px 12px;
+}
+
+.race-form-section > .mtest-section-body {
+  padding: 4px 10px 12px;
+}
+
+.race-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.race-filters select,
+.race-filters input {
+  flex: 1 1 auto;
+  min-width: 90px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: #fff;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.race-filters .race-filter-query {
+  flex: 1 1 100%;
+}
+
+.race-entry-master {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.race-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.race-entry-title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.race-entry-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-entry-master .race-entry-meta {
+  flex: none;
+  min-width: 0;
+}
+
+.race-entry-master .race-entry-result {
+  flex: 0 0 auto;
+}
+
+.race-entry-link {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.race-entry-note {
+  font-size: 0.76rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.race-entry-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Pettorale: font "cicciotto" (grassissimo, condensato) per somigliare a un
+   vero numero di gara stampato su cartoncino. */
+.race-bib {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: #fff;
+  border: 2px solid var(--text);
+  font-family: 'Arial Black', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 900;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
 /* ===== Note atleta: registro con data per ogni nota ===== */
 .notes-block {
   margin: 14px 0 4px;
@@ -3612,6 +3726,14 @@ button:active {
   font-size: 0.68rem;
   font-weight: 500;
   color: var(--muted);
+}
+
+/* 3 tile fianco a fianco (migliori tempi 10k/mezza/maratona, vedi
+   masterRaceResultsSummaryMarkup) invece delle 2 di sempre: il tempo può
+   essere lungo ("1h44'01""), un carattere più piccolo evita che vada a capo
+   o spinga la tile a traboccare. */
+.v2-tile-val-sm {
+  font-size: 0.98rem;
 }
 
 .v2-tile-sub {
@@ -4537,10 +4659,19 @@ button:active {
   margin-top: 8px;
 }
 
-/* Volume di questo blocco (ripetizioni × distanze), sotto il recupero —
-   aggiornato mentre si digita, vedi masterSeriesUpdateBlockVolumeNote. */
-.mseries-block-volume-note {
+/* Volume di questo blocco (ripetizioni × distanze) + copia/riordina sulla
+   stessa riga, sotto il recupero — aggiornato mentre si digita, vedi
+   masterSeriesUpdateBlockVolumeNote. flex:1 sulla nota e margin-left:auto
+   sulle icone (vedi .mseries-strength-row-footer) tengono le icone a
+   destra sia che la nota sia visibile sia che sia vuota/nascosta. */
+.mseries-block-volume-row {
+  display: flex;
+  align-items: center;
   margin-top: 8px;
+}
+
+.mseries-block-volume-note {
+  flex: 1;
   font-size: 0.78rem;
   font-weight: 700;
   color: var(--text);
@@ -4972,6 +5103,13 @@ button:active {
   margin-top: 6px;
 }
 
+/* Dentro .mseries-block-volume-row (vedi sopra) sta già sulla riga del
+   volume: niente margine sopra, solo spinta a destra. */
+.mseries-block-volume-row > .mseries-strength-row-footer {
+  margin-top: 0;
+  margin-left: auto;
+}
+
 .mseries-strength-copy-btn {
   width: 28px;
   height: 28px;
@@ -5057,6 +5195,19 @@ button:active {
 .mseries-strength-total {
   margin-top: 10px;
   font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Somma di tutti i "blocchi di corsa" del giorno di forza insieme, dopo
+   l'ultimo di loro (vedi masterSeriesStrengthMarkup) — solo quando sono
+   più di uno, altrimenti è lo stesso numero già mostrato sopra. */
+.mseries-strength-corsa-total {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--card-border);
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text);
 }
@@ -5802,14 +5953,19 @@ button:active {
   color: var(--muted);
 }
 
-/* Elenco nomi nell'alert "Test da rifare" (vedi checkStaleTests). */
+/* Elenco nomi nell'alert "Test da rifare" (vedi checkStaleTests): niente
+   puntini, un nome per riga, centrato come il resto del popup. */
 .app-confirm-list {
   margin: 8px 0 0;
-  padding-left: 20px;
   max-height: 180px;
   overflow-y: auto;
   font-size: 0.85rem;
+  font-weight: 700;
   color: var(--text);
+}
+
+.app-confirm-list > div {
+  padding: 2px 0;
 }
 
 .app-confirm-actions {
@@ -6529,6 +6685,37 @@ button:active {
 .mtrain-sub {
   font-size: 0.68rem;
   color: var(--muted);
+}
+
+/* Riepilogo leggibile dell'allenamento svolto (vedi
+   masterTrainingWorkoutSummaryMarkup), prima delle tile dei tempi. */
+.mtrain-workout-summary {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-strong);
+}
+
+.mtrain-workout-summary-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
+}
+
+.mtrain-workout-summary ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mtrain-workout-summary li {
+  font-size: 0.78rem;
+  color: var(--text);
 }
 
 .mtrain-edit,

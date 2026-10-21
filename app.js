@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-17b';
-console.log('[Lapsi] build', APP_BUILD, '— giorno di forza: 13 esercizi a ripetizioni/tempo, discesa dai gradoni, ritorno dalle salite, carico eccentrico');
+const APP_BUILD = '2026-10-21a';
+console.log('[Lapsi] build', APP_BUILD, '— riepilogo allenamento nello storico, gare con accordion/filtri/pettorale, rifiniture ripetute e giorno di forza');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -5810,6 +5810,12 @@ function normalizeMasterRaceResult(record) {
     result,
     date: String(record.date || ''),
     location: String(record.location || '').trim(),
+    // Nome della gara (es. "Roma - Ostia"), diverso dal luogo (es. "Roma"):
+    // non tutte le gare hanno un nome proprio, resta facoltativo.
+    name: String(record.name || '').trim(),
+    link: String(record.link || '').trim(),
+    note: String(record.note || '').trim(),
+    bib: String(record.bib || '').trim(),
     createdAt: record.createdAt || new Date(0).toISOString(),
   };
 }
@@ -5979,6 +5985,17 @@ function masterSectionIsOpen(entryId, key, defaultOpen) {
 // riquadri VAM/1000 — quando c'è un valore qui il form si precompila e
 // "Aggiungi risultato" diventa "Salva modifiche".
 let masterRaceEditing = new Map();
+
+// Filtri dell'elenco gare per atleta (athleteId -> {year, type, query}),
+// stesso schema di masterRaceEditing: solo stato di sessione, si perde
+// chiudendo la pagina come il resto dei filtri dell'app.
+let masterRaceFilters = new Map();
+function masterRaceGetFilters(athleteId) {
+  if (!masterRaceFilters.has(athleteId)) {
+    masterRaceFilters.set(athleteId, { year: '', type: '', query: '' });
+  }
+  return masterRaceFilters.get(athleteId);
+}
 
 function masterTestDisplayValue(testKey, test) {
   return MASTER_METERS_TESTS[testKey] ? `${test.value} km/h` : test.value;
@@ -6862,12 +6879,52 @@ function masterSeriesStrengthSummaryLines(strength) {
   return { totals, volumeLine, eccentricLine };
 }
 
+// Somma dei soli "blocchi di corsa" (kind:'repeat') del giorno di forza —
+// per la riga di totale dopo l'ultimo di loro, non il volume equivalente
+// dell'intero giorno di forza (quello è masterSeriesStrengthSummaryLines).
+function masterSeriesStrengthCorsaTotalMeters(strength) {
+  return strength.items
+    .filter((item) => item.kind === 'repeat')
+    .reduce((sum, item) => sum + masterSeriesBlockVolume(item), 0);
+}
+
+function masterSeriesStrengthCorsaTotalMarkup(meters) {
+  return `<div class="mseries-strength-corsa-total">Totale blocchi di corsa: ${(meters / 1000).toFixed(2).replace('.', ',')} km</div>`;
+}
+
+// Aggiornata mentre si digita in un blocco di corsa (vedi i listener su
+// reps/dist): la riga del totale vive solo quando ci sono almeno 2 blocchi
+// di corsa, quindi può non esserci affatto — niente da fare in quel caso.
+function masterSeriesUpdateStrengthCorsaTotal(inputEl, strength) {
+  const container = inputEl.closest('.mseries-strength-body');
+  const totalEl = container && container.querySelector('.mseries-strength-corsa-total');
+  if (!totalEl) {
+    return;
+  }
+  const meters = masterSeriesStrengthCorsaTotalMeters(strength);
+  totalEl.textContent = `Totale blocchi di corsa: ${(meters / 1000).toFixed(2).replace('.', ',')} km`;
+}
+
 function masterSeriesStrengthMarkup(strength, vam = null) {
   const { volumeLine, eccentricLine } = masterSeriesStrengthSummaryLines(strength);
+  // Dopo l'ULTIMO blocco di corsa (non dopo l'ultimo oggetto in assoluto,
+  // che potrebbe essere un esercizio) il totale di tutti i blocchi di
+  // corsa insieme — solo se ce n'è più di uno, con uno solo il totale per
+  // blocco già mostrato sopra è la stessa cosa.
+  const repeatIndexes = strength.items.reduce((acc, item, i) => {
+    if (item.kind === 'repeat') acc.push(i);
+    return acc;
+  }, []);
+  const lastRepeatIndex = repeatIndexes.length > 1 ? repeatIndexes[repeatIndexes.length - 1] : -1;
+  const corsaTotalMeters = masterSeriesStrengthCorsaTotalMeters(strength);
+  const itemsMarkup = strength.items.map((item, i) => {
+    const itemHtml = masterSeriesStrengthItemMarkup(item, vam);
+    return i === lastRepeatIndex ? `${itemHtml}${masterSeriesStrengthCorsaTotalMarkup(corsaTotalMeters)}` : itemHtml;
+  }).join('');
   const body = strength.enabled ? `
     <div class="mseries-strength-body">
       <p class="mseries-strength-intro">Si somma come volume equivalente a quello delle ripetute qui sotto: cambia il passo con cui vengono calcolate, non il loro volume "vero" mostrato una volta calcolate.</p>
-      ${strength.items.map((item) => masterSeriesStrengthItemMarkup(item, vam)).join('')}
+      ${itemsMarkup}
       <div class="mseries-strength-add-row">
         <button type="button" class="mseries-strength-add-btn">${MTEST_PLUS_ICON} Aggiungi esercizio</button>
         <button type="button" class="mseries-strength-add-repeat-btn">${MTEST_PLUS_ICON} Aggiungi blocco di corsa</button>
@@ -6955,6 +7012,12 @@ function masterSeriesRecMetersRowMarkup(block, vam) {
 // chiamata su state.blocks, che passano state.strength.enabled).
 function masterSeriesBlockRowMarkup(block, index, vam = null, canDelete = index !== 0) {
   const mode = block.recMode || 'time';
+  // Con una sola ripetuta (es. "1x200/300/400") non c'è nessun "tra una
+  // ripetuta e l'altra" a cui applicare un recupero: l'intera sezione si
+  // nasconde, senza perdere il valore già scritto (torna visibile se le
+  // ripetute tornano a essere più di una) — vedi il listener su
+  // .mseries-reps-input per l'aggiornamento dal vivo.
+  const singleRep = parseInt(block.reps, 10) === 1;
   return `
     <div class="mseries-block" data-block-id="${block.id}">
       <div class="mseries-block-row">
@@ -6966,23 +7029,24 @@ function masterSeriesBlockRowMarkup(block, index, vam = null, canDelete = index 
         </div>
         <button type="button" class="mseries-del-block-btn" data-block-id="${block.id}" aria-label="Rimuovi blocco"${canDelete ? '' : ' disabled'}>${MTEST_DEL_ICON}</button>
       </div>
-      <span class="mseries-rec-section-label">recupero</span>
-      <div class="mseries-rec-mode-row">
-        <select class="mseries-rec-mode-input" data-block-id="${block.id}" aria-label="Tipo di recupero">
-          <option value="time"${mode === 'time' ? ' selected' : ''}>Tempo</option>
-          <option value="meters-run"${mode === 'meters-run' ? ' selected' : ''}>Metri, di corsa lenta</option>
-          <option value="meters-walk"${mode === 'meters-walk' ? ' selected' : ''}>Metri, camminando</option>
-          <option value="meters-mixed"${mode === 'meters-mixed' ? ' selected' : ''}>Metri, misto (camminata + corsa)</option>
-        </select>
+      <div class="mseries-block-rec-section"${singleRep ? ' hidden' : ''}>
+        <span class="mseries-rec-section-label">recupero</span>
+        <div class="mseries-rec-mode-row">
+          <select class="mseries-rec-mode-input" data-block-id="${block.id}" aria-label="Tipo di recupero">
+            <option value="time"${mode === 'time' ? ' selected' : ''}>Tempo</option>
+            <option value="meters-run"${mode === 'meters-run' ? ' selected' : ''}>Metri, di corsa lenta</option>
+            <option value="meters-walk"${mode === 'meters-walk' ? ' selected' : ''}>Metri, camminando</option>
+            <option value="meters-mixed"${mode === 'meters-mixed' ? ' selected' : ''}>Metri, misto (camminata + corsa)</option>
+          </select>
+        </div>
+        ${mode === 'time' ? `
+        <div class="mseries-block-rec-row">
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
+          ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
+        </div>
+        ` : masterSeriesRecMetersRowMarkup(block, vam)}
       </div>
-      ${mode === 'time' ? `
-      <div class="mseries-block-rec-row">
-        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rec-input" data-block-id="${block.id}" data-digits="${block.recDigits}" value="${escapeHtml(seriesFormatRecMask(block.recDigits))}" placeholder="1′30″" aria-label="Recupero" />
-        ${masterSeriesCheckboxMarkup('mseries-rec-active-input', block.id, block.recActive, 'attivo')}
-      </div>
-      ` : masterSeriesRecMetersRowMarkup(block, vam)}
       ${masterSeriesBlockVolumeNoteMarkup(block)}
-      ${masterSeriesDragCopyFooterMarkup()}
     </div>
   `;
 }
@@ -6996,9 +7060,17 @@ function masterSeriesBlockVolumeNoteText(block) {
   return meters > 0 ? `Volume: ${(meters / 1000).toFixed(2).replace('.', ',')} km` : '';
 }
 
+// Volume + copia/riordina sulla STESSA riga (invece di uno sotto l'altro):
+// il box resta più basso, e l'icona di riordino non è mai lontana dal resto
+// del blocco.
 function masterSeriesBlockVolumeNoteMarkup(block) {
   const note = masterSeriesBlockVolumeNoteText(block);
-  return `<div class="mseries-block-volume-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>`;
+  return `
+    <div class="mseries-block-volume-row">
+      <div class="mseries-block-volume-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
+      ${masterSeriesDragCopyFooterMarkup()}
+    </div>
+  `;
 }
 
 function masterSeriesUpdateBlockVolumeNote(inputEl, block) {
@@ -7009,6 +7081,18 @@ function masterSeriesUpdateBlockVolumeNote(inputEl, block) {
   const note = masterSeriesBlockVolumeNoteText(block);
   noteEl.textContent = note;
   noteEl.hidden = !note;
+}
+
+// Nasconde/mostra la sezione "recupero" di un blocco mentre si digita il
+// numero di ripetute — vedi masterSeriesBlockRowMarkup per il perché (con
+// una sola ripetuta il recupero non ha niente a cui applicarsi in UI; il
+// valore già scritto resta comunque salvato, pronto a ricomparire).
+function masterSeriesUpdateRecSectionVisibility(inputEl, block) {
+  const recSection = inputEl.closest('.mseries-block').querySelector('.mseries-block-rec-section');
+  if (!recSection) {
+    return;
+  }
+  recSection.hidden = parseInt(block.reps, 10) === 1;
 }
 
 // Soglie del recupero tra le serie che riducono il volume usato nel calcolo
@@ -7317,6 +7401,62 @@ function masterTrainingRecLabel(block) {
 // Card di uno storico: chiusa mostra solo data, nome (una riga, troncato) e
 // cestino; aperta i dettagli, con stima sopra e tempo fatto sotto in formato
 // ridotto.
+// Una riga leggibile per UN esercizio del giorno di forza salvato (da
+// training.rawStrength.items, vedi handleMasterTrainingSave) — tipo,
+// ripetizioni/distanza, serie, discesa/ritorno se presenti. Solo per gli
+// allenamenti salvati DOPO che rawStrength esiste: quelli più vecchi non
+// hanno questo dettaglio, restano col solo riepilogo volume/eccentrico.
+function masterSeriesStrengthExerciseSummaryText(ex) {
+  const def = RipeteCalc.strengthFindDef(ex.type);
+  const label = def ? def[1] : ex.type;
+  const countMode = def ? def[4] : 'totale';
+  const numSerie = Math.max(1, parseInt(ex.numSerie, 10) || 1);
+  let mainPart;
+  if (countMode === 'secondi') {
+    mainPart = `${numSerie} × ${ex.meters || 0} m`;
+  } else {
+    const countLabel = countMode === 'per-gamba' ? ' per gamba' : countMode === 'per-lato' ? ' per lato' : '';
+    mainPart = `${numSerie} × ${ex.reps || 0} rip.${countLabel}`;
+  }
+  const extras = [];
+  if (masterSeriesStrengthHasGradoniDescent(ex.type) && ex.descentType) {
+    const descentDef = RipeteCalc.strengthFindDef(ex.descentType);
+    extras.push(`discesa ${descentDef ? descentDef[1].toLowerCase() : ex.descentType} (${ex.descentReps || 0} rip.)`);
+  }
+  if (masterSeriesStrengthIsSalita(ex.type) && ex.descentRun) {
+    extras.push('ritorno correndo');
+  }
+  return `${label}: ${mainPart}${extras.length ? ` — ${extras.join(', ')}` : ''}`;
+}
+
+// Riepilogo leggibile dell'intero allenamento (blocchi di ripetute/corsa +
+// esercizi del giorno di forza, se il dettaglio è stato salvato) — PRIMA
+// delle tile con i tempi, perché il titolo può essere stato troncato o
+// riscritto e da solo non basta a capire cosa è stato fatto davvero,
+// specialmente per un giorno di forza.
+function masterTrainingWorkoutSummaryMarkup(training) {
+  const lines = [];
+  const strengthItems = training.rawStrength && Array.isArray(training.rawStrength.items) ? training.rawStrength.items : null;
+  if (strengthItems) {
+    strengthItems
+      .filter((item) => item.kind !== 'repeat')
+      .forEach((ex) => lines.push(masterSeriesStrengthExerciseSummaryText(ex)));
+  }
+  (training.blocks || []).forEach((block) => {
+    const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
+    lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
+  });
+  if (!lines.length) {
+    return '';
+  }
+  return `
+    <div class="mtrain-workout-summary">
+      <div class="mtrain-workout-summary-title">Allenamento svolto</div>
+      <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
 function masterTrainingCardMarkup(training, open) {
   const blocks = training.blocks || [];
   const summary = blocks.map(masterTrainingBlockLabel).join(' + ');
@@ -7358,6 +7498,7 @@ function masterTrainingCardMarkup(training, open) {
       <div class="mtrain-body">
         ${volumeSummary}
         ${strengthSummary}
+        ${masterTrainingWorkoutSummaryMarkup(training)}
         ${blocksMarkup}
       </div>
     </details>`;
@@ -7512,9 +7653,18 @@ function handleMasterTrainingEdit(button) {
     return;
   }
   const state = masterSeriesGetState(athleteId);
+  // Un allenamento salvato prima che esistesse rawBlocks non ha mai avuto
+  // un vero gapBefore (quello vive solo sul blocco "vivo" del simulatore,
+  // mai congelato in training.blocks): va inventato qui, altrimenti
+  // masterSeriesGapDeductionKm esplode al primo render leggendo
+  // gapBefore.recDigits da un blocco che non ce l'ha — lasciava la card
+  // vuota perché l'intero render falliva a metà, non solo quel blocco.
   state.blocks = training.rawBlocks
     ? JSON.parse(JSON.stringify(training.rawBlocks))
-    : training.blocks.filter((b) => b.kind !== 'repeat').map((b) => ({ ...b }));
+    : training.blocks.filter((b) => b.kind !== 'repeat').map((b) => ({
+      ...b,
+      gapBefore: b.gapBefore || { skip: false, recDigits: '200', recActive: false },
+    }));
   state.strength = training.rawStrength
     ? JSON.parse(JSON.stringify(training.rawStrength))
     : masterSeriesDefaultStrength();
@@ -8315,93 +8465,235 @@ function masterSogliaRatioMarkup(entry) {
   `;
 }
 
-// Card chiusa: al posto delle due tile VAM/1000 (che si ripetevano identiche
-// appena sotto, dentro "Test") mostra fino a 6 risultati gara, i più
-// recenti per data, 2 colonne × 3 righe. Vuoto -> stesso placeholder già
-// usato per "Nessun risultato registrato" negli altri elenchi atleti.
+// Un risultato gara (formato "46'03"" o "1h44'01"", vedi formatRaceResultMask)
+// in secondi totali, per trovare il migliore tra più gare della stessa
+// distanza — null se il formato non si riconosce (mai dovrebbe capitare per
+// un valore scritto dal form, solo difensivo per dati importati a mano).
+function raceResultToSeconds(result) {
+  // Tollera anche gli apici tipografici ’/” che l'iPhone sostituisce in
+  // automatico a '/" digitando — i dati reali esportati li contengono.
+  const str = String(result || '').trim().replace(/[’‘]/g, "'").replace(/[”“]/g, '"');
+  let m = str.match(/^(\d+)h(\d{1,2})'(\d{1,2})["″]?$/);
+  if (m) {
+    return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  }
+  m = str.match(/^(\d{1,3})'(\d{1,2})["″]?$/);
+  if (m) {
+    return Number(m[1]) * 60 + Number(m[2]);
+  }
+  return null;
+}
+
+function masterRaceBest(results, type) {
+  let best = null;
+  results.forEach((race) => {
+    if (race.type !== type) {
+      return;
+    }
+    const seconds = raceResultToSeconds(race.result);
+    if (seconds === null) {
+      return;
+    }
+    if (!best || seconds < best.seconds) {
+      best = { seconds, race };
+    }
+  });
+  return best;
+}
+
+// Card chiusa: i migliori tempi su 10 km, mezza e maratona (i 3 traguardi
+// più comuni per chi corre su strada) invece dell'elenco degli ultimi
+// risultati — una card chiusa dice "quanto sei forte", non "cosa hai fatto
+// di recente" (quello si legge aprendo "Gare"). Vuoto -> stesso placeholder
+// già usato per "Nessun risultato registrato" negli altri elenchi atleti.
+const MASTER_BEST_TIME_TYPES = ['10k', 'mezza', 'maratona'];
+
 function masterRaceResultsSummaryMarkup(entry) {
-  const results = [...(entry.raceResults || [])]
-    .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0))
-    .slice(0, 6);
+  const results = entry.raceResults || [];
   if (!results.length) {
     return '<div class="v2-tiles"><div class="v2-tile v2-tile-empty">Nessun risultato gara</div></div>';
   }
-  const rows = results.map((race) => {
-    const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+  const pb = '<span class="v2-pb">PB</span>';
+  const tiles = MASTER_BEST_TIME_TYPES.map((type) => {
+    const label = RACE_TYPE_LABELS[type] || type;
+    const best = masterRaceBest(results, type);
+    if (!best) {
+      return `
+        <div class="v2-tile v2-tile-race-best">
+          <div class="v2-tile-head"><span class="v2-tile-ic">${MTEST_TROPHY_ICON}</span>${escapeHtml(label)}</div>
+          <div class="v2-tile-val v2-tile-val-sm">--</div>
+        </div>
+      `;
+    }
     return `
-      <div class="v2-race-row">
-        <span class="v2-race-type">${MTEST_TROPHY_ICON}<span>${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span></span>
-        <span class="v2-race-time-block">
-          <span class="v2-race-result">${escapeHtml(race.result)}</span>
-          <span class="v2-race-meta">${meta}</span>
-        </span>
+      <div class="v2-tile v2-tile-race-best">
+        <div class="v2-tile-head"><span class="v2-tile-ic">${MTEST_TROPHY_ICON}</span>${escapeHtml(label)} ${pb}</div>
+        <div class="v2-tile-val v2-tile-val-sm">${escapeHtml(best.race.result)}</div>
+        <div class="v2-tile-sub">${escapeHtml(shortYearDate(best.race.date))}</div>
       </div>
     `;
   }).join('');
-  return `<div class="v2-race-list">${rows}</div>`;
+  return `<div class="v2-tiles">${tiles}</div>`;
 }
 
-// Sezione "Risultati gare": form per aggiungerne uno (distanza da RACE_TYPES,
-// risultato libero — le distanze coperte vanno dai 100 km agli 800 m, un
-// tempo unico mm:ss/hh:mm:ss non avrebbe senso per tutte) + elenco di quelli
-// già salvati, eliminabili. Quelli più recenti per data finiscono nella
-// card chiusa (vedi masterRaceResultsSummaryMarkup).
-function masterRaceResultsSectionMarkup(entry) {
-  const results = [...(entry.raceResults || [])]
+// Sezione "Risultati gare": form per aggiungerne uno, dentro un accordion
+// proprio ("Aggiungi risultato gara", chiuso di default — si apre da solo
+// quando si modifica un risultato esistente) + filtri (anno, distanza,
+// cerca per nome/luogo) + elenco di quelli già salvati, eliminabili. I
+// migliori su 10k/mezza/maratona finiscono nella card chiusa (vedi
+// masterRaceResultsSummaryMarkup).
+function masterRaceFilteredResults(entry) {
+  const allResults = [...(entry.raceResults || [])]
     .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0));
-  const editingId = masterRaceEditing.get(entry.id) || null;
-  const editingRace = editingId ? results.find((race) => race.id === editingId) : null;
+  const filters = masterRaceGetFilters(entry.id);
+  const years = [...new Set(allResults.map((race) => {
+    const ms = parseItDate(race.date);
+    return ms === null ? null : new Date(ms).getFullYear();
+  }).filter((y) => y !== null))].sort((a, b) => b - a);
+  const results = allResults.filter((race) => {
+    if (filters.year) {
+      const ms = parseItDate(race.date);
+      if (ms === null || String(new Date(ms).getFullYear()) !== filters.year) {
+        return false;
+      }
+    }
+    if (filters.type && race.type !== filters.type) {
+      return false;
+    }
+    if (filters.query) {
+      const q = filters.query.trim().toLowerCase();
+      const haystack = `${race.name || ''} ${race.location || ''}`.toLowerCase();
+      if (!haystack.includes(q)) {
+        return false;
+      }
+    }
+    return true;
+  });
+  return { allResults, results, years };
+}
 
+function masterRaceListMarkup(entry) {
+  const { allResults, results } = masterRaceFilteredResults(entry);
+  const editingId = masterRaceEditing.get(entry.id) || null;
   const listMarkup = results.length
     ? results.map((race) => {
-      const meta = [race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+      const title = race.name || RACE_TYPE_LABELS[race.type] || race.type;
+      const meta = [RACE_TYPE_LABELS[race.type] || race.type, race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
+      const bibMarkup = race.bib ? `<span class="race-bib" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
+      const linkMarkup = race.link ? `<a class="race-entry-link" href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Link risultato</a>` : '';
+      const noteMarkup = race.note ? `<div class="race-entry-note">${escapeHtml(race.note)}</div>` : '';
       return `
-        <div class="race-entry${race.id === editingId ? ' race-entry-editing' : ''}">
-          <span class="race-entry-type">${escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)}</span>
-          <span class="race-entry-result">${escapeHtml(race.result)}</span>
-          <span class="race-entry-meta">${meta || '—'}</span>
-          <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
-          <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
+        <div class="race-entry race-entry-master${race.id === editingId ? ' race-entry-editing' : ''}">
+          <div class="race-entry-head">
+            ${bibMarkup}
+            <div class="race-entry-title-wrap">
+              <span class="race-entry-title">${escapeHtml(title)}</span>
+              <span class="race-entry-meta">${meta || '—'}</span>
+            </div>
+            <span class="race-entry-result">${escapeHtml(race.result)}</span>
+          </div>
+          ${linkMarkup}
+          ${noteMarkup}
+          <div class="race-entry-actions">
+            <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
+            <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
+          </div>
         </div>
       `;
     }).join('')
-    : '<div class="race-empty">Nessun risultato ancora aggiunto.</div>';
+    : `<div class="race-empty">${allResults.length ? 'Nessun risultato con questi filtri.' : 'Nessun risultato ancora aggiunto.'}</div>`;
+  return `<div class="race-list">${listMarkup}</div>`;
+}
+
+function masterRaceRefreshList(athleteId) {
+  const entry = getMaster().find((e) => e.id === athleteId);
+  if (!entry) return;
+  const listEl = document.querySelector(`.athlete-item[data-id="${athleteId}"] .race-list`);
+  if (!listEl) return;
+  listEl.outerHTML = masterRaceListMarkup(entry);
+}
+
+function masterRaceResultsSectionMarkup(entry) {
+  const editingId = masterRaceEditing.get(entry.id) || null;
+  const allResultsSorted = [...(entry.raceResults || [])]
+    .sort((a, b) => (parseItDate(b.date) || 0) - (parseItDate(a.date) || 0));
+  const editingRace = editingId ? allResultsSorted.find((race) => race.id === editingId) : null;
+  const filters = masterRaceGetFilters(entry.id);
+  const { years } = masterRaceFilteredResults(entry);
 
   const defaultType = editingRace ? editingRace.type : RACE_TYPES[0][0];
   const resultDigits = editingRace ? editingRace.result.replace(/[^0-9]/g, '') : '';
   const typeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === defaultType ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  const filterTypeOptions = RACE_TYPES.map(([value, label]) => `<option value="${value}"${value === filters.type ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');
+  const filterYearOptions = years.map((y) => `<option value="${y}"${String(y) === filters.year ? ' selected' : ''}>${y}</option>`).join('');
   const cancelBtn = editingId
     ? `<button type="button" class="race-cancel-btn" data-id="${entry.id}" aria-label="Annulla modifica" title="Annulla modifica">${MTEST_CLOSE_ICON}</button>`
     : '';
 
   return `
-    <div class="race-form" data-id="${entry.id}"${editingId ? ` data-editing-id="${escapeHtml(editingId)}"` : ''}>
-      <div class="field-row">
-        <div class="field-group">
-          <label>Distanza</label>
-          <select class="race-type-input">${typeOptions}</select>
-        </div>
-        <div class="field-group">
-          <label>Risultato</label>
-          <input type="text" inputmode="numeric" autocomplete="off" class="race-result-input" data-digits="${resultDigits}" value="${escapeHtml(formatRaceResultMask(resultDigits, defaultType))}" placeholder="42'15&quot;" />
+    <details class="mtest-section race-form-section" data-section-key="race-form"${editingId || masterSectionIsOpen(entry.id, 'race-form', false) ? ' open' : ''}>
+      <summary class="mtest-section-summary">Aggiungi risultato gara</summary>
+      <div class="mtest-section-body">
+        <div class="race-form" data-id="${entry.id}"${editingId ? ` data-editing-id="${escapeHtml(editingId)}"` : ''}>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Nome gara</label>
+              <input type="text" class="race-name-input" placeholder="es. Roma - Ostia" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.name : '')}" />
+            </div>
+            <div class="field-group">
+              <label>Pettorale</label>
+              <input type="text" class="race-bib-input" placeholder="es. 4521" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.bib : '')}" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Distanza</label>
+              <select class="race-type-input">${typeOptions}</select>
+            </div>
+            <div class="field-group">
+              <label>Risultato</label>
+              <input type="text" inputmode="numeric" autocomplete="off" class="race-result-input" data-digits="${resultDigits}" value="${escapeHtml(formatRaceResultMask(resultDigits, defaultType))}" placeholder="42'15&quot;" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Data</label>
+              <input type="date" class="race-date-input" value="${editingRace ? itDateToIso(editingRace.date) : ''}" />
+            </div>
+            <div class="field-group">
+              <label>Luogo</label>
+              <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.location : '')}" />
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Link risultato</label>
+              <input type="url" inputmode="url" class="race-link-input" placeholder="https://..." autocomplete="off" value="${escapeHtml(editingRace ? editingRace.link : '')}" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Note</label>
+            <input type="text" class="race-note-input" placeholder="es. Post infortunio" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.note : '')}" />
+          </div>
+          <div class="race-form-actions">
+            <button type="button" class="race-add-btn" data-id="${entry.id}">${editingId ? MTEST_CHECK_ICON : MTEST_PLUS_ICON} ${editingId ? 'Salva modifiche' : 'Aggiungi risultato'}</button>
+            ${cancelBtn}
+          </div>
         </div>
       </div>
-      <div class="field-row">
-        <div class="field-group">
-          <label>Data</label>
-          <input type="date" class="race-date-input" value="${editingRace ? itDateToIso(editingRace.date) : ''}" />
-        </div>
-        <div class="field-group">
-          <label>Luogo</label>
-          <input type="text" class="race-location-input" placeholder="es. Milano" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.location : '')}" />
-        </div>
-      </div>
-      <div class="race-form-actions">
-        <button type="button" class="race-add-btn" data-id="${entry.id}">${editingId ? MTEST_CHECK_ICON : MTEST_PLUS_ICON} ${editingId ? 'Salva modifiche' : 'Aggiungi risultato'}</button>
-        ${cancelBtn}
-      </div>
+    </details>
+    <div class="race-filters" data-id="${entry.id}">
+      <select class="race-filter-year">
+        <option value="">Tutti gli anni</option>
+        ${filterYearOptions}
+      </select>
+      <select class="race-filter-type">
+        <option value="">Tutte le distanze</option>
+        ${filterTypeOptions}
+      </select>
+      <input type="text" class="race-filter-query" placeholder="Cerca per nome o luogo…" autocomplete="off" value="${escapeHtml(filters.query)}" />
     </div>
-    <div class="race-list">${listMarkup}</div>
+    ${masterRaceListMarkup(entry)}
   `;
 }
 
@@ -8413,6 +8705,10 @@ async function handleMasterRaceAdd(addBtn) {
   const resultInput = form.querySelector('.race-result-input');
   const dateInput = form.querySelector('.race-date-input');
   const locationInput = form.querySelector('.race-location-input');
+  const nameInput = form.querySelector('.race-name-input');
+  const linkInput = form.querySelector('.race-link-input');
+  const noteInput = form.querySelector('.race-note-input');
+  const bibInput = form.querySelector('.race-bib-input');
 
   const result = resultInput.value.trim();
   const dateIso = dateInput.value;
@@ -8432,6 +8728,10 @@ async function handleMasterRaceAdd(addBtn) {
     result,
     date: isoDateToIt(dateIso),
     location: locationInput.value.trim(),
+    name: nameInput.value.trim(),
+    link: linkInput.value.trim(),
+    note: noteInput.value.trim(),
+    bib: bibInput.value.trim(),
   };
 
   const currentList = Array.isArray(entries[index].raceResults) ? entries[index].raceResults : [];
@@ -9532,6 +9832,20 @@ function masterWire(key) {
   // menu accanto: cambiandola si riapplica la maschera alle stesse cifre già
   // digitate, invece di dover riscrivere il risultato da capo.
   masterOn(key, masterListEl, 'change', (event) => {
+    const raceFilterYear = event.target.closest('.race-filter-year');
+    if (raceFilterYear) {
+      const athleteId = raceFilterYear.closest('.race-filters').dataset.id;
+      masterRaceGetFilters(athleteId).year = raceFilterYear.value;
+      masterRaceRefreshList(athleteId);
+      return;
+    }
+    const raceFilterType = event.target.closest('.race-filter-type');
+    if (raceFilterType) {
+      const athleteId = raceFilterType.closest('.race-filters').dataset.id;
+      masterRaceGetFilters(athleteId).type = raceFilterType.value;
+      masterRaceRefreshList(athleteId);
+      return;
+    }
     const raceTypeInput = event.target.closest('.race-type-input');
     if (raceTypeInput) {
       const form = raceTypeInput.closest('.race-form');
@@ -9566,6 +9880,13 @@ function masterWire(key) {
   });
 
   masterOn(key, masterListEl, 'input', (event) => {
+    const raceFilterQuery = event.target.closest('.race-filter-query');
+    if (raceFilterQuery) {
+      const athleteId = raceFilterQuery.closest('.race-filters').dataset.id;
+      masterRaceGetFilters(athleteId).query = raceFilterQuery.value;
+      masterRaceRefreshList(athleteId);
+      return;
+    }
     const notesInput = event.target.closest('.mtest-notes .notes-input');
     if (notesInput) {
       const button = notesInput.closest('.notes-new').querySelector('.notes-btn');
@@ -9597,6 +9918,9 @@ function masterWire(key) {
       const repsBlock = masterSeriesFindBlock(repsInput);
       repsBlock.reps = repsInput.value;
       masterSeriesUpdateBlockVolumeNote(repsInput, repsBlock);
+      masterSeriesUpdateRecSectionVisibility(repsInput, repsBlock);
+      const repsState = masterSeriesGetState(repsInput.closest('.athlete-item').dataset.id);
+      masterSeriesUpdateStrengthCorsaTotal(repsInput, repsState.strength);
       masterSeriesInvalidate(repsInput);
       return;
     }
@@ -9606,6 +9930,8 @@ function masterWire(key) {
       const distBlock = masterSeriesFindBlock(distInput);
       distBlock.dist = distInput.value;
       masterSeriesUpdateBlockVolumeNote(distInput, distBlock);
+      const distState = masterSeriesGetState(distInput.closest('.athlete-item').dataset.id);
+      masterSeriesUpdateStrengthCorsaTotal(distInput, distState.strength);
       masterSeriesInvalidate(distInput);
       return;
     }
@@ -10185,6 +10511,32 @@ function trainingMonthGroups() {
 // corpo mostra i tempi per atleta congelati al salvataggio invece di un
 // editor — riusa milAthleteCompactRowMarkup, la stessa riga ultra-compatta
 // già usata dentro il simulatore.
+// Stesso riepilogo di masterTrainingWorkoutSummaryMarkup, ma per un
+// allenamento salvato dai Militari: qui training.strength.items (non
+// rawStrength) ha già il dettaglio di ogni esercizio, mai congelato via
+// stime come i blocchi di Master.
+function milTrainingWorkoutSummaryMarkup(training, resultBlocks) {
+  const lines = [];
+  if (training.strength && training.strength.enabled) {
+    (training.strength.items || [])
+      .filter((item) => item.kind !== 'repeat')
+      .forEach((ex) => lines.push(masterSeriesStrengthExerciseSummaryText(ex)));
+  }
+  resultBlocks.forEach((block) => {
+    const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
+    lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
+  });
+  if (!lines.length) {
+    return '';
+  }
+  return `
+    <div class="mtrain-workout-summary">
+      <div class="mtrain-workout-summary-title">Allenamento svolto</div>
+      <ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
 function milTrainingSimRowMarkup(training) {
   const chevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   const blocks = Array.isArray(training.blocks) ? training.blocks : [];
@@ -10203,8 +10555,9 @@ function milTrainingSimRowMarkup(training) {
     : '';
   const { volumeLine, eccentricLine } = strength ? masterSeriesStrengthSummaryLines(strength) : { volumeLine: '', eccentricLine: '' };
   const strengthSummaryMarkup = strength ? `${volumeLine}${eccentricLine}` : '';
-  const bodyMarkup = (athletesMarkup || strengthSummaryMarkup)
-    ? `${strengthSummaryMarkup}${athletesMarkup}`
+  const workoutSummaryMarkup = milTrainingWorkoutSummaryMarkup(training, resultBlocks);
+  const bodyMarkup = (athletesMarkup || strengthSummaryMarkup || workoutSummaryMarkup)
+    ? `${workoutSummaryMarkup}${strengthSummaryMarkup}${athletesMarkup}`
     : '<div class="mil-ath-empty">Nessun dettaglio salvato per questo allenamento.</div>';
 
   const item = document.createElement('div');
@@ -11077,6 +11430,8 @@ if (milSeriesBody) {
       const repsBlock = milSeriesFindBlock(repsInput);
       repsBlock.reps = repsInput.value;
       masterSeriesUpdateBlockVolumeNote(repsInput, repsBlock);
+      masterSeriesUpdateRecSectionVisibility(repsInput, repsBlock);
+      masterSeriesUpdateStrengthCorsaTotal(repsInput, milSeriesState.strength);
       return;
     }
     const distInput = event.target.closest('.mseries-dist-input');
@@ -11085,6 +11440,7 @@ if (milSeriesBody) {
       const distBlock = milSeriesFindBlock(distInput);
       distBlock.dist = distInput.value;
       masterSeriesUpdateBlockVolumeNote(distInput, distBlock);
+      masterSeriesUpdateStrengthCorsaTotal(distInput, milSeriesState.strength);
       return;
     }
     const gapRecInput = event.target.closest('.mseries-gap-rec-input');
@@ -11372,7 +11728,7 @@ async function checkStaleTests() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
   const choice = await showChoice('Test da rifare', {
-    detailHtml: `L'ultimo test di questi atleti risale a più di ${TEST_REMINDER_WEEKS} settimane fa:<ul class="app-confirm-list">${uniqueStale.map((name) => `<li>${escapeHtml(name)}</li>`).join('')}</ul>`,
+    detailHtml: `L'ultimo test di questi atleti risale a più di ${TEST_REMINDER_WEEKS} settimane fa:<div class="app-confirm-list">${uniqueStale.map((name) => `<div>${escapeHtml(name)}</div>`).join('')}</div>`,
     options: [
       { value: 'ok', label: 'Ho capito', className: 'app-btn-success' },
       { value: 'snooze1', label: 'Rimanda di 1 settimana', className: 'app-btn-ghost' },
