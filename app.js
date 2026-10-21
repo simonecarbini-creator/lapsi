@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21b';
-console.log('[Lapsi] build', APP_BUILD, '— nuova categoria gare 15 km');
+const APP_BUILD = '2026-10-21c';
+console.log('[Lapsi] build', APP_BUILD, '— fix importa dati su iPhone: il selettore file non si apriva');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1875,13 +1875,19 @@ function showChoice(message, { detail = '', detailHtml = '', options = [] } = {}
     `;
 
     let settled = false;
+    // Risolve la promise SUBITO (non dopo l'animazione di chiusura, che passa
+    // da un setTimeout): chi chiama questa funzione con "await" e poi apre un
+    // <input type="file"> (vedi handleImportMenuClick) deve farlo nello stesso
+    // gesto utente, altrimenti Safari su iOS ignora silenziosamente il click
+    // sull'input e il selettore file non si apre affatto.
     const close = (result) => {
       if (settled) {
         return;
       }
       settled = true;
       document.removeEventListener('keydown', onKey);
-      dismissOverlay(overlay, () => resolve(result));
+      resolve(result);
+      dismissOverlay(overlay);
     };
     const onKey = (event) => {
       if (event.key === 'Escape') {
