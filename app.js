@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21f';
-console.log('[Lapsi] build', APP_BUILD, '— filtro gare cerca anche per pettorale');
+const APP_BUILD = '2026-10-21g';
+console.log('[Lapsi] build', APP_BUILD, '— tipologia/luogo/data sotto il pettorale, filtri gare anno+distanza affiancati con cerca e lente');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -6057,6 +6057,7 @@ const MTEST_INFO_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hi
 const MTEST_CLOSE_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
 const MTEST_PLUS_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 const MTEST_COPY_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>';
+const MTEST_SEARCH_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
 // Maniglia di trascinamento (sei puntini) per riordinare i box del giorno
 // di forza — vedi strengthDragStart.
 const MTEST_DRAG_ICON = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true" focusable="false" fill="currentColor"><circle cx="9" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>';
@@ -8623,13 +8624,13 @@ function masterRaceListMarkup(entry) {
       return `
         <div class="race-entry race-entry-master${race.id === editingId ? ' race-entry-editing' : ''}">
           <div class="race-entry-head">
-            ${bibMarkup}
-            <div class="race-entry-title-wrap">
+            <div class="race-entry-top-row">
+              ${bibMarkup}
               <span class="race-entry-title">${escapeHtml(title)}</span>
-              <span class="race-entry-meta">${meta || '—'}</span>
+              <span class="race-entry-result">${escapeHtml(race.result)}</span>
+              ${pbMarkup}
             </div>
-            <span class="race-entry-result">${escapeHtml(race.result)}</span>
-            ${pbMarkup}
+            <div class="race-entry-meta">${meta || '—'}</div>
           </div>
           ${linkMarkup}
           <div class="race-entry-actions">
@@ -8721,15 +8722,20 @@ function masterRaceResultsSectionMarkup(entry) {
       </div>
     </details>
     <div class="race-filters" data-id="${entry.id}">
-      <select class="race-filter-year">
-        <option value="">Tutti gli anni</option>
-        ${filterYearOptions}
-      </select>
-      <select class="race-filter-type">
-        <option value="">Tutte le distanze</option>
-        ${filterTypeOptions}
-      </select>
-      <input type="text" class="race-filter-query" placeholder="Cerca per nome, luogo o pettorale…" autocomplete="off" value="${escapeHtml(filters.query)}" />
+      <div class="race-filters-row">
+        <select class="race-filter-year">
+          <option value="">Tutti gli anni</option>
+          ${filterYearOptions}
+        </select>
+        <select class="race-filter-type">
+          <option value="">Tutte le distanze</option>
+          ${filterTypeOptions}
+        </select>
+      </div>
+      <div class="race-filter-search">
+        <input type="text" class="race-filter-query" placeholder="Cerca per nome, luogo o pettorale…" autocomplete="off" value="${escapeHtml(filters.query)}" />
+        <span class="race-filter-search-icon">${MTEST_SEARCH_ICON}</span>
+      </div>
     </div>
     ${masterRaceListMarkup(entry)}
   `;

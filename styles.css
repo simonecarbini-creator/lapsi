@@ -3284,14 +3284,23 @@ button:active {
 
 .race-filters {
   display: flex;
+  flex-direction: column;
   gap: 6px;
-  flex-wrap: wrap;
+}
+
+.race-filters-row {
+  display: flex;
+  gap: 6px;
 }
 
 .race-filters select,
 .race-filters input {
-  flex: 1 1 auto;
-  min-width: 90px;
+  /* flex-basis:0 (non "auto"): l'input/select globale ha width:100% di
+     base, che come flex-basis "auto" vincerebbe sempre facendo andare ogni
+     elemento a riga singola invece di stare affiancati. */
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
   padding: 7px 8px;
   border-radius: 8px;
   border: 1px solid var(--card-border);
@@ -3300,8 +3309,23 @@ button:active {
   color: var(--text);
 }
 
-.race-filters .race-filter-query {
-  flex: 1 1 100%;
+.race-filter-search {
+  position: relative;
+}
+
+.race-filter-search .race-filter-query {
+  width: 100%;
+  padding-right: 32px;
+}
+
+.race-filter-search-icon {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--muted);
+  pointer-events: none;
 }
 
 .race-entry-master {
@@ -3310,24 +3334,25 @@ button:active {
   gap: 4px;
 }
 
+/* Pettorale + nome + risultato sulla prima riga (.race-entry-top-row);
+   tipologia/luogo/data su una riga a parte sotto, a tutta larghezza — non
+   più indentata quanto il pettorale, come capitava quando era dentro lo
+   stesso blocco flessibile verticale del nome. */
 .race-entry-head {
   display: flex;
-  /* flex-start (non center): il pettorale affianca il nome della gara sulla
-     prima riga, senza "fluttuare" centrato su nome+meta insieme — sotto
-     restano libere tipologia/luogo/data, allineate a sinistra come il
-     nome. */
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.race-entry-top-row {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
-.race-entry-title-wrap {
+.race-entry-title {
   flex: 1 1 auto;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.race-entry-title {
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--text);
@@ -3337,8 +3362,10 @@ button:active {
 }
 
 .race-entry-master .race-entry-meta {
+  display: block;
   flex: none;
-  min-width: 0;
+  width: 100%;
+  text-align: left;
 }
 
 .race-entry-master .race-entry-result {
