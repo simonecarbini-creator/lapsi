@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21e';
-console.log('[Lapsi] build', APP_BUILD, '— form gara: chiusura dopo modifica, effetto editing, pettorale accanto al nome, fix tempo con ora singola');
+const APP_BUILD = '2026-10-21f';
+console.log('[Lapsi] build', APP_BUILD, '— filtro gare cerca anche per pettorale');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8599,7 +8599,7 @@ function masterRaceFilteredResults(entry) {
     }
     if (filters.query) {
       const q = filters.query.trim().toLowerCase();
-      const haystack = `${race.name || ''} ${race.location || ''}`.toLowerCase();
+      const haystack = `${race.name || ''} ${race.location || ''} ${race.bib || ''}`.toLowerCase();
       if (!haystack.includes(q)) {
         return false;
       }
@@ -8729,7 +8729,7 @@ function masterRaceResultsSectionMarkup(entry) {
         <option value="">Tutte le distanze</option>
         ${filterTypeOptions}
       </select>
-      <input type="text" class="race-filter-query" placeholder="Cerca per nome o luogo…" autocomplete="off" value="${escapeHtml(filters.query)}" />
+      <input type="text" class="race-filter-query" placeholder="Cerca per nome, luogo o pettorale…" autocomplete="off" value="${escapeHtml(filters.query)}" />
     </div>
     ${masterRaceListMarkup(entry)}
   `;
