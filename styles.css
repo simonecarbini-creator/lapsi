@@ -1886,7 +1886,7 @@ label {
   font-size: 0.96rem;
 }
 
-input, select {
+input, select, textarea {
   width: 100%;
   border: 1px solid rgba(31, 31, 31, 0.08);
   border-radius: 12px;
@@ -1896,6 +1896,12 @@ input, select {
   -webkit-backdrop-filter: blur(10px);
   color: var(--text);
   font-size: 0.96rem;
+}
+
+textarea {
+  resize: vertical;
+  font-family: inherit;
+  min-height: 72px;
 }
 
 input[type='number'] {
@@ -3187,6 +3193,7 @@ button:active {
 }
 
 .race-entry-edit,
+.race-entry-view,
 .race-entry-del {
   flex-shrink: 0;
   width: 26px;
@@ -3199,10 +3206,15 @@ button:active {
 }
 
 .race-entry-edit {
-  /* Spinge sé stessa (e il cestino subito dopo) fino al bordo destro della
-     riga: senza, con contenuto corto (es. "10 km") le due icone restavano
+  /* Spinge sé stessa (e le icone successive) fino al bordo destro della
+     riga: senza, con contenuto corto (es. "10 km") le icone restavano
      appiccicate al testo invece di ancorarsi all'estremità come richiesto. */
   margin-left: auto;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--text);
+}
+
+.race-entry-view {
   background: rgba(245, 245, 245, 0.9);
   color: var(--text);
 }
@@ -3341,7 +3353,7 @@ button:active {
 .race-entry-head {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 7px;
 }
 
 .race-entry-top-row {
@@ -3372,16 +3384,18 @@ button:active {
   flex: 0 0 auto;
 }
 
+/* Un PB si segnala colorando il tempo (e il pettorale, se c'è) invece di
+   un badge "PB" a parte accanto al tempo: il tempo resta sempre l'ultima
+   cosa a destra sulla riga. */
+.race-entry-result-pb {
+  color: #9a6b0c;
+}
+
 .race-entry-link {
   font-size: 0.74rem;
   font-weight: 600;
   color: var(--primary);
   text-decoration: underline;
-}
-
-.race-entry-pb {
-  flex-shrink: 0;
-  margin-left: 6px;
 }
 
 .race-entry-actions {
@@ -3407,6 +3421,79 @@ button:active {
   font-size: 0.82rem;
   letter-spacing: 0.02em;
   color: var(--text);
+}
+
+.race-bib-pb {
+  background: #fdf6e3;
+  border-color: #9a6b0c;
+  color: #9a6b0c;
+}
+
+/* ===== Popup dettagli gara (icona lente in elenco): usa l'overlay già
+   pronto di showChoice, solo il contenuto dentro detailHtml è specifico
+   qui. ===== */
+.race-detail-popup {
+  text-align: left;
+}
+
+.race-detail-pb-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: #fdf6e3;
+  color: #9a6b0c;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.race-detail-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.race-detail-row + .race-detail-row {
+  border-top: 1px dashed var(--card-border);
+}
+
+.race-detail-label {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.race-detail-value {
+  text-align: right;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.race-detail-result {
+  font-size: 1rem;
+}
+
+.race-detail-result-pb {
+  color: #9a6b0c;
+}
+
+.race-detail-note {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--card-border);
+}
+
+.race-detail-note p {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  text-align: left;
 }
 
 /* ===== Note atleta: registro con data per ogni nota ===== */

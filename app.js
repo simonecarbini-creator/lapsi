@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21g';
-console.log('[Lapsi] build', APP_BUILD, '— tipologia/luogo/data sotto il pettorale, filtri gare anno+distanza affiancati con cerca e lente');
+const APP_BUILD = '2026-10-21h';
+console.log('[Lapsi] build', APP_BUILD, '— PB colorato in oro, popup dettagli gara, note in textarea');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -8618,23 +8618,23 @@ function masterRaceListMarkup(entry) {
     ? results.map((race) => {
       const title = race.name || RACE_TYPE_LABELS[race.type] || race.type;
       const meta = [RACE_TYPE_LABELS[race.type] || race.type, race.location, shortYearDate(race.date)].filter(Boolean).map(escapeHtml).join(' · ');
-      const bibMarkup = race.bib ? `<span class="race-bib" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
+      const isPb = bestIds.has(race.id);
+      const bibMarkup = race.bib ? `<span class="race-bib${isPb ? ' race-bib-pb' : ''}" title="Pettorale ${escapeHtml(race.bib)}">${escapeHtml(race.bib)}</span>` : '';
       const linkMarkup = race.link ? `<a class="race-entry-link" href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Link risultato</a>` : '';
-      const pbMarkup = bestIds.has(race.id) ? '<span class="v2-pb race-entry-pb">PB</span>' : '';
       return `
         <div class="race-entry race-entry-master${race.id === editingId ? ' race-entry-editing' : ''}">
           <div class="race-entry-head">
             <div class="race-entry-top-row">
               ${bibMarkup}
               <span class="race-entry-title">${escapeHtml(title)}</span>
-              <span class="race-entry-result">${escapeHtml(race.result)}</span>
-              ${pbMarkup}
+              <span class="race-entry-result${isPb ? ' race-entry-result-pb' : ''}">${escapeHtml(race.result)}</span>
             </div>
             <div class="race-entry-meta">${meta || '—'}</div>
           </div>
           ${linkMarkup}
           <div class="race-entry-actions">
             <button type="button" class="race-entry-edit" data-id="${escapeHtml(race.id)}" aria-label="Modifica questo risultato">✎</button>
+            <button type="button" class="race-entry-view" data-id="${escapeHtml(race.id)}" aria-label="Vedi dettagli gara">${MTEST_SEARCH_ICON}</button>
             <button type="button" class="race-entry-del" data-id="${escapeHtml(race.id)}" aria-label="Elimina questo risultato">${MTEST_DEL_ICON}</button>
           </div>
         </div>
@@ -8712,7 +8712,7 @@ function masterRaceResultsSectionMarkup(entry) {
           </div>
           <div class="field-group">
             <label>Note</label>
-            <input type="text" class="race-note-input" placeholder="es. Post infortunio" autocomplete="off" value="${escapeHtml(editingRace ? editingRace.note : '')}" />
+            <textarea class="race-note-input" rows="3" placeholder="es. Post infortunio">${escapeHtml(editingRace ? editingRace.note : '')}</textarea>
           </div>
           <div class="race-form-actions">
             <button type="button" class="race-add-btn" data-id="${entry.id}">${editingId ? MTEST_CHECK_ICON : MTEST_PLUS_ICON} ${editingId ? 'Salva modifiche' : 'Aggiungi risultato'}</button>
@@ -8817,6 +8817,52 @@ async function handleMasterRaceDelete(delBtn) {
     masterRaceEditing.delete(athleteId);
   }
   renderMaster();
+}
+
+// Popup di sola lettura con tutti i dettagli di una gara (icona lente in
+// elenco, tra modifica ed elimina): la riga nell'elenco è già compatta per
+// stare su più righe nella card, qui invece c'è spazio per mostrare anche
+// le note e il link per intero, oltre a specificare chiaramente quando il
+// risultato è un personal best.
+async function handleMasterRaceView(athleteId, raceId) {
+  const entry = getMaster().find((e) => e.id === athleteId);
+  const race = entry && (entry.raceResults || []).find((r) => r.id === raceId);
+  if (!race) {
+    return;
+  }
+  const isPb = masterRaceBestIds(entry.raceResults || []).has(race.id);
+  const title = race.name || RACE_TYPE_LABELS[race.type] || race.type;
+
+  const rows = [];
+  rows.push(['Distanza', escapeHtml(RACE_TYPE_LABELS[race.type] || race.type)]);
+  rows.push(['Risultato', `<b class="race-detail-result${isPb ? ' race-detail-result-pb' : ''}">${escapeHtml(race.result)}</b>`]);
+  rows.push(['Data', escapeHtml(shortYearDate(race.date) || race.date || '—')]);
+  if (race.location) {
+    rows.push(['Luogo', escapeHtml(race.location)]);
+  }
+  if (race.bib) {
+    rows.push(['Pettorale', `<span class="race-bib${isPb ? ' race-bib-pb' : ''}">${escapeHtml(race.bib)}</span>`]);
+  }
+  if (race.link) {
+    rows.push(['Link', `<a href="${escapeHtml(race.link)}" target="_blank" rel="noopener noreferrer">Apri il risultato</a>`]);
+  }
+  const rowsHtml = rows.map(([label, value]) => `
+    <div class="race-detail-row">
+      <span class="race-detail-label">${label}</span>
+      <span class="race-detail-value">${value}</span>
+    </div>
+  `).join('');
+  const pbBannerHtml = isPb
+    ? `<div class="race-detail-pb-banner">${MTEST_TROPHY_ICON} Personal best su ${escapeHtml((RACE_TYPE_LABELS[race.type] || race.type).toLowerCase())}</div>`
+    : '';
+  const noteHtml = race.note
+    ? `<div class="race-detail-note"><span class="race-detail-label">Note</span><p>${escapeHtml(race.note)}</p></div>`
+    : '';
+
+  await showChoice(title, {
+    detailHtml: `<div class="race-detail-popup">${pbBannerHtml}${rowsHtml}${noteHtml}</div>`,
+    options: [{ value: 'close', label: 'Chiudi', className: 'app-btn-ghost' }],
+  });
 }
 
 function mtestApplyMask(input) {
@@ -9260,6 +9306,13 @@ async function handleMasterListClick(event) {
   const raceDelButton = event.target.closest('.race-entry-del');
   if (raceDelButton) {
     await handleMasterRaceDelete(raceDelButton);
+    return;
+  }
+
+  const raceViewButton = event.target.closest('.race-entry-view');
+  if (raceViewButton) {
+    const card = raceViewButton.closest('.athlete-item');
+    await handleMasterRaceView(card.dataset.id, raceViewButton.dataset.id);
     return;
   }
 
