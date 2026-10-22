@@ -5028,13 +5028,6 @@ button:active {
   background: var(--bg-strong);
 }
 
-/* Stesso identico box di "Aggiungi blocco"/"Aggiungi esercizio", solo il
-   testo in blu per distinguerlo a colpo d'occhio dagli altri due. */
-.mseries-add-rest-btn,
-.mseries-strength-add-rest-btn {
-  color: var(--soglia-color);
-}
-
 .mseries-block-paste-btn {
   display: flex;
   align-items: center;
@@ -5431,6 +5424,15 @@ button:active {
 .mseries-strength-add-repeat-btn:hover,
 .mseries-strength-add-rest-btn:hover {
   background: #fff;
+}
+
+/* Stesso identico box di "Aggiungi blocco"/"Aggiungi esercizio"/
+   "Aggiungi blocco di corsa", solo il testo in blu per distinguerlo a
+   colpo d'occhio dagli altri — deve stare DOPO le regole base qui sopra
+   (stessa specificità, altrimenti l'ordine nel file le sovrascrive). */
+.mseries-add-rest-btn,
+.mseries-strength-add-rest-btn {
+  color: var(--soglia-color);
 }
 
 .mseries-strength-total {

@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-22b';
-console.log('[Lapsi] build', APP_BUILD, '— titolo storico "Forza:", riordino card, bottone riposo uniformato, box riposo più compatto');
+const APP_BUILD = '2026-10-22c';
+console.log('[Lapsi] build', APP_BUILD, '— fix colore blu di "Aggiungi riposo" dentro il giorno di forza');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
