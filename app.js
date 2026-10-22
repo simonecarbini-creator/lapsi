@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-22a';
-console.log('[Lapsi] build', APP_BUILD, '— fix Confronta su blocchi di corsa del giorno di forza, blocco di riposo, fix salvataggio solo-forza');
+const APP_BUILD = '2026-10-22b';
+console.log('[Lapsi] build', APP_BUILD, '— titolo storico "Forza:", riordino card, bottone riposo uniformato, box riposo più compatto');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -7264,9 +7264,9 @@ function masterSeriesRestMarkup(rest) {
       <div class="mseries-gap-rec-row">
         <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rest-rec-input" data-block-id="${rest.id}" data-digits="${rest.recDigits}" value="${escapeHtml(seriesFormatRecMask(rest.recDigits))}" placeholder="10′00″" aria-label="Durata del riposo" />
         ${masterSeriesCheckboxMarkup('mseries-rest-rec-active-input', rest.id, rest.recActive, 'attivo')}
+        ${masterSeriesDragCopyFooterMarkup()}
       </div>
       <div class="mseries-rest-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
-      ${masterSeriesDragCopyFooterMarkup()}
     </div>
   `;
 }
@@ -7607,7 +7607,18 @@ function masterTrainingWorkoutSummaryMarkup(training) {
 function masterTrainingCardMarkup(training, open) {
   const blocks = training.blocks || [];
   const summary = blocks.map(masterTrainingBlockLabel).join(' + ');
-  const displayName = training.name || summary || 'Giorno di forza';
+  // Volume/eccentrico dei soli esercizi di forza (i blocchi di corsa sono già
+  // nelle tile sopra, con la loro distanza vera) — vedi handleMasterTrainingSave.
+  const strengthVolume = Number(training.strengthVolume) || 0;
+  const strengthEccentrico = Number(training.strengthEccentrico) || 0;
+  // Il titolo (nome scelto al salvataggio, o il riepilogo blocchi come
+  // ripiego) parte spesso con le serie di corsa anche quando c'è un intero
+  // giorno di forza prima — senza aprire la card non si direbbe. "Forza: "
+  // davanti lo segnala subito, qui a tempo di render (non al salvataggio:
+  // vale anche per gli allenamenti già salvati prima di questa modifica).
+  const isForzaDay = strengthVolume > 0 || strengthEccentrico > 0;
+  const baseName = training.name || summary || 'Giorno di forza';
+  const displayName = isForzaDay && !baseName.startsWith('Forza: ') ? `Forza: ${baseName}` : baseName;
   const blocksMarkup = blocks.map((block) => {
     const recLabel = masterTrainingRecLabel(block);
     const cells = block.estimates.map((estimate, di) => `
@@ -7624,16 +7635,17 @@ function masterTrainingCardMarkup(training, open) {
   const single = blocks.length === 1
     ? ` · ${escapeHtml(masterTrainingRecLabel(blocks[0]))}`
     : '';
-  // Volume/eccentrico dei soli esercizi di forza (i blocchi di corsa sono già
-  // nelle tile sopra, con la loro distanza vera) — vedi handleMasterTrainingSave.
-  const strengthVolume = Number(training.strengthVolume) || 0;
-  const strengthEccentrico = Number(training.strengthEccentrico) || 0;
   const strengthSummary = strengthVolume > 0 || strengthEccentrico > 0
     ? `<div class="mtrain-sub mtrain-strength-sub">Giorno di forza: +${(strengthVolume / 1000).toFixed(2).replace('.', ',')} km, carico eccentrico ${Math.round(strengthEccentrico)} (${escapeHtml(RipeteCalc.strengthEccentricoLabel(strengthEccentrico))}).</div>`
     : '';
   const volumeSummary = blocks.length
     ? `<div class="mtrain-sub">${escapeHtml(summary)} · Volume ${training.totalKm.toFixed(2).replace('.', ',')} km${single}</div>`
     : '';
+  // Il titolo nell'intestazione è troncato (giusto, altrimenti spinge via
+  // data/icone): aperta la card lo si ripete per intero qui, subito seguito
+  // dal riepilogo "Allenamento svolto" — quello che prima era il primo
+  // rigo (blocchi + volume) scende dopo, è un dettaglio tecnico in più,
+  // non la prima cosa da leggere.
   return `
     <details class="mtrain-card mtrain-card-sm" data-train="${escapeHtml(training.id)}" data-section-key="train-${escapeHtml(training.id)}"${open ? ' open' : ''}>
       <summary class="mtrain-summary">
@@ -7643,9 +7655,10 @@ function masterTrainingCardMarkup(training, open) {
         <button type="button" class="mtrain-del" data-train="${escapeHtml(training.id)}" aria-label="Elimina questo allenamento">${MTEST_DEL_ICON}</button>
       </summary>
       <div class="mtrain-body">
+        <div class="mtrain-full-title">${escapeHtml(displayName)}</div>
+        ${masterTrainingWorkoutSummaryMarkup(training)}
         ${volumeSummary}
         ${strengthSummary}
-        ${masterTrainingWorkoutSummaryMarkup(training)}
         ${blocksMarkup}
       </div>
     </details>`;
@@ -7713,9 +7726,9 @@ async function handleMasterTrainingSave(button) {
 
   const editingId = state.editingTrainingId || null;
   const editingTraining = editingId ? (entry.trainings || []).find((t) => t.id === editingId) : null;
-  const defaultName = editingTraining ? editingTraining.name : blocksForEstimates
-    .map((block) => `${(parseInt(block.reps, 10) || 1) > 1 ? `${parseInt(block.reps, 10)} × ` : ''}${String(block.dist).replace(/\//g, '-')} m`)
-    .join(' + ');
+  // Stessa formattazione "compatta" già usata per i Militari (milDefaultTrainingName):
+  // "4x400" invece di "4 × 400 m", niente spazi superflui.
+  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName(blocksForEstimates);
   const result = await showTrainingSavePrompt('Nome dell\'allenamento', {
     detail: 'Lo ritroverai nello storico allenamenti.',
     placeholder: 'es. Ripetute soglia',

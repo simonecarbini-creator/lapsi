@@ -5006,7 +5006,8 @@ button:active {
   margin-top: 10px;
 }
 
-.mseries-add-block-btn {
+.mseries-add-block-btn,
+.mseries-add-rest-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5022,8 +5023,16 @@ button:active {
   font-weight: 700;
 }
 
-.mseries-add-block-btn:hover {
+.mseries-add-block-btn:hover,
+.mseries-add-rest-btn:hover {
   background: var(--bg-strong);
+}
+
+/* Stesso identico box di "Aggiungi blocco"/"Aggiungi esercizio", solo il
+   testo in blu per distinguerlo a colpo d'occhio dagli altri due. */
+.mseries-add-rest-btn,
+.mseries-strength-add-rest-btn {
+  color: var(--soglia-color);
 }
 
 .mseries-block-paste-btn {
@@ -5333,6 +5342,13 @@ button:active {
   margin-left: auto;
 }
 
+/* Stesso principio per il blocco di riposo: copia/trascina sulla riga di
+   durata+attivo invece che su una riga propria sotto, box più compatto. */
+.mseries-rest-block .mseries-gap-rec-row > .mseries-strength-row-footer {
+  margin-top: 0;
+  margin-left: auto;
+}
+
 .mseries-strength-copy-btn {
   width: 28px;
   height: 28px;
@@ -5394,7 +5410,8 @@ button:active {
 }
 
 .mseries-strength-add-btn,
-.mseries-strength-add-repeat-btn {
+.mseries-strength-add-repeat-btn,
+.mseries-strength-add-rest-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5411,7 +5428,8 @@ button:active {
 }
 
 .mseries-strength-add-btn:hover,
-.mseries-strength-add-repeat-btn:hover {
+.mseries-strength-add-repeat-btn:hover,
+.mseries-strength-add-rest-btn:hover {
   background: #fff;
 }
 
@@ -6903,6 +6921,15 @@ button:active {
 
 .mtrain-body {
   padding: 0 10px 10px;
+}
+
+/* Ripete per intero il nome dell'allenamento (nell'intestazione chiusa è
+   troncato con l'ellissi, qui c'è spazio per leggerlo tutto). */
+.mtrain-full-title {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .mtrain-sub {
