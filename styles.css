@@ -4742,6 +4742,54 @@ button:active {
   color: var(--muted);
 }
 
+/* Blocco di riposo: inseribile tra i blocchi di corsa o dentro il giorno
+   di forza (vedi masterSeriesRestMarkup) — stesso box tratteggiato di
+   .mseries-block, solo durata + "attivo", niente distanze/recupero
+   interno perché non è un blocco di ripetute. */
+.mseries-rest-block {
+  padding: 10px;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mseries-rest-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mseries-rest-label {
+  flex: 1 1 auto;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mseries-rest-note {
+  margin-top: 6px;
+  font-size: 0.7rem;
+  font-style: italic;
+  color: var(--muted);
+}
+
+.mseries-rest-note[hidden] {
+  display: none;
+}
+
+/* .mseries-result-block di per sé non ha un box (lo stile viene dalle
+   tile dentro .calc-output) — un riposo non ha tile, serve un box esplicito
+   perché l'intestazione non resti testo nudo in mezzo agli altri risultati. */
+.mseries-result-rest {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-strong);
+}
+
+.mseries-result-rest .mseries-result-header {
+  margin-bottom: 0;
+}
+
 .mseries-block-row {
   display: flex;
   align-items: center;

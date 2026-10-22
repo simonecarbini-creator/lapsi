@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-21i';
-console.log('[Lapsi] build', APP_BUILD, '— pettorale sempre bianco, data spostata sulla riga delle icone');
+const APP_BUILD = '2026-10-22a';
+console.log('[Lapsi] build', APP_BUILD, '— fix Confronta su blocchi di corsa del giorno di forza, blocco di riposo, fix salvataggio solo-forza');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -6151,6 +6151,20 @@ function masterSeriesDefaultStrengthRepeat() {
   return block;
 }
 
+// Blocco di riposo: inseribile sia tra i blocchi di ripetute (state.blocks)
+// sia dentro il giorno di forza (strength.items), stessa forma della pausa
+// "gapBefore" già esistente tra un blocco e l'altro (recDigits/recActive) —
+// così riusa diretto masterSeriesGapDeductionKm per il suo impatto sul
+// volume usato nel calcolo del passo, nessun calcolo nuovo da inventare.
+function masterSeriesDefaultRest() {
+  return {
+    kind: 'rest',
+    id: `mrest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    recDigits: '',
+    recActive: false,
+  };
+}
+
 // Copia/incolla di un box (esercizio di forza, blocco di corsa dentro il
 // giorno di forza, o blocco di ripetute vero e proprio): due "appunti"
 // distinti — uno per gli oggetti del giorno di forza (strength.items), uno
@@ -6529,6 +6543,14 @@ function masterSeriesUpdateGapNote(gapRecInput, gap) {
   noteEl.hidden = !note;
 }
 
+// Stesso motivo di masterSeriesUpdateGapNote, per il blocco di riposo.
+function masterSeriesUpdateRestNote(restRecInput, rest) {
+  const noteEl = restRecInput.closest('.mseries-rest-block').querySelector('.mseries-rest-note');
+  const note = masterSeriesRestNote(rest);
+  noteEl.textContent = note;
+  noteEl.hidden = !note;
+}
+
 // Stesso motivo, per la nota col tempo di recupero calcolato sotto i campi
 // "metri" (vedi masterSeriesRecMetersRowMarkup): la si aggiorna a mano
 // mentre si digita, senza un renderMaster() che perderebbe il focus.
@@ -6871,6 +6893,9 @@ function masterSeriesStrengthItemMarkup(item, vam) {
       </div>
     `;
   }
+  if (item.kind === 'rest') {
+    return masterSeriesRestMarkup(item);
+  }
   return masterSeriesStrengthRowMarkup(item);
 }
 
@@ -6958,6 +6983,7 @@ function masterSeriesStrengthMarkup(strength, vam = null) {
       <div class="mseries-strength-add-row">
         <button type="button" class="mseries-strength-add-btn">${MTEST_PLUS_ICON} Aggiungi esercizio</button>
         <button type="button" class="mseries-strength-add-repeat-btn">${MTEST_PLUS_ICON} Aggiungi blocco di corsa</button>
+        <button type="button" class="mseries-strength-add-rest-btn">${MTEST_PLUS_ICON} Aggiungi riposo</button>
         ${masterSeriesStrengthClipboard ? `<button type="button" class="mseries-strength-paste-btn">${MTEST_COPY_ICON} Incolla</button>` : ''}
       </div>
       ${volumeLine}
@@ -7151,6 +7177,16 @@ function masterSeriesGapDeductionKm(gap) {
   return MSERIES_GAP_LONG_DEDUCTION;
 }
 
+// Somma le detrazioni di TUTTI i blocchi di riposo (sia tra i blocchi di
+// corsa sia dentro il giorno di forza) — stessa logica/soglie di
+// masterSeriesGapDeductionKm, i dati hanno la stessa forma (recDigits/
+// recActive direttamente sul blocco, non dentro un gapBefore).
+function masterSeriesRestDeductionKm(blocks, strengthItems) {
+  const fromBlocks = (blocks || []).filter((b) => b.kind === 'rest').reduce((sum, b) => sum + masterSeriesGapDeductionKm(b), 0);
+  const fromStrength = (strengthItems || []).filter((it) => it.kind === 'rest').reduce((sum, it) => sum + masterSeriesGapDeductionKm(it), 0);
+  return fromBlocks + fromStrength;
+}
+
 // Frase sotto l'input "recupero tra le serie" che spiega quale delle tre
 // soglie sopra si applica, così non serve ricordarle a memoria. Se il
 // recupero è attivo mostra anche l'equivalente passivo usato per la soglia.
@@ -7191,11 +7227,58 @@ function masterSeriesGapMarkup(block) {
   `;
 }
 
+// Stesso testo di masterSeriesGapNote ma per un blocco di riposo a sé
+// stante (non più "tra le serie" di un blocco che segue, è la pausa
+// stessa) — riusa masterSeriesGapDeductionKm perché la forma dei dati
+// (recDigits/recActive) è identica a quella di un gapBefore.
+function masterSeriesRestNote(rest) {
+  const rec = seriesParseRecSeconds(rest.recDigits);
+  if (!rec) {
+    return '';
+  }
+  const label = seriesFormatRecMask(rest.recDigits);
+  const deduction = masterSeriesGapDeductionKm(rest);
+  const activeNote = rest.recActive
+    ? ` (corsa lenta, equivalente a ${RipeteCalc.formatLabel(Math.round(RipeteCalc.effectiveRecovery(rec, true)))} fermo)`
+    : '';
+  if (deduction === 0) {
+    return `Riposo di ${label}${activeNote}: non abbastanza lungo da incidere sul volume totale.`;
+  }
+  const kmLabel = `${String(deduction).replace('.', ',')} km`;
+  return `Riposo di ${label}${activeNote}: toglie ${kmLabel} dal volume usato per il passo.`;
+}
+
+// Box del blocco di riposo: solo durata + "attivo" (corsa blanda invece di
+// stare fermi, stesso significato del gapBefore) — niente distanze/recupero
+// interno, non è un blocco di ripetute. Stessa unità trascinabile/copiabile
+// degli altri box (STRENGTH_DRAG_UNIT_SELECTOR), sia tra i blocchi di corsa
+// sia dentro il giorno di forza.
+function masterSeriesRestMarkup(rest) {
+  const note = masterSeriesRestNote(rest);
+  return `
+    <div class="mseries-rest-block mseries-block-unit" data-block-id="${rest.id}">
+      <div class="mseries-rest-head">
+        <span class="mseries-rest-label">Riposo</span>
+        <button type="button" class="mseries-del-block-btn" data-block-id="${rest.id}" aria-label="Elimina blocco di riposo">${MTEST_DEL_ICON}</button>
+      </div>
+      <div class="mseries-gap-rec-row">
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-rest-rec-input" data-block-id="${rest.id}" data-digits="${rest.recDigits}" value="${escapeHtml(seriesFormatRecMask(rest.recDigits))}" placeholder="10′00″" aria-label="Durata del riposo" />
+        ${masterSeriesCheckboxMarkup('mseries-rest-rec-active-input', rest.id, rest.recActive, 'attivo')}
+      </div>
+      <div class="mseries-rest-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
+      ${masterSeriesDragCopyFooterMarkup()}
+    </div>
+  `;
+}
+
 // Un blocco di ripetute insieme al suo "recupero tra le serie" (se mostrato,
 // solo dal secondo blocco in poi): un'unica unità trascinabile, così
 // riordinando i blocchi il recupero segue quello a cui appartiene, invece
 // di restare un elemento separato nell'elenco — vedi STRENGTH_DRAG_UNIT_SELECTOR.
 function masterSeriesBlockUnitMarkup(block, index, vam, canDelete) {
+  if (block.kind === 'rest') {
+    return masterSeriesRestMarkup(block);
+  }
   return `
     <div class="mseries-block-unit" data-block-id="${block.id}">
       ${index > 0 ? masterSeriesGapMarkup(block) : ''}
@@ -7222,6 +7305,21 @@ function masterSeriesResultGapMarkup(block) {
   const impact = deduction > 0 ? `−${String(deduction).replace('.', ',')} km` : 'volume pieno';
   const skipNote = gap.skip ? "ultimo recupero saltato · " : '';
   return `<div class="mseries-result-gap">${escapeHtml(`${skipNote}rec ${label}${activeNote} tra le serie · ${impact}`)}</div>`;
+}
+
+// Riepilogo di sola lettura di un blocco di riposo nei risultati calcolati
+// (dopo "Calcola serie"): niente tile/tempi stimati come un blocco vero,
+// solo durata e impatto sul volume usato per il passo — non ha senso
+// "confrontare" un riposo con un tempo fatto.
+function masterSeriesResultRestMarkup(rest) {
+  const label = seriesFormatRecMask(rest.recDigits) || 'da impostare';
+  const deduction = masterSeriesGapDeductionKm(rest);
+  const impact = deduction > 0 ? `−${String(deduction).replace('.', ',')} km` : 'volume pieno';
+  return `
+    <div class="mseries-result-block mseries-result-rest">
+      <div class="mseries-result-header"><b>Riposo</b><span>${escapeHtml(label)} · ${escapeHtml(impact)}</span></div>
+    </div>
+  `;
 }
 
 function masterSeriesResultBlockMarkup(block, T, totalKm, compare = null, vam = null) {
@@ -7371,9 +7469,11 @@ function normalizeMasterTraining(record) {
       done,
     };
   }).filter(Boolean);
-  if (!blocks.length) {
-    return null;
-  }
+  // Niente "if (!blocks.length) return null" qui: un allenamento di solo
+  // giorno di forza (esercizi/riposo, nessun blocco di ripetute o "blocco
+  // di corsa") ha legittimamente blocks:[] — scartarlo buttava via
+  // l'intero allenamento al salvataggio, silenziosamente (bug pre-esistente,
+  // non legato ai blocchi di riposo).
   return {
     id: record.id || `tr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     date: String(record.date || ''),
@@ -7459,6 +7559,14 @@ function masterSeriesStrengthExerciseSummaryText(ex) {
   return `${label}: ${mainPart}${extras.length ? ` — ${extras.join(', ')}` : ''}`;
 }
 
+// Riga del riepilogo per un blocco di riposo (vedi masterSeriesRestNote):
+// solo la durata, nessun calcolo da spiegare qui — quello si vede nel
+// simulatore mentre lo si imposta.
+function masterSeriesRestSummaryText(rest) {
+  const label = seriesFormatRecMask(rest.recDigits);
+  return `Riposo${label ? `: ${label}` : ''}`;
+}
+
 // Riepilogo leggibile dell'intero allenamento (blocchi di ripetute/corsa +
 // esercizi del giorno di forza, se il dettaglio è stato salvato) — PRIMA
 // delle tile con i tempi, perché il titolo può essere stato troncato o
@@ -7469,13 +7577,22 @@ function masterTrainingWorkoutSummaryMarkup(training) {
   const strengthItems = training.rawStrength && Array.isArray(training.rawStrength.items) ? training.rawStrength.items : null;
   if (strengthItems) {
     strengthItems
-      .filter((item) => item.kind !== 'repeat')
+      .filter((item) => item.kind !== 'repeat' && item.kind !== 'rest')
       .forEach((ex) => lines.push(masterSeriesStrengthExerciseSummaryText(ex)));
+    strengthItems
+      .filter((item) => item.kind === 'rest')
+      .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
   }
   (training.blocks || []).forEach((block) => {
     const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
     lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
   });
+  // I blocchi di riposo non finiscono in training.blocks (niente stime da
+  // congelare, vedi handleMasterTrainingSave): si leggono da rawBlocks, la
+  // configurazione live salvata per poter riaprire l'allenamento.
+  (training.rawBlocks || [])
+    .filter((block) => block.kind === 'rest')
+    .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
   if (!lines.length) {
     return '';
   }
@@ -7568,7 +7685,8 @@ async function handleMasterTrainingSave(button) {
   const vam = masterAthleteVam(entry);
   const state = masterSeriesGetState(athleteId);
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
   // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie
   // (stesso oggetto di un blocco normale): entrano anche loro nelle tile
   // con tempo stimato, prima dei blocchi principali (stesso ordine della
@@ -7576,14 +7694,18 @@ async function handleMasterTrainingSave(button) {
   // esercizi/corsa dentro il giorno di forza, lo storico restava vuoto.
   const strengthTotals = state.strength.enabled ? masterSeriesStrengthTotals(state.strength) : { volume: 0, eccentrico: 0 };
   const strengthKm = strengthTotals.volume / 1000;
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
   const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
-  const blocksForEstimates = [...repeatItems, ...state.blocks];
-  // Volume/eccentrico dei soli ESERCIZI (non dei blocchi di corsa, già
-  // mostrati per intero come tile sopra con la loro distanza vera): la
-  // riga di riepilogo sotto non deve contare due volte lo stesso volume.
+  // I blocchi di riposo non hanno distanze/stime: niente tile di previsione
+  // per loro (vedi masterSeriesResultRestMarkup), restano fuori dal giro di
+  // validazione/stime qui sotto — il loro effetto sul passo è già dentro
+  // totalKm (restDeductionKm sopra).
+  const blocksForEstimates = [...repeatItems, ...state.blocks.filter((block) => block.kind !== 'rest')];
+  // Volume/eccentrico dei soli ESERCIZI (non dei blocchi di corsa né dei
+  // riposi, già contati sopra/altrove): la riga di riepilogo sotto non deve
+  // contare due volte lo stesso volume.
   const exerciseOnlyTotals = state.strength.enabled
-    ? state.strength.items.filter((item) => item.kind !== 'repeat').reduce((totals, item) => {
+    ? state.strength.items.filter((item) => item.kind !== 'repeat' && item.kind !== 'rest').reduce((totals, item) => {
       const calc = masterSeriesStrengthItemCalc(item);
       return { volume: totals.volume + calc.volume, eccentrico: totals.eccentrico + calc.eccentrico };
     }, { volume: 0, eccentrico: 0 })
@@ -7810,13 +7932,14 @@ function masterSeriesBuilderMarkup(entry) {
   // passo (non quello mostrato come volume "reale" della seduta) — vedi
   // masterSeriesGapDeductionKm. Sottratto solo dal secondo blocco in poi:
   // il primo non ha un "prima" a cui applicare una pausa.
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
   // "Giorno di forza": salite/gradoni/balzi si sommano al volume usato nel
   // calcolo del passo, come se fossero altre ripetute — non al volume
   // "reale" della seduta mostrato come ripetute vere e proprie.
   const strengthKm = masterSeriesStrengthVolumeMeters(state.strength) / 1000;
   const rawKm = totalMeters / 1000;
-  const totalKm = Math.max(0, rawKm - gapDeductionKm + strengthKm);
+  const totalKm = Math.max(0, rawKm - gapDeductionKm - restDeductionKm + strengthKm);
 
   // Dopo "Calcola serie" i blocchi da compilare (e i pulsanti per costruirli)
   // spariscono: restano solo il risultato e il totale, con un'icona reload
@@ -7834,9 +7957,13 @@ function masterSeriesBuilderMarkup(entry) {
     // conteggiato in strengthKm — altrimenti finendo la seduta con uno di
     // questi non comparivano previsioni, sembrava rotto.
     const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
+    const strengthRestItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'rest') : [];
     const volumeSuffixParts = [];
     if (gapDeductionKm > 0) {
       volumeSuffixParts.push('pause lunghe');
+    }
+    if (restDeductionKm > 0) {
+      volumeSuffixParts.push('riposo');
     }
     if (strengthKm > 0) {
       volumeSuffixParts.push(`+${strengthKm.toFixed(2).replace('.', ',')} km giorno di forza`);
@@ -7862,13 +7989,23 @@ function masterSeriesBuilderMarkup(entry) {
             <button type="button" class="mseries-reload-btn" data-id="${entry.id}" aria-label="Modifica allenamento" title="Modifica allenamento">✎</button>
           </div>
           ${state.strength.enabled ? strengthEccentricLine : ''}
-          ${repeatItems.map((item) => `
+          ${repeatItems.map((item) => {
+            // Stesso compare dei blocchi normali sotto: senza, "Confronta" sui
+            // blocchi di corsa del giorno di forza mostrava "Salva risultati"
+            // ma nessun campo per i tempi fatti (compare era sempre null qui).
+            const compare = compareOn ? { training: savedTraining, savedBlock: savedTraining.blocks.find((b) => b.id === item.id) } : null;
+            return `
             <div class="mseries-strength-repeat-result">
               <div class="mseries-strength-repeat-label">Blocco di corsa</div>
-              ${masterSeriesResultBlockMarkup(item, T, totalKm, null, vam)}
+              ${masterSeriesResultBlockMarkup(item, T, totalKm, compare, vam)}
             </div>
-          `).join('')}
+          `;
+          }).join('')}
+          ${strengthRestItems.map((item) => masterSeriesResultRestMarkup(item)).join('')}
           ${hasBlocks ? state.blocks.map((block, index) => {
+            if (block.kind === 'rest') {
+              return masterSeriesResultRestMarkup(block);
+            }
             const compare = compareOn ? { training: savedTraining, savedBlock: savedTraining.blocks.find((b) => b.id === block.id) } : null;
             return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare, vam)}`;
           }).join('') : ''}
@@ -7895,6 +8032,7 @@ function masterSeriesBuilderMarkup(entry) {
       ${state.strength.enabled ? '' : `
         <div class="mseries-add-row">
           <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+          <button type="button" class="mseries-add-rest-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi riposo</button>
           ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" data-id="${entry.id}">${MTEST_COPY_ICON} Incolla</button>` : ''}
         </div>
       `}
@@ -9401,6 +9539,15 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const addRestBtn = event.target.closest('.mseries-add-rest-btn');
+  if (addRestBtn) {
+    const state = masterSeriesGetState(addRestBtn.dataset.id);
+    state.blocks.push(masterSeriesDefaultRest());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
   const delBlockBtn = event.target.closest('.mseries-del-block-btn');
   if (delBlockBtn && !delBlockBtn.disabled) {
     const card = delBlockBtn.closest('.athlete-item');
@@ -9499,6 +9646,15 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const restRecActiveInput = event.target.closest('.mseries-rest-rec-active-input');
+  if (restRecActiveInput) {
+    const state = masterSeriesGetState(restRecActiveInput.closest('.athlete-item').dataset.id);
+    masterSeriesFindBlock(restRecActiveInput).recActive = restRecActiveInput.checked;
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
   const strengthToggle = event.target.closest('.mseries-strength-toggle');
   if (strengthToggle) {
     const state = masterSeriesGetState(strengthToggle.closest('.athlete-item').dataset.id);
@@ -9522,6 +9678,15 @@ async function handleMasterListClick(event) {
   if (strengthAddRepeatBtn) {
     const state = masterSeriesGetState(strengthAddRepeatBtn.closest('.athlete-item').dataset.id);
     state.strength.items.push(masterSeriesDefaultStrengthRepeat());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const strengthAddRestBtn = event.target.closest('.mseries-strength-add-rest-btn');
+  if (strengthAddRestBtn) {
+    const state = masterSeriesGetState(strengthAddRestBtn.closest('.athlete-item').dataset.id);
+    state.strength.items.push(masterSeriesDefaultRest());
     state.showResults = false;
     renderMaster();
     return;
@@ -9833,7 +9998,7 @@ function masterWire(key) {
   // compilato senza doverlo prima svuotare a mano). 'focusin' invece di
   // 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
   masterOn(key, masterListEl, 'focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
     if (input) {
       input.select();
     }
@@ -9842,6 +10007,22 @@ function masterWire(key) {
   // Backspace/Delete sulle cifre "vere" (stesso meccanismo dei calcolatori,
   // generalizzato per più input contemporaneamente sulla stessa pagina).
   masterOn(key, masterListEl, 'keydown', (event) => {
+    const restRecInput = event.target.closest('.mseries-rest-rec-input');
+    if (restRecInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      restRecInput.dataset.digits = (restRecInput.dataset.digits || '').slice(0, -1);
+      restRecInput.value = seriesFormatRecMask(restRecInput.dataset.digits);
+      const end = restRecInput.value.length;
+      restRecInput.setSelectionRange(end, end);
+      const restBlock = masterSeriesFindBlock(restRecInput);
+      restBlock.recDigits = restRecInput.dataset.digits;
+      masterSeriesUpdateRestNote(restRecInput, restBlock);
+      masterSeriesInvalidate(restRecInput);
+      return;
+    }
     const gapRecInput = event.target.closest('.mseries-gap-rec-input');
     if (gapRecInput) {
       if (event.key !== 'Backspace' && event.key !== 'Delete') {
@@ -10058,6 +10239,18 @@ function masterWire(key) {
       gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
       masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
       masterSeriesInvalidate(gapRecInput);
+      return;
+    }
+    const restRecInput = event.target.closest('.mseries-rest-rec-input');
+    if (restRecInput) {
+      restRecInput.dataset.digits = restRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      restRecInput.value = seriesFormatRecMask(restRecInput.dataset.digits);
+      const end = restRecInput.value.length;
+      restRecInput.setSelectionRange(end, end);
+      const restBlock = masterSeriesFindBlock(restRecInput);
+      restBlock.recDigits = restRecInput.dataset.digits;
+      masterSeriesUpdateRestNote(restRecInput, restBlock);
+      masterSeriesInvalidate(restRecInput);
       return;
     }
     const recInput = event.target.closest('.mseries-rec-input');
@@ -10632,13 +10825,19 @@ function milTrainingWorkoutSummaryMarkup(training, resultBlocks) {
   const lines = [];
   if (training.strength && training.strength.enabled) {
     (training.strength.items || [])
-      .filter((item) => item.kind !== 'repeat')
+      .filter((item) => item.kind !== 'repeat' && item.kind !== 'rest')
       .forEach((ex) => lines.push(masterSeriesStrengthExerciseSummaryText(ex)));
+    (training.strength.items || [])
+      .filter((item) => item.kind === 'rest')
+      .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
   }
   resultBlocks.forEach((block) => {
     const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
     lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
   });
+  (Array.isArray(training.blocks) ? training.blocks : [])
+    .filter((block) => block.kind === 'rest')
+    .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
   if (!lines.length) {
     return '';
   }
@@ -10660,7 +10859,9 @@ function milTrainingSimRowMarkup(training) {
   // pur avendo salvato tutto (vedi handleMilSeriesSave).
   const strength = training.strength && training.strength.enabled ? training.strength : null;
   const repeatItems = strength ? (strength.items || []).filter((item) => item.kind === 'repeat') : [];
-  const resultBlocks = [...repeatItems, ...blocks];
+  // I riposi non hanno un tempo da prevedere: fuori da qui (restano comunque
+  // nel riepilogo "Allenamento svolto" sopra, via masterSeriesRestSummaryText).
+  const resultBlocks = [...repeatItems, ...blocks.filter((block) => block.kind !== 'rest')];
   const athletes = Array.isArray(training.athletes) ? training.athletes : [];
   const totalKm = Number(training.totalKm) || 0;
   const athletesMarkup = (resultBlocks.length && athletes.length)
@@ -11059,6 +11260,7 @@ function milSeriesEditorMarkup() {
       ${milSeriesState.strength.enabled ? '' : `
         <div class="mseries-add-row">
           <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
+          <button type="button" class="mseries-add-rest-btn" id="mil-series-add-rest">${MTEST_PLUS_ICON} Aggiungi riposo</button>
           ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" id="mil-series-block-paste">${MTEST_COPY_ICON} Incolla</button>` : ''}
         </div>
       `}
@@ -11109,21 +11311,27 @@ function milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly = false
 function milSeriesResultsMarkup() {
   const state = milSeriesState;
   const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
   const strengthKm = masterSeriesStrengthVolumeMeters(state.strength) / 1000;
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
   const rawKm = totalMeters / 1000;
   const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
   const hasBlocks = state.blocks.length > 0;
   // Stesso motivo di masterSeriesBuilderMarkup: i "blocchi di corsa" del
   // giorno di forza sono ripetute vere e proprie, vanno mostrati agli
   // atleti come previsione di tempo anche loro, non solo come volume già
-  // conteggiato in strengthKm.
+  // conteggiato in strengthKm. I riposi invece non hanno un tempo da
+  // prevedere, restano fuori da questo elenco (il loro effetto sul passo è
+  // già dentro totalKm).
   const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
-  const resultBlocks = [...repeatItems, ...state.blocks];
+  const resultBlocks = [...repeatItems, ...state.blocks.filter((block) => block.kind !== 'rest')];
   const volumeSuffixParts = [];
   if (gapDeductionKm > 0) {
     volumeSuffixParts.push('pause lunghe');
+  }
+  if (restDeductionKm > 0) {
+    volumeSuffixParts.push('riposo');
   }
   if (strengthKm > 0) {
     volumeSuffixParts.push(`+${strengthKm.toFixed(2).replace('.', ',')} km giorno di forza`);
@@ -11249,7 +11457,7 @@ async function handleMilSeriesSave() {
   const repeatItemsForName = milSeriesState.strength.enabled
     ? milSeriesState.strength.items.filter((item) => item.kind === 'repeat')
     : [];
-  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...milSeriesState.blocks]);
+  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...milSeriesState.blocks.filter((block) => block.kind !== 'rest')]);
   const result = await showTrainingSavePrompt("Nome dell'allenamento", {
     detail: 'Lo ritroverai in Storico allenamenti, nel mese scelto, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
@@ -11261,9 +11469,10 @@ async function handleMilSeriesSave() {
     return;
   }
   const totalMeters = milSeriesState.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = milSeriesState.blocks.slice(1).reduce((sum, block) => sum + masterSeriesGapDeductionKm(block.gapBefore), 0);
+  const gapDeductionKm = milSeriesState.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(milSeriesState.blocks, milSeriesState.strength.items);
   const strengthKm = masterSeriesStrengthVolumeMeters(milSeriesState.strength) / 1000;
-  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm + strengthKm);
+  const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
   const athletes = milActiveAthletesWithPace()
     .filter((athlete) => !milSeriesState.removedAthletes.has(athlete.id))
     .map((athlete) => ({ id: athlete.id, name: athlete.name, T: athlete.T, vam: athlete.vam }));
@@ -11298,6 +11507,13 @@ if (milSeriesBody) {
     const addBlockBtn = event.target.closest('#mil-series-add-block');
     if (addBlockBtn) {
       milSeriesState.blocks.push(masterSeriesDefaultBlock());
+      renderMilSeries();
+      return;
+    }
+
+    const addRestBtn = event.target.closest('#mil-series-add-rest');
+    if (addRestBtn) {
+      milSeriesState.blocks.push(masterSeriesDefaultRest());
       renderMilSeries();
       return;
     }
@@ -11375,6 +11591,12 @@ if (milSeriesBody) {
       return;
     }
 
+    const restRecActiveInput = event.target.closest('.mseries-rest-rec-active-input');
+    if (restRecActiveInput) {
+      milSeriesFindBlock(restRecActiveInput).recActive = restRecActiveInput.checked;
+      return;
+    }
+
     const strengthToggle = event.target.closest('.mseries-strength-toggle');
     if (strengthToggle) {
       milSeriesState.strength.enabled = strengthToggle.checked;
@@ -11393,6 +11615,13 @@ if (milSeriesBody) {
     const strengthAddRepeatBtn = event.target.closest('.mseries-strength-add-repeat-btn');
     if (strengthAddRepeatBtn) {
       milSeriesState.strength.items.push(masterSeriesDefaultStrengthRepeat());
+      renderMilSeries();
+      return;
+    }
+
+    const strengthAddRestBtn = event.target.closest('.mseries-strength-add-rest-btn');
+    if (strengthAddRestBtn) {
+      milSeriesState.strength.items.push(masterSeriesDefaultRest());
       renderMilSeries();
       return;
     }
@@ -11469,13 +11698,28 @@ if (milSeriesBody) {
   });
 
   milSeriesBody.addEventListener('focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
     if (input) {
       input.select();
     }
   });
 
   milSeriesBody.addEventListener('keydown', (event) => {
+    const restRecInput = event.target.closest('.mseries-rest-rec-input');
+    if (restRecInput) {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') {
+        return;
+      }
+      event.preventDefault();
+      restRecInput.dataset.digits = (restRecInput.dataset.digits || '').slice(0, -1);
+      restRecInput.value = seriesFormatRecMask(restRecInput.dataset.digits);
+      const end = restRecInput.value.length;
+      restRecInput.setSelectionRange(end, end);
+      const restBlock = milSeriesFindBlock(restRecInput);
+      restBlock.recDigits = restRecInput.dataset.digits;
+      masterSeriesUpdateRestNote(restRecInput, restBlock);
+      return;
+    }
     const gapRecInput = event.target.closest('.mseries-gap-rec-input');
     if (gapRecInput) {
       if (event.key !== 'Backspace' && event.key !== 'Delete') {
@@ -11565,6 +11809,17 @@ if (milSeriesBody) {
       const gapBlock = milSeriesFindBlock(gapRecInput);
       gapBlock.gapBefore.recDigits = gapRecInput.dataset.digits;
       masterSeriesUpdateGapNote(gapRecInput, gapBlock.gapBefore);
+      return;
+    }
+    const restRecInput = event.target.closest('.mseries-rest-rec-input');
+    if (restRecInput) {
+      restRecInput.dataset.digits = restRecInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      restRecInput.value = seriesFormatRecMask(restRecInput.dataset.digits);
+      const end = restRecInput.value.length;
+      restRecInput.setSelectionRange(end, end);
+      const restBlock = milSeriesFindBlock(restRecInput);
+      restBlock.recDigits = restRecInput.dataset.digits;
+      masterSeriesUpdateRestNote(restRecInput, restBlock);
       return;
     }
     const recInput = event.target.closest('.mseries-rec-input');
