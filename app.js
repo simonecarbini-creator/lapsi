@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-11-02b';
-console.log('[Lapsi] build', APP_BUILD, '— nuovi tipi di allenamento: fartlek e curve');
+const APP_BUILD = '2026-11-02c';
+console.log('[Lapsi] build', APP_BUILD, '— 5 fix: stile bottoni fartlek/curve, titolo fartlek, popup ×N, prefisso Forza, selezione input distanza');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1880,8 +1880,10 @@ function showGroupRepeatPrompt(existing) {
           <label>Recupero tra le ripetizioni</label>
           <input type="text" inputmode="numeric" autocomplete="off" class="grp-rec-input" data-digits="${escapeHtml(recDigits)}" value="${escapeHtml(seriesFormatRecMask(recDigits))}" placeholder="2′00″" />
         </div>
-        ${masterSeriesCheckboxMarkup('grp-active-input', '', recActive, 'attivo (corsa lenta, non fermi)')}
-        ${masterSeriesCheckboxMarkup('grp-skip-input', '', skipLast, "Salta il recupero dopo l'ultima ripetizione")}
+        <div class="grp-checkboxes">
+          ${masterSeriesCheckboxMarkup('grp-active-input', '', recActive, 'attivo (corsa lenta, non fermi)')}
+          ${masterSeriesCheckboxMarkup('grp-skip-input', '', skipLast, "Salta il recupero dopo l'ultima ripetizione")}
+        </div>
         <div class="app-confirm-actions app-confirm-actions-col">
           <button type="button" class="app-btn app-btn-success" data-choice="ok">${MTEST_CHECK_ICON} Salva</button>
           ${existing ? `<button type="button" class="app-btn app-btn-danger" data-choice="dissolve">Sciogli gruppo</button>` : ''}
@@ -7927,7 +7929,13 @@ function masterTrainingCardMarkup(training, open) {
   // giorno di forza prima — senza aprire la card non si direbbe. "Forza: "
   // davanti lo segnala subito, qui a tempo di render (non al salvataggio:
   // vale anche per gli allenamenti già salvati prima di questa modifica).
-  const isForzaDay = strengthVolume > 0 || strengthEccentrico > 0;
+  // strengthVolume/strengthEccentrico contano SOLO gli esercizi veri e
+  // propri (non i "blocchi di corsa" dentro il giorno di forza, già nel
+  // volume sopra): un giorno di forza fatto solo di blocchi di corsa li
+  // aveva entrambi a 0 e restava senza "Forza: " davanti, pur avendo
+  // davvero la checkbox attiva — guardare anche rawStrength.enabled lo
+  // risolve (assente solo sugli allenamenti salvati prima di questo campo).
+  const isForzaDay = (training.rawStrength && training.rawStrength.enabled) || strengthVolume > 0 || strengthEccentrico > 0;
   const baseName = training.name || summary || 'Giorno di forza';
   const displayName = isForzaDay && !baseName.startsWith('Forza: ') ? `Forza: ${baseName}` : baseName;
   const blocksMarkup = blocks.map((block) => {
@@ -10390,7 +10398,7 @@ function masterWire(key) {
   // compilato senza doverlo prima svuotare a mano). 'focusin' invece di
   // 'focus' perché quest'ultimo non risale (bubble) fino a masterListEl.
   masterOn(key, masterListEl, 'focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-dist-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input, .mseries-fartlek-hard-input, .mseries-fartlek-easy-input, .mseries-fartlek-reps-input, .mseries-curve-laps-input');
     if (input) {
       input.select();
     }
@@ -12178,7 +12186,7 @@ if (milSeriesBody) {
   });
 
   milSeriesBody.addEventListener('focusin', (event) => {
-    const input = event.target.closest('.mseries-reps-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input');
+    const input = event.target.closest('.mseries-reps-input, .mseries-dist-input, .mseries-rec-input, .mseries-gap-rec-input, .mseries-rest-rec-input, .mseries-rec-meters-input, .mseries-rec-meters-walk-input, .mseries-rec-meters-run-input, .mseries-rec-pace-input, .mseries-strength-meters-input, .mseries-strength-numserie-input, .mseries-strength-descent-pace-input, .mseries-strength-reps-input, .mseries-strength-descent-reps-input, .mseries-fartlek-hard-input, .mseries-fartlek-easy-input, .mseries-fartlek-reps-input, .mseries-curve-laps-input');
     if (input) {
       input.select();
     }

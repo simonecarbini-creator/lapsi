@@ -4699,6 +4699,23 @@ button:active {
   white-space: nowrap;
 }
 
+/* Le due checkbox del popup "Ripeti il blocco" (vedi showGroupRepeatPrompt)
+   erano appiccicate: qui niente riga condivisa con altri campi, serve un
+   margine esplicito tra l'una e l'altra. La label più lunga ("Salta il
+   recupero dopo l'ultima ripetizione") può andare a capo, a differenza
+   delle altre checkbox dell'app (sempre corte, su una riga sola). */
+.grp-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 14px;
+  text-align: left;
+}
+
+.grp-checkboxes .mseries-checkbox-label {
+  white-space: normal;
+}
+
 .mseries-gap-rec-row {
   display: flex;
   align-items: center;
@@ -4812,7 +4829,10 @@ button:active {
 .mseries-fartlek-label,
 .mseries-curve-label {
   flex: 1 1 auto;
-  font-size: 0.82rem;
+  /* Più grande delle label dei campi qui sotto (Forte/Piano/Giri, 0.96rem
+     di default): è il titolo del blocco, deve risaltare su di loro, non il
+     contrario. */
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
 }
@@ -5046,7 +5066,9 @@ button:active {
 }
 
 .mseries-add-block-btn,
-.mseries-add-rest-btn {
+.mseries-add-rest-btn,
+.mseries-add-fartlek-btn,
+.mseries-add-curve-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -5063,7 +5085,9 @@ button:active {
 }
 
 .mseries-add-block-btn:hover,
-.mseries-add-rest-btn:hover {
+.mseries-add-rest-btn:hover,
+.mseries-add-fartlek-btn:hover,
+.mseries-add-curve-btn:hover {
   background: var(--bg-strong);
 }
 
