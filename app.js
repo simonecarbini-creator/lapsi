@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-11-02a';
-console.log('[Lapsi] build', APP_BUILD, '— ripeti blocco ×N (ripetute, blocchi di corsa, esercizi di forza)');
+const APP_BUILD = '2026-11-02b';
+console.log('[Lapsi] build', APP_BUILD, '— nuovi tipi di allenamento: fartlek e curve');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -6280,6 +6280,35 @@ function masterSeriesDefaultRest() {
   };
 }
 
+// Fartlek e curve: blocchi descrittivi come il riposo (si scrivono i valori
+// a mano, nessun tempo calcolato dal passo) — tra un blocco e il successivo
+// c'è comunque la pausa normale (gapBefore), come per un blocco di ripetute
+// vero e proprio, perché restano "serie" nella sequenza dell'allenamento.
+function masterSeriesDefaultFartlek() {
+  return {
+    kind: 'fartlek',
+    id: `mfart-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    // Testo libero (es. "200m" o "1'"): niente da calcolare, solo da
+    // ricordare cosa si è fatto.
+    hard: '',
+    easy: '',
+    reps: '',
+    gapBefore: { skip: false, recDigits: '200', recActive: false },
+  };
+}
+
+// "fastPart": quale dei due tratti del giro si corre veloce — 'curve' (le
+// curve forte, i rettilinei piano) o 'retti' (il contrario).
+function masterSeriesDefaultCurve() {
+  return {
+    kind: 'curve',
+    id: `mcurve-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    laps: '',
+    fastPart: 'curve',
+    gapBefore: { skip: false, recDigits: '200', recActive: false },
+  };
+}
+
 // Copia/incolla di un box (esercizio di forza, blocco di corsa dentro il
 // giorno di forza, o blocco di ripetute vero e proprio): due "appunti"
 // distinti — uno per gli oggetti del giorno di forza (strength.items), uno
@@ -7441,6 +7470,62 @@ function masterSeriesRestMarkup(rest) {
   `;
 }
 
+// Box del blocco fartlek: tutto testo libero (nessun calcolo, scelta
+// esplicita — vedi la conversazione), solo per ricordare la struttura
+// dell'allenamento nel riepilogo e nello storico.
+function masterSeriesFartlekMarkup(item) {
+  return `
+    <div class="mseries-fartlek-block" data-block-id="${item.id}">
+      <div class="mseries-fartlek-head">
+        <span class="mseries-fartlek-label">Fartlek</span>
+        <button type="button" class="mseries-del-block-btn" data-block-id="${item.id}" aria-label="Elimina blocco fartlek">${MTEST_DEL_ICON}</button>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Forte</label>
+          <input type="text" autocomplete="off" class="mseries-fartlek-hard-input" data-block-id="${item.id}" value="${escapeHtml(item.hard)}" placeholder="es. 200m o 1′" />
+        </div>
+        <div class="field-group">
+          <label>Piano</label>
+          <input type="text" autocomplete="off" class="mseries-fartlek-easy-input" data-block-id="${item.id}" value="${escapeHtml(item.easy)}" placeholder="es. 200m o 1′" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Ripetizioni</label>
+        <input type="text" inputmode="numeric" autocomplete="off" class="mseries-fartlek-reps-input" data-block-id="${item.id}" value="${escapeHtml(item.reps)}" placeholder="es. 8" />
+      </div>
+      ${masterSeriesDragCopyFooterMarkup()}
+    </div>
+  `;
+}
+
+// Box del blocco curve: giri + quale tratto si corre veloce — stesso
+// principio del fartlek, descrittivo.
+function masterSeriesCurveMarkup(item) {
+  return `
+    <div class="mseries-curve-block" data-block-id="${item.id}">
+      <div class="mseries-curve-head">
+        <span class="mseries-curve-label">Curve</span>
+        <button type="button" class="mseries-del-block-btn" data-block-id="${item.id}" aria-label="Elimina blocco curve">${MTEST_DEL_ICON}</button>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label>Giri</label>
+          <input type="text" inputmode="numeric" autocomplete="off" class="mseries-curve-laps-input" data-block-id="${item.id}" value="${escapeHtml(item.laps)}" placeholder="es. 6" />
+        </div>
+        <div class="field-group">
+          <label>Veloce su</label>
+          <select class="mseries-curve-fast-input" data-block-id="${item.id}">
+            <option value="curve"${item.fastPart === 'curve' ? ' selected' : ''}>Curve</option>
+            <option value="retti"${item.fastPart === 'retti' ? ' selected' : ''}>Rettilinei</option>
+          </select>
+        </div>
+      </div>
+      ${masterSeriesDragCopyFooterMarkup()}
+    </div>
+  `;
+}
+
 // Un blocco di ripetute insieme al suo "recupero tra le serie" (se mostrato,
 // solo dal secondo blocco in poi): un'unica unità trascinabile, così
 // riordinando i blocchi il recupero segue quello a cui appartiene, invece
@@ -7448,6 +7533,22 @@ function masterSeriesRestMarkup(rest) {
 function masterSeriesBlockUnitMarkup(block, index, vam, canDelete) {
   if (block.kind === 'rest') {
     return masterSeriesRestMarkup(block);
+  }
+  if (block.kind === 'fartlek') {
+    return `
+      <div class="mseries-block-unit" data-block-id="${block.id}">
+        ${index > 0 ? masterSeriesGapMarkup(block) : ''}
+        ${masterSeriesFartlekMarkup(block)}
+      </div>
+    `;
+  }
+  if (block.kind === 'curve') {
+    return `
+      <div class="mseries-block-unit" data-block-id="${block.id}">
+        ${index > 0 ? masterSeriesGapMarkup(block) : ''}
+        ${masterSeriesCurveMarkup(block)}
+      </div>
+    `;
   }
   return `
     <div class="mseries-block-unit" data-block-id="${block.id}">
@@ -7488,6 +7589,36 @@ function masterSeriesResultRestMarkup(rest) {
   return `
     <div class="mseries-result-block mseries-result-rest">
       <div class="mseries-result-header"><b>Riposo</b><span>${escapeHtml(label)} · ${escapeHtml(impact)}</span></div>
+    </div>
+  `;
+}
+
+// Testo del riepilogo (anche nei risultati e nello storico) per fartlek e
+// curve: descrittivi, nessun tempo calcolato — vedi la conversazione.
+function masterSeriesFartlekSummaryText(item) {
+  const reps = item.reps ? `${item.reps} × ` : '';
+  return `Fartlek: ${reps}(${item.hard || '?'} forte / ${item.easy || '?'} piano)`;
+}
+
+function masterSeriesCurveSummaryText(item) {
+  const fastLabel = item.fastPart === 'retti' ? 'rettilinei veloci, curve piano' : 'curve veloci, rettilinei piano';
+  return `Curve: ${item.laps || '?'} giri — ${fastLabel}`;
+}
+
+// Stesso principio di masterSeriesResultRestMarkup: box di sola lettura nei
+// risultati calcolati, niente tile/confronto.
+function masterSeriesResultFartlekMarkup(item) {
+  return `
+    <div class="mseries-result-block mseries-result-fartlek">
+      <div class="mseries-result-header"><b>${escapeHtml(masterSeriesFartlekSummaryText(item))}</b></div>
+    </div>
+  `;
+}
+
+function masterSeriesResultCurveMarkup(item) {
+  return `
+    <div class="mseries-result-block mseries-result-curve">
+      <div class="mseries-result-header"><b>${escapeHtml(masterSeriesCurveSummaryText(item))}</b></div>
     </div>
   `;
 }
@@ -7760,12 +7891,19 @@ function masterTrainingWorkoutSummaryMarkup(training) {
     const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
     lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
   });
-  // I blocchi di riposo non finiscono in training.blocks (niente stime da
-  // congelare, vedi handleMasterTrainingSave): si leggono da rawBlocks, la
-  // configurazione live salvata per poter riaprire l'allenamento.
+  // I blocchi di riposo/fartlek/curve non finiscono in training.blocks
+  // (niente stime da congelare, vedi handleMasterTrainingSave): si leggono
+  // da rawBlocks, la configurazione live salvata per poter riaprire
+  // l'allenamento.
   (training.rawBlocks || [])
     .filter((block) => block.kind === 'rest')
     .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
+  (training.rawBlocks || [])
+    .filter((block) => block.kind === 'fartlek')
+    .forEach((item) => lines.push(masterSeriesFartlekSummaryText(item)));
+  (training.rawBlocks || [])
+    .filter((block) => block.kind === 'curve')
+    .forEach((item) => lines.push(masterSeriesCurveSummaryText(item)));
   if (!lines.length) {
     return '';
   }
@@ -7888,11 +8026,13 @@ async function handleMasterTrainingSave(button) {
   const repeatItems = state.strength.enabled
     ? masterSeriesExpandGroupedBlocks(state.strength.items.filter((item) => item.kind === 'repeat'))
     : [];
-  // I blocchi di riposo non hanno distanze/stime: niente tile di previsione
-  // per loro (vedi masterSeriesResultRestMarkup), restano fuori dal giro di
-  // validazione/stime qui sotto — il loro effetto sul passo è già dentro
-  // totalKm (restDeductionKm sopra).
-  const blocksForEstimates = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest')];
+  // I blocchi di riposo/fartlek/curve non hanno distanze/stime: niente tile
+  // di previsione per loro (vedi masterSeriesResultRestMarkup e affini),
+  // restano fuori dal giro di validazione/stime qui sotto — l'effetto del
+  // riposo sul passo è già dentro totalKm (restDeductionKm sopra), fartlek
+  // e curve sono solo descrittivi (vedi masterTrainingWorkoutSummaryMarkup,
+  // che li legge da rawBlocks).
+  const blocksForEstimates = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest' && block.kind !== 'fartlek' && block.kind !== 'curve')];
   // Volume/eccentrico dei soli ESERCIZI (non dei blocchi di corsa né dei
   // riposi, già contati sopra/altrove): la riga di riepilogo sotto non deve
   // contare due volte lo stesso volume.
@@ -8206,6 +8346,12 @@ function masterSeriesBuilderMarkup(entry) {
             if (block.kind === 'rest') {
               return masterSeriesResultRestMarkup(block);
             }
+            if (block.kind === 'fartlek') {
+              return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultFartlekMarkup(block)}`;
+            }
+            if (block.kind === 'curve') {
+              return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultCurveMarkup(block)}`;
+            }
             const compare = compareOn ? { training: savedTraining, savedBlock: savedTraining.blocks.find((b) => b.id === block.id) } : null;
             return `${index > 0 ? masterSeriesResultGapMarkup(block) : ''}${masterSeriesResultBlockMarkup(block, T, totalKm, compare, vam)}`;
           }).join('') : ''}
@@ -8233,6 +8379,8 @@ function masterSeriesBuilderMarkup(entry) {
         <div class="mseries-add-row">
           <button type="button" class="mseries-add-block-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi blocco</button>
           <button type="button" class="mseries-add-rest-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi riposo</button>
+          <button type="button" class="mseries-add-fartlek-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi fartlek</button>
+          <button type="button" class="mseries-add-curve-btn" data-id="${entry.id}">${MTEST_PLUS_ICON} Aggiungi curve</button>
           ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" data-id="${entry.id}">${MTEST_COPY_ICON} Incolla</button>` : ''}
         </div>
       `}
@@ -9748,6 +9896,24 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const addFartlekBtn = event.target.closest('.mseries-add-fartlek-btn');
+  if (addFartlekBtn) {
+    const state = masterSeriesGetState(addFartlekBtn.dataset.id);
+    state.blocks.push(masterSeriesDefaultFartlek());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
+  const addCurveBtn = event.target.closest('.mseries-add-curve-btn');
+  if (addCurveBtn) {
+    const state = masterSeriesGetState(addCurveBtn.dataset.id);
+    state.blocks.push(masterSeriesDefaultCurve());
+    state.showResults = false;
+    renderMaster();
+    return;
+  }
+
   const delBlockBtn = event.target.closest('.mseries-del-block-btn');
   if (delBlockBtn && !delBlockBtn.disabled) {
     const card = delBlockBtn.closest('.athlete-item');
@@ -10352,6 +10518,11 @@ function masterWire(key) {
   // menu accanto: cambiandola si riapplica la maschera alle stesse cifre già
   // digitate, invece di dover riscrivere il risultato da capo.
   masterOn(key, masterListEl, 'change', (event) => {
+    const curveFastInput = event.target.closest('.mseries-curve-fast-input');
+    if (curveFastInput) {
+      masterSeriesFindBlock(curveFastInput).fastPart = curveFastInput.value;
+      return;
+    }
     const raceFilterYear = event.target.closest('.race-filter-year');
     if (raceFilterYear) {
       const athleteId = raceFilterYear.closest('.race-filters').dataset.id;
@@ -10477,6 +10648,31 @@ function masterWire(key) {
       restBlock.recDigits = restRecInput.dataset.digits;
       masterSeriesUpdateRestNote(restRecInput, restBlock);
       masterSeriesInvalidate(restRecInput);
+      return;
+    }
+    // Fartlek/curve: testo libero, niente maschera — solo scrivere il
+    // valore sul blocco giusto (masterSeriesFindBlock cerca sia tra i
+    // blocchi di ripetute sia tra gli oggetti del giorno di forza).
+    const fartlekHardInput = event.target.closest('.mseries-fartlek-hard-input');
+    if (fartlekHardInput) {
+      masterSeriesFindBlock(fartlekHardInput).hard = fartlekHardInput.value;
+      return;
+    }
+    const fartlekEasyInput = event.target.closest('.mseries-fartlek-easy-input');
+    if (fartlekEasyInput) {
+      masterSeriesFindBlock(fartlekEasyInput).easy = fartlekEasyInput.value;
+      return;
+    }
+    const fartlekRepsInput = event.target.closest('.mseries-fartlek-reps-input');
+    if (fartlekRepsInput) {
+      fartlekRepsInput.value = fartlekRepsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      masterSeriesFindBlock(fartlekRepsInput).reps = fartlekRepsInput.value;
+      return;
+    }
+    const curveLapsInput = event.target.closest('.mseries-curve-laps-input');
+    if (curveLapsInput) {
+      curveLapsInput.value = curveLapsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      masterSeriesFindBlock(curveLapsInput).laps = curveLapsInput.value;
       return;
     }
     const recInput = event.target.closest('.mseries-rec-input');
@@ -11061,9 +11257,10 @@ function milTrainingWorkoutSummaryMarkup(training, resultBlocks) {
     const prefix = block.kind === 'repeat' ? 'Corsa ' : '';
     lines.push(`${prefix}${masterTrainingBlockLabel(block)}, ${masterTrainingRecLabel(block)}`);
   });
-  (Array.isArray(training.blocks) ? training.blocks : [])
-    .filter((block) => block.kind === 'rest')
-    .forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
+  const rawMilBlocks = Array.isArray(training.blocks) ? training.blocks : [];
+  rawMilBlocks.filter((block) => block.kind === 'rest').forEach((rest) => lines.push(masterSeriesRestSummaryText(rest)));
+  rawMilBlocks.filter((block) => block.kind === 'fartlek').forEach((item) => lines.push(masterSeriesFartlekSummaryText(item)));
+  rawMilBlocks.filter((block) => block.kind === 'curve').forEach((item) => lines.push(masterSeriesCurveSummaryText(item)));
   if (!lines.length) {
     return '';
   }
@@ -11088,9 +11285,10 @@ function milTrainingSimRowMarkup(training) {
   // pur avendo salvato tutto (vedi handleMilSeriesSave).
   const strength = training.strength && training.strength.enabled ? training.strength : null;
   const repeatItems = strength ? masterSeriesExpandGroupedBlocks((strength.items || []).filter((item) => item.kind === 'repeat')) : [];
-  // I riposi non hanno un tempo da prevedere: fuori da qui (restano comunque
-  // nel riepilogo "Allenamento svolto" sopra, via masterSeriesRestSummaryText).
-  const resultBlocks = [...repeatItems, ...blocks.filter((block) => block.kind !== 'rest')];
+  // Riposi/fartlek/curve non hanno un tempo da prevedere: fuori da qui
+  // (restano comunque nel riepilogo "Allenamento svolto" sopra, vedi
+  // milTrainingWorkoutSummaryMarkup).
+  const resultBlocks = [...repeatItems, ...blocks.filter((block) => block.kind !== 'rest' && block.kind !== 'fartlek' && block.kind !== 'curve')];
   const athletes = Array.isArray(training.athletes) ? training.athletes : [];
   const totalKm = Number(training.totalKm) || 0;
   const athletesMarkup = (resultBlocks.length && athletes.length)
@@ -11490,6 +11688,8 @@ function milSeriesEditorMarkup() {
         <div class="mseries-add-row">
           <button type="button" class="mseries-add-block-btn" id="mil-series-add-block">${MTEST_PLUS_ICON} Aggiungi blocco</button>
           <button type="button" class="mseries-add-rest-btn" id="mil-series-add-rest">${MTEST_PLUS_ICON} Aggiungi riposo</button>
+          <button type="button" class="mseries-add-fartlek-btn" id="mil-series-add-fartlek">${MTEST_PLUS_ICON} Aggiungi fartlek</button>
+          <button type="button" class="mseries-add-curve-btn" id="mil-series-add-curve">${MTEST_PLUS_ICON} Aggiungi curve</button>
           ${masterSeriesBlockClipboard ? `<button type="button" class="mseries-block-paste-btn" id="mil-series-block-paste">${MTEST_COPY_ICON} Incolla</button>` : ''}
         </div>
       `}
@@ -11559,7 +11759,7 @@ function milSeriesResultsMarkup() {
   const repeatItems = state.strength.enabled
     ? masterSeriesExpandGroupedBlocks(state.strength.items.filter((item) => item.kind === 'repeat'))
     : [];
-  const resultBlocks = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest')];
+  const resultBlocks = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest' && block.kind !== 'fartlek' && block.kind !== 'curve')];
   const volumeSuffixParts = [];
   if (gapDeductionKm > 0) {
     volumeSuffixParts.push('pause lunghe');
@@ -11696,7 +11896,7 @@ async function handleMilSeriesSave() {
   const repeatItemsForName = milSeriesState.strength.enabled
     ? masterSeriesExpandGroupedBlocks(milSeriesState.strength.items.filter((item) => item.kind === 'repeat'))
     : [];
-  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...expandedMilBlocks.filter((block) => block.kind !== 'rest')]);
+  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...expandedMilBlocks.filter((block) => block.kind !== 'rest' && block.kind !== 'fartlek' && block.kind !== 'curve')]);
   const result = await showTrainingSavePrompt("Nome dell'allenamento", {
     detail: 'Lo ritroverai in Storico allenamenti, nel mese scelto, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
@@ -11753,6 +11953,20 @@ if (milSeriesBody) {
     const addRestBtn = event.target.closest('#mil-series-add-rest');
     if (addRestBtn) {
       milSeriesState.blocks.push(masterSeriesDefaultRest());
+      renderMilSeries();
+      return;
+    }
+
+    const addFartlekBtn = event.target.closest('#mil-series-add-fartlek');
+    if (addFartlekBtn) {
+      milSeriesState.blocks.push(masterSeriesDefaultFartlek());
+      renderMilSeries();
+      return;
+    }
+
+    const addCurveBtn = event.target.closest('#mil-series-add-curve');
+    if (addCurveBtn) {
+      milSeriesState.blocks.push(masterSeriesDefaultCurve());
       renderMilSeries();
       return;
     }
@@ -11939,6 +12153,11 @@ if (milSeriesBody) {
   });
 
   milSeriesBody.addEventListener('change', (event) => {
+    const curveFastInput = event.target.closest('.mseries-curve-fast-input');
+    if (curveFastInput) {
+      milSeriesFindBlock(curveFastInput).fastPart = curveFastInput.value;
+      return;
+    }
     const recModeInput = event.target.closest('.mseries-rec-mode-input');
     if (recModeInput) {
       milSeriesFindBlock(recModeInput).recMode = recModeInput.value;
@@ -12081,6 +12300,28 @@ if (milSeriesBody) {
       const restBlock = milSeriesFindBlock(restRecInput);
       restBlock.recDigits = restRecInput.dataset.digits;
       masterSeriesUpdateRestNote(restRecInput, restBlock);
+      return;
+    }
+    const fartlekHardInput = event.target.closest('.mseries-fartlek-hard-input');
+    if (fartlekHardInput) {
+      milSeriesFindBlock(fartlekHardInput).hard = fartlekHardInput.value;
+      return;
+    }
+    const fartlekEasyInput = event.target.closest('.mseries-fartlek-easy-input');
+    if (fartlekEasyInput) {
+      milSeriesFindBlock(fartlekEasyInput).easy = fartlekEasyInput.value;
+      return;
+    }
+    const fartlekRepsInput = event.target.closest('.mseries-fartlek-reps-input');
+    if (fartlekRepsInput) {
+      fartlekRepsInput.value = fartlekRepsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      milSeriesFindBlock(fartlekRepsInput).reps = fartlekRepsInput.value;
+      return;
+    }
+    const curveLapsInput = event.target.closest('.mseries-curve-laps-input');
+    if (curveLapsInput) {
+      curveLapsInput.value = curveLapsInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+      milSeriesFindBlock(curveLapsInput).laps = curveLapsInput.value;
       return;
     }
     const recInput = event.target.closest('.mseries-rec-input');

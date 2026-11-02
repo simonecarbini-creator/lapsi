@@ -4790,6 +4790,45 @@ button:active {
   margin-bottom: 0;
 }
 
+/* Fartlek e curve: stesso box tratteggiato del riposo, solo con i campi
+   di testo libero al posto della durata (vedi masterSeriesFartlekMarkup/
+   masterSeriesCurveMarkup — niente calcolo, solo da ricordare). */
+.mseries-fartlek-block,
+.mseries-curve-block {
+  padding: 10px;
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  background: var(--bg-strong);
+}
+
+.mseries-fartlek-head,
+.mseries-curve-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mseries-fartlek-label,
+.mseries-curve-label {
+  flex: 1 1 auto;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.mseries-result-fartlek,
+.mseries-result-curve {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg-strong);
+}
+
+.mseries-result-fartlek .mseries-result-header,
+.mseries-result-curve .mseries-result-header {
+  margin-bottom: 0;
+}
+
 .mseries-block-row {
   display: flex;
   align-items: center;
