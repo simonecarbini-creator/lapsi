@@ -1,5 +1,5 @@
-const APP_BUILD = '2026-10-22c';
-console.log('[Lapsi] build', APP_BUILD, '— fix colore blu di "Aggiungi riposo" dentro il giorno di forza');
+const APP_BUILD = '2026-11-02a';
+console.log('[Lapsi] build', APP_BUILD, '— ripeti blocco ×N (ripetute, blocchi di corsa, esercizi di forza)');
 
 // Autodifesa contro l'HTML in cache: su iPhone, un'icona salvata in Home può
 // restare bloccata su un index.html vecchio mentre questo script (grazie al
@@ -1842,6 +1842,109 @@ function showTrainingSavePrompt(message, { detail = '', placeholder = '', defaul
       overlay.classList.add('is-open');
       input.focus();
       input.select();
+    });
+  });
+}
+
+// Popup per "ripeti blocco ×N" (sia un blocco di ripetute/blocco di corsa,
+// sia un esercizio del giorno di forza): quante volte ripetere l'intero
+// blocco così com'è configurato, il recupero tra una ripetizione e l'altra
+// (stesso mm'ss"/attivo del recupero tra le serie già esistente) e se
+// saltare quel recupero dopo l'ultima — puramente descrittivo, come
+// l'analogo "Salta l'ultimo recupero" dei blocchi normali, non tocca il
+// calcolo. "existing" (se presente, {count, recDigits, recActive, skipLast})
+// precompila il form per modificare un gruppo già creato, e aggiunge il
+// pulsante per scioglierlo. Risolve con { count, recDigits, recActive,
+// skipLast } | 'dissolve' | null (annullato).
+function showGroupRepeatPrompt(existing) {
+  document.querySelectorAll('.app-overlay').forEach((el) => el.remove());
+
+  return new Promise((resolve) => {
+    const count = existing ? String(existing.count) : '3';
+    const recDigits = existing ? existing.recDigits : '200';
+    const recActive = existing ? !!existing.recActive : false;
+    const skipLast = existing ? !!existing.skipLast : false;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'app-overlay app-confirm';
+    overlay.innerHTML = `
+      <div class="app-confirm-box" role="dialog" aria-modal="true">
+        <button type="button" class="app-confirm-close" data-choice-close aria-label="Chiudi">${MTEST_CLOSE_ICON}</button>
+        <div class="app-confirm-text">Ripeti il blocco</div>
+        <div class="app-confirm-sub">L'intero blocco (così com'è configurato ora) si ripete N volte: modificando distanze o recupero in seguito, cambiano tutte le ripetizioni insieme.</div>
+        <div class="field-group">
+          <label>Quante ripetizioni</label>
+          <input type="text" inputmode="numeric" autocomplete="off" class="grp-count-input" value="${escapeHtml(count)}" placeholder="3" />
+        </div>
+        <div class="field-group">
+          <label>Recupero tra le ripetizioni</label>
+          <input type="text" inputmode="numeric" autocomplete="off" class="grp-rec-input" data-digits="${escapeHtml(recDigits)}" value="${escapeHtml(seriesFormatRecMask(recDigits))}" placeholder="2′00″" />
+        </div>
+        ${masterSeriesCheckboxMarkup('grp-active-input', '', recActive, 'attivo (corsa lenta, non fermi)')}
+        ${masterSeriesCheckboxMarkup('grp-skip-input', '', skipLast, "Salta il recupero dopo l'ultima ripetizione")}
+        <div class="app-confirm-actions app-confirm-actions-col">
+          <button type="button" class="app-btn app-btn-success" data-choice="ok">${MTEST_CHECK_ICON} Salva</button>
+          ${existing ? `<button type="button" class="app-btn app-btn-danger" data-choice="dissolve">Sciogli gruppo</button>` : ''}
+          <button type="button" class="app-btn app-btn-ghost" data-choice="cancel">Annulla</button>
+        </div>
+      </div>
+    `;
+    const countInput = overlay.querySelector('.grp-count-input');
+    const recInput = overlay.querySelector('.grp-rec-input');
+    recInput.addEventListener('input', () => {
+      recInput.dataset.digits = recInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+      recInput.value = seriesFormatRecMask(recInput.dataset.digits);
+      const end = recInput.value.length;
+      recInput.setSelectionRange(end, end);
+    });
+    countInput.addEventListener('input', () => {
+      countInput.value = countInput.value.replace(/[^0-9]/g, '').slice(0, 2);
+    });
+
+    let settled = false;
+    const close = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      document.removeEventListener('keydown', onKey);
+      let value = null;
+      if (result === 'ok') {
+        const n = Math.max(2, Math.min(99, parseInt(countInput.value, 10) || 2));
+        value = {
+          count: n,
+          recDigits: recInput.dataset.digits || '',
+          recActive: overlay.querySelector('.grp-active-input').checked,
+          skipLast: overlay.querySelector('.grp-skip-input').checked,
+        };
+      } else if (result === 'dissolve') {
+        value = 'dissolve';
+      }
+      dismissOverlay(overlay, () => resolve(value));
+    };
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        close(null);
+      }
+    };
+
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay || event.target.closest('[data-choice-close]')) {
+        close(null);
+        return;
+      }
+      const choiceButton = event.target.closest('[data-choice]');
+      if (choiceButton) {
+        close(choiceButton.dataset.choice);
+      }
+    });
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-open');
+      countInput.focus();
+      countInput.select();
     });
   });
 }
@@ -6101,6 +6204,13 @@ function masterSeriesDefaultBlock() {
     // step" tra le serie in Garmin Connect. skip=true = si passa dritti al
     // blocco successivo senza pausa.
     gapBefore: { skip: false, recDigits: '200', recActive: false },
+    // null = blocco singolo (comportamento invariato). Se impostato (pulsante
+    // "×N"), l'INTERO blocco così com'è si ripete "count" volte: modificare
+    // distanze/recupero cambia tutte le ripetizioni insieme, dato che restano
+    // UN blocco solo finché non si calcola/salva (vedi
+    // masterSeriesExpandGroupedBlocks, che le separa in blocchi veri e propri
+    // con una pausa reale tra l'una e l'altra, come aggiungerle a mano).
+    groupRepeat: null,
   };
 }
 
@@ -6135,6 +6245,11 @@ function masterSeriesDefaultStrengthExercise() {
     // una delle 3 in RipeteCalc.STRENGTH_DESCENTS, vuoto = nessuna.
     descentType: '',
     descentReps: '',
+    // Come groupRepeat sui blocchi di corsa (pulsante "×N"): qui però è solo
+    // descrittivo (il recupero tra le ripetizioni non entra in nessun
+    // calcolo, gli esercizi di forza non hanno un gapBefore) — moltiplica
+    // semplicemente volume/eccentrico per "count" (vedi masterSeriesStrengthItemCalc).
+    groupRepeat: null,
   };
 }
 
@@ -6408,7 +6523,12 @@ function masterSeriesStrengthItemCalc(item) {
     }
   }
 
-  return { volume, eccentrico };
+  // "×N" (vedi masterSeriesDefaultStrengthExercise): tutto l'esercizio
+  // appena calcolato si ripete "count" volte, puro moltiplicatore — il
+  // recupero del gruppo qui è solo descrittivo, non ha un gapBefore da
+  // dedurre come i blocchi di corsa.
+  const groupCount = item.groupRepeat && item.groupRepeat.count > 1 ? item.groupRepeat.count : 1;
+  return { volume: volume * groupCount, eccentrico: eccentrico * groupCount };
 }
 
 // Volume equivalente + carico eccentrico totali di tutti gli esercizi del
@@ -6727,10 +6847,51 @@ function masterSeriesParseDistances(str) {
     .filter((n) => Number.isFinite(n) && n >= 50 && n <= 3000);
 }
 
+// Quante volte l'intero blocco (reps × distanze) si ripete: 1 di default,
+// "count" se è un gruppo "×N" (vedi masterSeriesDefaultBlock/showGroupRepeatPrompt).
+function masterSeriesGroupCount(block) {
+  return block.groupRepeat && block.groupRepeat.count > 1 ? block.groupRepeat.count : 1;
+}
+
 function masterSeriesBlockVolume(block) {
   const reps = Math.max(1, parseInt(block.reps, 10) || 1);
   const distances = masterSeriesParseDistances(block.dist);
-  return reps * distances.reduce((sum, d) => sum + d, 0);
+  return reps * distances.reduce((sum, d) => sum + d, 0) * masterSeriesGroupCount(block);
+}
+
+// Ripetute totali di un blocco (per il conteggio mostrato nel totale della
+// serie): reps × numero di distanze × volte che il blocco si ripete.
+function masterSeriesBlockRepCount(block) {
+  const reps = Math.max(1, parseInt(block.reps, 10) || 1);
+  return reps * masterSeriesParseDistances(block.dist).length * masterSeriesGroupCount(block);
+}
+
+// Separa un blocco "×N" nei suoi N blocchi veri e propri (per il calcolo dei
+// tempi, il confronto dei risultati e il salvataggio): dal secondo in poi
+// prendono una gapBefore vera con il recupero del gruppo, esattamente come
+// se fossero stati aggiunti a mano uno per uno. Un blocco non raggruppato
+// passa invariato. Usata ovunque i blocchi dell'editor diventano una
+// sequenza "piatta" da calcolare o salvare — mai nell'editor stesso, che
+// deve continuare a mostrare il blocco raggruppato come UN solo box.
+function masterSeriesExpandGroupedBlocks(blocks) {
+  const result = [];
+  (blocks || []).forEach((block) => {
+    const count = masterSeriesGroupCount(block);
+    if (count <= 1) {
+      result.push(block);
+      return;
+    }
+    const group = block.groupRepeat;
+    for (let i = 0; i < count; i++) {
+      const copy = { ...block, groupRepeat: null };
+      if (i > 0) {
+        copy.id = `${block.id}-g${i + 1}`;
+        copy.gapBefore = { skip: false, recDigits: group.recDigits, recActive: group.recActive };
+      }
+      result.push(copy);
+    }
+  });
+  return result;
 }
 
 // Checkbox custom (icona SVG invece del bordo nativo, che su macOS/Chrome a
@@ -6870,7 +7031,7 @@ function masterSeriesStrengthRowMarkup(ex) {
       </div>
       ${descentBlock}
       <div class="mseries-strength-ex-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
-      ${masterSeriesDragCopyFooterMarkup()}
+      ${masterSeriesDragCopyFooterMarkup(true, ex.groupRepeat)}
     </div>
   `;
 }
@@ -6906,9 +7067,18 @@ function masterSeriesStrengthItemMarkup(item, vam) {
 // ripetute) — niente id da passare: il click handler risale da sé al box
 // giusto con closest(STRENGTH_DRAG_UNIT_SELECTOR), esattamente come fa il
 // drag stesso.
-function masterSeriesDragCopyFooterMarkup() {
+// "groupRepeat" (se passato, anche null va bene) aggiunge il pulsante "×N"
+// per ripetere l'intero box in blocco (vedi showGroupRepeatPrompt) — solo
+// per blocchi di ripetute, blocchi di corsa ed esercizi di forza; i blocchi
+// di riposo non lo mostrano (chiamata senza secondo argomento).
+function masterSeriesDragCopyFooterMarkup(showGroupBtn = false, groupRepeat = null) {
+  const grouped = groupRepeat && groupRepeat.count > 1;
+  const groupBtn = showGroupBtn
+    ? `<button type="button" class="mseries-strength-group-btn${grouped ? ' mseries-strength-group-btn-active' : ''}" aria-label="Ripeti il blocco" title="Ripeti il blocco">${grouped ? `×${groupRepeat.count}` : '×N'}</button>`
+    : '';
   return `
     <div class="mseries-strength-row-footer">
+      ${groupBtn}
       <button type="button" class="mseries-strength-copy-btn" aria-label="Copia" title="Copia">${MTEST_COPY_ICON}</button>
       <button type="button" class="mseries-strength-drag-handle" aria-label="Tieni premuto per riordinare" title="Tieni premuto per riordinare">${MTEST_DRAG_ICON}</button>
     </div>
@@ -7124,7 +7294,7 @@ function masterSeriesBlockVolumeNoteMarkup(block) {
   return `
     <div class="mseries-block-volume-row">
       <div class="mseries-block-volume-note"${note ? '' : ' hidden'}>${escapeHtml(note)}</div>
-      ${masterSeriesDragCopyFooterMarkup()}
+      ${masterSeriesDragCopyFooterMarkup(true, block.groupRepeat)}
     </div>
   `;
 }
@@ -7556,6 +7726,9 @@ function masterSeriesStrengthExerciseSummaryText(ex) {
   if (masterSeriesStrengthIsSalita(ex.type) && ex.descentRun) {
     extras.push('ritorno correndo');
   }
+  if (ex.groupRepeat && ex.groupRepeat.count > 1) {
+    extras.push(`× ${ex.groupRepeat.count}`);
+  }
   return `${label}: ${mainPart}${extras.length ? ` — ${extras.join(', ')}` : ''}`;
 }
 
@@ -7697,9 +7870,13 @@ async function handleMasterTrainingSave(button) {
   }
   const vam = masterAthleteVam(entry);
   const state = masterSeriesGetState(athleteId);
-  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
-  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
+  // Blocchi "×N" separati nei loro blocchi veri e propri, da qui in poi —
+  // vedi masterSeriesExpandGroupedBlocks e lo stesso commento in
+  // masterSeriesBuilderMarkup.
+  const expandedBlocks = masterSeriesExpandGroupedBlocks(state.blocks);
+  const totalMeters = expandedBlocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = expandedBlocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(expandedBlocks, state.strength.items);
   // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie
   // (stesso oggetto di un blocco normale): entrano anche loro nelle tile
   // con tempo stimato, prima dei blocchi principali (stesso ordine della
@@ -7708,12 +7885,14 @@ async function handleMasterTrainingSave(button) {
   const strengthTotals = state.strength.enabled ? masterSeriesStrengthTotals(state.strength) : { volume: 0, eccentrico: 0 };
   const strengthKm = strengthTotals.volume / 1000;
   const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
-  const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
+  const repeatItems = state.strength.enabled
+    ? masterSeriesExpandGroupedBlocks(state.strength.items.filter((item) => item.kind === 'repeat'))
+    : [];
   // I blocchi di riposo non hanno distanze/stime: niente tile di previsione
   // per loro (vedi masterSeriesResultRestMarkup), restano fuori dal giro di
   // validazione/stime qui sotto — il loro effetto sul passo è già dentro
   // totalKm (restDeductionKm sopra).
-  const blocksForEstimates = [...repeatItems, ...state.blocks.filter((block) => block.kind !== 'rest')];
+  const blocksForEstimates = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest')];
   // Volume/eccentrico dei soli ESERCIZI (non dei blocchi di corsa né dei
   // riposi, già contati sopra/altrove): la riga di riepilogo sotto non deve
   // contare due volte lo stesso volume.
@@ -7939,14 +8118,19 @@ function masterSeriesBuilderMarkup(entry) {
 
   const state = masterSeriesGetState(entry.id);
   const vam = masterAthleteVam(entry);
-  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
+  // Un blocco "×N" (vedi masterSeriesDefaultBlock) resta UN box nell'editor
+  // (blocksMarkup, in fondo alla funzione — usa ancora state.blocks diretto),
+  // ma per calcolo/risultati/salvataggio si separa nei suoi N blocchi veri
+  // e propri, ciascuno con la sua pausa — vedi masterSeriesExpandGroupedBlocks.
+  const expandedBlocks = masterSeriesExpandGroupedBlocks(state.blocks);
+  const totalMeters = expandedBlocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const totalReps = expandedBlocks.reduce((sum, block) => sum + masterSeriesBlockRepCount(block), 0);
   // Le pause lunghe tra le serie riducono il volume usato nel calcolo del
   // passo (non quello mostrato come volume "reale" della seduta) — vedi
   // masterSeriesGapDeductionKm. Sottratto solo dal secondo blocco in poi:
   // il primo non ha un "prima" a cui applicare una pausa.
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
-  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
+  const gapDeductionKm = expandedBlocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(expandedBlocks, state.strength.items);
   // "Giorno di forza": salite/gradoni/balzi si sommano al volume usato nel
   // calcolo del passo, come se fossero altre ripetute — non al volume
   // "reale" della seduta mostrato come ripetute vere e proprie.
@@ -7963,13 +8147,16 @@ function masterSeriesBuilderMarkup(entry) {
       ? (entry.trainings || []).find((training) => training.id === state.savedTrainingId) || null
       : null;
     const compareOn = !!(savedTraining && state.compare);
-    const hasBlocks = state.blocks.length > 0;
+    const hasBlocks = expandedBlocks.length > 0;
     // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie
     // (stesso oggetto, vedi masterSeriesDefaultStrengthRepeat): anche loro
     // hanno una previsione di tempo da mostrare qui, non solo il volume già
     // conteggiato in strengthKm — altrimenti finendo la seduta con uno di
-    // questi non comparivano previsioni, sembrava rotto.
-    const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
+    // questi non comparivano previsioni, sembrava rotto. Possono anche loro
+    // essere un gruppo "×N" (stesso meccanismo dei blocchi normali).
+    const repeatItems = state.strength.enabled
+      ? masterSeriesExpandGroupedBlocks(state.strength.items.filter((item) => item.kind === 'repeat'))
+      : [];
     const strengthRestItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'rest') : [];
     const volumeSuffixParts = [];
     if (gapDeductionKm > 0) {
@@ -8015,7 +8202,7 @@ function masterSeriesBuilderMarkup(entry) {
           `;
           }).join('')}
           ${strengthRestItems.map((item) => masterSeriesResultRestMarkup(item)).join('')}
-          ${hasBlocks ? state.blocks.map((block, index) => {
+          ${hasBlocks ? expandedBlocks.map((block, index) => {
             if (block.kind === 'rest') {
               return masterSeriesResultRestMarkup(block);
             }
@@ -9737,6 +9924,32 @@ async function handleMasterListClick(event) {
     return;
   }
 
+  const groupBtn = event.target.closest('.mseries-strength-group-btn');
+  if (groupBtn) {
+    const unit = groupBtn.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+    if (unit) {
+      const athleteId = groupBtn.closest('.athlete-item').dataset.id;
+      const state = masterSeriesGetState(athleteId);
+      const id = strengthDragUnitId(unit);
+      const item = unit.classList.contains('mseries-block-unit')
+        ? state.blocks.find((b) => b.id === id)
+        : state.strength.items.find((it) => it.id === id);
+      if (item) {
+        const result = await showGroupRepeatPrompt(item.groupRepeat);
+        if (result === 'dissolve') {
+          item.groupRepeat = null;
+          state.showResults = false;
+          renderMaster();
+        } else if (result) {
+          item.groupRepeat = result;
+          state.showResults = false;
+          renderMaster();
+        }
+      }
+    }
+    return;
+  }
+
   const strengthPasteBtn = event.target.closest('.mseries-strength-paste-btn');
   if (strengthPasteBtn && masterSeriesStrengthClipboard) {
     const state = masterSeriesGetState(strengthPasteBtn.closest('.athlete-item').dataset.id);
@@ -10864,14 +11077,17 @@ function milTrainingWorkoutSummaryMarkup(training, resultBlocks) {
 
 function milTrainingSimRowMarkup(training) {
   const chevron = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
-  const blocks = Array.isArray(training.blocks) ? training.blocks : [];
+  // training.blocks è salvato raw/raggruppato (vedi handleMilSeriesSave):
+  // qui per le previsioni va separato come nel simulatore live — vedi
+  // masterSeriesExpandGroupedBlocks.
+  const blocks = masterSeriesExpandGroupedBlocks(Array.isArray(training.blocks) ? training.blocks : []);
   // I "blocchi di corsa" del giorno di forza sono ripetute vere e proprie:
   // entrano anche loro nelle previsioni per atleta, prima dei blocchi
   // principali — altrimenti un allenamento fatto solo di giorno di forza
   // (o che finiva con uno di questi blocchi) restava vuoto nello storico,
   // pur avendo salvato tutto (vedi handleMilSeriesSave).
   const strength = training.strength && training.strength.enabled ? training.strength : null;
-  const repeatItems = strength ? (strength.items || []).filter((item) => item.kind === 'repeat') : [];
+  const repeatItems = strength ? masterSeriesExpandGroupedBlocks((strength.items || []).filter((item) => item.kind === 'repeat')) : [];
   // I riposi non hanno un tempo da prevedere: fuori da qui (restano comunque
   // nel riepilogo "Allenamento svolto" sopra, via masterSeriesRestSummaryText).
   const resultBlocks = [...repeatItems, ...blocks.filter((block) => block.kind !== 'rest')];
@@ -11323,22 +11539,27 @@ function milAthleteCompactRowMarkup(athlete, blocks, totalKm, { readOnly = false
 
 function milSeriesResultsMarkup() {
   const state = milSeriesState;
-  const totalMeters = state.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = state.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
-  const restDeductionKm = masterSeriesRestDeductionKm(state.blocks, state.strength.items);
+  // Blocchi "×N" separati nei loro blocchi veri e propri — vedi
+  // masterSeriesExpandGroupedBlocks e masterSeriesBuilderMarkup.
+  const expandedBlocks = masterSeriesExpandGroupedBlocks(state.blocks);
+  const totalMeters = expandedBlocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = expandedBlocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(expandedBlocks, state.strength.items);
   const strengthKm = masterSeriesStrengthVolumeMeters(state.strength) / 1000;
   const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
   const rawKm = totalMeters / 1000;
-  const totalReps = state.blocks.reduce((sum, block) => sum + Math.max(1, parseInt(block.reps, 10) || 1) * masterSeriesParseDistances(block.dist).length, 0);
-  const hasBlocks = state.blocks.length > 0;
+  const totalReps = expandedBlocks.reduce((sum, block) => sum + masterSeriesBlockRepCount(block), 0);
+  const hasBlocks = expandedBlocks.length > 0;
   // Stesso motivo di masterSeriesBuilderMarkup: i "blocchi di corsa" del
   // giorno di forza sono ripetute vere e proprie, vanno mostrati agli
   // atleti come previsione di tempo anche loro, non solo come volume già
   // conteggiato in strengthKm. I riposi invece non hanno un tempo da
   // prevedere, restano fuori da questo elenco (il loro effetto sul passo è
   // già dentro totalKm).
-  const repeatItems = state.strength.enabled ? state.strength.items.filter((item) => item.kind === 'repeat') : [];
-  const resultBlocks = [...repeatItems, ...state.blocks.filter((block) => block.kind !== 'rest')];
+  const repeatItems = state.strength.enabled
+    ? masterSeriesExpandGroupedBlocks(state.strength.items.filter((item) => item.kind === 'repeat'))
+    : [];
+  const resultBlocks = [...repeatItems, ...expandedBlocks.filter((block) => block.kind !== 'rest')];
   const volumeSuffixParts = [];
   if (gapDeductionKm > 0) {
     volumeSuffixParts.push('pause lunghe');
@@ -11467,10 +11688,15 @@ async function handleMilSeriesSave() {
   const editingId = milSeriesState.editingTrainingId || null;
   const existingTrainings = readMilTrainings();
   const editingTraining = editingId ? existingTrainings.find((t) => t.id === editingId) : null;
+  // Blocchi "×N" separati nei loro blocchi veri e propri per il nome
+  // suggerito e il calcolo — il salvataggio sotto (training.blocks) tiene
+  // invece la versione raggruppata, raw, così riaprendolo in modifica il
+  // gruppo torna com'era (vedi masterSeriesExpandGroupedBlocks).
+  const expandedMilBlocks = masterSeriesExpandGroupedBlocks(milSeriesState.blocks);
   const repeatItemsForName = milSeriesState.strength.enabled
-    ? milSeriesState.strength.items.filter((item) => item.kind === 'repeat')
+    ? masterSeriesExpandGroupedBlocks(milSeriesState.strength.items.filter((item) => item.kind === 'repeat'))
     : [];
-  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...milSeriesState.blocks.filter((block) => block.kind !== 'rest')]);
+  const defaultName = editingTraining ? editingTraining.name : milDefaultTrainingName([...repeatItemsForName, ...expandedMilBlocks.filter((block) => block.kind !== 'rest')]);
   const result = await showTrainingSavePrompt("Nome dell'allenamento", {
     detail: 'Lo ritroverai in Storico allenamenti, nel mese scelto, con i tempi per atleta.',
     placeholder: 'es. Ripetute 400',
@@ -11481,9 +11707,9 @@ async function handleMilSeriesSave() {
   if (result === null) {
     return;
   }
-  const totalMeters = milSeriesState.blocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
-  const gapDeductionKm = milSeriesState.blocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
-  const restDeductionKm = masterSeriesRestDeductionKm(milSeriesState.blocks, milSeriesState.strength.items);
+  const totalMeters = expandedMilBlocks.reduce((sum, block) => sum + masterSeriesBlockVolume(block), 0);
+  const gapDeductionKm = expandedMilBlocks.slice(1).reduce((sum, block) => sum + (block.gapBefore ? masterSeriesGapDeductionKm(block.gapBefore) : 0), 0);
+  const restDeductionKm = masterSeriesRestDeductionKm(expandedMilBlocks, milSeriesState.strength.items);
   const strengthKm = masterSeriesStrengthVolumeMeters(milSeriesState.strength) / 1000;
   const totalKm = Math.max(0, totalMeters / 1000 - gapDeductionKm - restDeductionKm + strengthKm);
   const athletes = milActiveAthletesWithPace()
@@ -11661,6 +11887,28 @@ if (milSeriesBody) {
           const item = milSeriesState.strength.items.find((it) => it.id === id);
           if (item) {
             masterSeriesStrengthClipboard = masterSeriesCloneStrengthItem(item);
+            renderMilSeries();
+          }
+        }
+      }
+      return;
+    }
+
+    const groupBtn = event.target.closest('.mseries-strength-group-btn');
+    if (groupBtn) {
+      const unit = groupBtn.closest(STRENGTH_DRAG_UNIT_SELECTOR);
+      if (unit) {
+        const id = strengthDragUnitId(unit);
+        const item = unit.classList.contains('mseries-block-unit')
+          ? milSeriesState.blocks.find((b) => b.id === id)
+          : milSeriesState.strength.items.find((it) => it.id === id);
+        if (item) {
+          const result = await showGroupRepeatPrompt(item.groupRepeat);
+          if (result === 'dissolve') {
+            item.groupRepeat = null;
+            renderMilSeries();
+          } else if (result) {
+            item.groupRepeat = result;
             renderMilSeries();
           }
         }

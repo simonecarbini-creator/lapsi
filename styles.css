@@ -5358,6 +5358,33 @@ button:active {
   background: rgba(233, 233, 233, 0.95);
 }
 
+/* "×N": ripete l'intero box in blocco (vedi showGroupRepeatPrompt) — stessa
+   pillola tonda di copia/trascina accanto, ma più larga per il testo "×N"
+   (o "×3" ecc. una volta impostato un gruppo, in blu come "Aggiungi
+   riposo" per segnalare a colpo d'occhio che è attivo). */
+.mseries-strength-group-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 245, 245, 0.9);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mseries-strength-group-btn:hover {
+  background: rgba(233, 233, 233, 0.95);
+}
+
+.mseries-strength-group-btn-active {
+  background: #e3f3f7;
+  color: var(--soglia-color);
+}
+
 .mseries-strength-paste-btn {
   display: flex;
   align-items: center;
